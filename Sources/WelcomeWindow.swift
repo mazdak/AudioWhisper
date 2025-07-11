@@ -3,47 +3,46 @@ import SwiftUI
 
 class WelcomeWindow {
     static func showWelcomeDialog() -> Bool {
-        let alert = NSAlert()
-        alert.messageText = "Welcome to AudioWhisper!"
-        alert.informativeText = """
-        AudioWhisper allows you to quickly record and transcribe audio using AI.
+        // Show the new SwiftUI welcome window
+        let welcomeView = WelcomeView()
+        let hostingController = NSHostingController(rootView: welcomeView)
         
-        To get started:
-        • Configure your API key (OpenAI, Gemini, or use Local Whisper)
-        • Use ⌘⇧Space to open the recording window
-        • Press Space to start/stop recording
-        • Transcribed text is automatically pasted
+        // Get the main screen dimensions for proper centering
+        let screenFrame = NSScreen.main?.frame ?? NSRect(x: 0, y: 0, width: 1920, height: 1080)
+        let windowWidth: CGFloat = 600
+        let windowHeight: CGFloat = 650
         
-        Would you like to open Settings to configure your transcription provider?
-        """
-        alert.alertStyle = .informational
+        let window = NSWindow(
+            contentRect: NSRect(
+                x: (screenFrame.width - windowWidth) / 2,
+                y: (screenFrame.height - windowHeight) / 2,
+                width: windowWidth,
+                height: windowHeight
+            ),
+            styleMask: [.titled, .closable, .miniaturizable],
+            backing: .buffered,
+            defer: false
+        )
         
-        // Set custom app icon instead of default folder icon
-        if let appIconPath = Bundle.main.path(forResource: "AppIcon", ofType: "icns"),
-           let appIcon = NSImage(contentsOfFile: appIconPath) {
-            alert.icon = appIcon
-        } else {
-            // Fallback to system microphone icon if app icon not found
-            let micIcon = NSImage(systemSymbolName: "mic.circle.fill", accessibilityDescription: "AudioWhisper")
-            micIcon?.isTemplate = false
-            alert.icon = micIcon
+        window.contentViewController = hostingController
+        window.title = "Welcome to AudioWhisper"
+        window.isReleasedWhenClosed = false
+        
+        // Ensure proper focus and activation
+        NSApplication.shared.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
+        
+        // Force focus after a brief delay
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            NSApplication.shared.activate(ignoringOtherApps: true)
+            window.makeKey()
         }
         
-        alert.addButton(withTitle: "Open Settings")
-        alert.addButton(withTitle: "Use Local Whisper")
-        alert.addButton(withTitle: "Skip Setup")
+        // Run the window modally
+        let response = NSApplication.shared.runModal(for: window)
+        window.close()
         
-        let response = alert.runModal()
-        
-        switch response {
-        case .alertFirstButtonReturn:
-            return true // Open settings
-        case .alertSecondButtonReturn:
-            // Set local whisper as default
-            UserDefaults.standard.set(TranscriptionProvider.local.rawValue, forKey: "transcriptionProvider")
-            return false // Don't open settings
-        default:
-            return false // Skip setup
-        }
+        return response == .OK
     }
 }

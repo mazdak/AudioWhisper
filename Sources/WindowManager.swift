@@ -19,7 +19,14 @@ class WindowManager: ObservableObject {
         }
         
         if let window = app.windows.first(where: { window in
-            window.contentView is NSHostingView<ContentView>
+            // Check for ContentView in either direct hosting view or as a hosted controller
+            if window.contentView is NSHostingView<ContentView> {
+                return true
+            }
+            if window.contentViewController is NSHostingController<ContentView> {
+                return true
+            }
+            return false
         }) {
             configureWindow(window)
             setupWindowObserver(for: window)
@@ -32,11 +39,24 @@ class WindowManager: ObservableObject {
     }
     
     private func configureWindow(_ window: NSWindow) {
-        window.styleMask = [.borderless, .fullSizeContentView]
+        // Remove ALL window chrome - must be borderless only
+        window.styleMask = [.borderless]
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
         window.isMovableByWindowBackground = true
         window.backgroundColor = .clear
         window.level = .statusBar
         window.title = "AudioWhisper Recording"
+        window.hasShadow = true
+        window.isOpaque = false
+        
+        // Hide the title bar completely
+        window.standardWindowButton(.closeButton)?.isHidden = true
+        window.standardWindowButton(.miniaturizeButton)?.isHidden = true
+        window.standardWindowButton(.zoomButton)?.isHidden = true
+        
+        // Force the window to update its appearance
+        window.appearance = NSApp.appearance
         
         centerWindow(window)
         enableMouseTracking(for: window)

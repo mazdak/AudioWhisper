@@ -9,11 +9,27 @@ class PasteManager: ObservableObject {
     /// Uses smart accessibility-based pasting with fallback to Cmd+V
     func pasteToActiveApp() {
         Task {
-            let success = await trySmartPaste()
-            if !success {
+            // Check accessibility permissions first
+            let hasAccessibility = checkAccessibilityPermissions()
+            
+            if hasAccessibility {
+                let success = await trySmartPaste()
+                if !success {
+                    await fallbackToCmdV()
+                }
+            } else {
+                // Skip accessibility attempt and go straight to Cmd+V
                 await fallbackToCmdV()
             }
         }
+    }
+    
+    // MARK: - Accessibility Permission Check
+    
+    private func checkAccessibilityPermissions() -> Bool {
+        let checkOptionPrompt = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
+        let options = [checkOptionPrompt: false] as CFDictionary
+        return AXIsProcessTrustedWithOptions(options)
     }
     
     // MARK: - Smart Accessibility Pasting
@@ -50,6 +66,7 @@ class PasteManager: ObservableObject {
         var focusedElement: CFTypeRef?
         let result = AXUIElementCopyAttributeValue(appElement, kAXFocusedUIElementAttribute as CFString, &focusedElement)
         
+        // Silently return false on any accessibility failure to prevent system sounds
         guard result == .success, let focused = focusedElement else {
             return false
         }
@@ -61,17 +78,22 @@ class PasteManager: ObservableObject {
         let axElement = unsafeBitCast(focused, to: AXUIElement.self)
         
         // Check if the focused element is a text field or text area
-        if try isTextInputElement(axElement) {
-            // Get current clipboard content
-            guard let clipboardString = NSPasteboard.general.string(forType: .string) else {
-                return false
+        do {
+            if try isTextInputElement(axElement) {
+                // Get current clipboard content
+                guard let clipboardString = NSPasteboard.general.string(forType: .string) else {
+                    return false
+                }
+                
+                // Try to set the value directly using accessibility
+                let success = try setTextValue(element: axElement, text: clipboardString)
+                if success {
+                    return true
+                }
             }
-            
-            // Try to set the value directly using accessibility
-            let success = try setTextValue(element: axElement, text: clipboardString)
-            if success {
-                return true
-            }
+        } catch {
+            // Silently handle any accessibility errors to prevent system sounds
+            return false
         }
         
         return false
