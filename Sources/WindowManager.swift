@@ -19,7 +19,14 @@ class WindowManager: ObservableObject {
         }
         
         if let window = app.windows.first(where: { window in
-            window.contentView is NSHostingView<ContentView>
+            // Check for ContentView in either direct hosting view or as a hosted controller
+            if window.contentView is NSHostingView<ContentView> {
+                return true
+            }
+            if window.contentViewController is NSHostingController<ContentView> {
+                return true
+            }
+            return false
         }) {
             configureWindow(window)
             setupWindowObserver(for: window)
@@ -32,11 +39,25 @@ class WindowManager: ObservableObject {
     }
     
     private func configureWindow(_ window: NSWindow) {
-        window.styleMask = [.borderless, .fullSizeContentView]
+        // Remove ALL window chrome - must be borderless only
+        window.styleMask = [.borderless]
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
         window.isMovableByWindowBackground = true
         window.backgroundColor = .clear
-        window.level = .statusBar
+        window.level = .floating
+        window.collectionBehavior = .canJoinAllSpaces
         window.title = "AudioWhisper Recording"
+        window.hasShadow = true
+        window.isOpaque = false
+        
+        // Hide the title bar completely
+        window.standardWindowButton(.closeButton)?.isHidden = true
+        window.standardWindowButton(.miniaturizeButton)?.isHidden = true
+        window.standardWindowButton(.zoomButton)?.isHidden = true
+        
+        // Force the window to update its appearance
+        window.appearance = NSApp.appearance
         
         centerWindow(window)
         enableMouseTracking(for: window)
@@ -100,14 +121,31 @@ class WindowManager: ObservableObject {
             window.styleMask = [.borderless, .fullSizeContentView]
             window.isMovableByWindowBackground = true
             window.backgroundColor = .clear
-            window.level = .statusBar
+            window.level = .screenSaver
+            window.collectionBehavior = [.canJoinAllSpaces, .fullScreenPrimary]
             window.title = "AudioWhisper Recording"
             recordWindow = window
         }
     }
     
     func showRecordingWindow() {
-        recordWindow?.makeKeyAndOrderFront(nil)
+        guard let window = recordWindow else { return }
+        
+        // Force window to current Space
+        if let screen = NSScreen.main {
+            let screenFrame = screen.frame
+            let windowFrame = window.frame
+            let centeredOrigin = NSPoint(
+                x: (screenFrame.width - windowFrame.width) / 2,
+                y: (screenFrame.height - windowFrame.height) / 2 + 50
+            )
+            window.setFrameOrigin(centeredOrigin)
+        }
+        
+        NSApp?.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
+        window.makeKey()
     }
     
     func hideRecordingWindow() {

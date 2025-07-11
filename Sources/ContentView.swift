@@ -65,7 +65,7 @@ enum AppStatus: Equatable {
     
     var shouldAnimate: Bool {
         switch self {
-        case .recording:
+        case .recording, .processing:
             return true
         default:
             return false
@@ -242,49 +242,36 @@ struct StatusDisplayView: View {
 struct StatusIndicator: View {
     let status: AppStatus
     @State private var isAnimating = false
-    @State private var rotationAngle: Double = 0
     
     var body: some View {
-        // Fixed container to prevent diagonal movement
+        // Fixed size container to prevent any positional animation
         ZStack {
-            if let iconName = status.icon {
-                Image(systemName: iconName)
-                    .font(.system(size: 10))
-                    .foregroundColor(status.color)
-                    .animation(.easeInOut(duration: 0.3), value: status.color)
-            } else if case .processing(_) = status {
-                // Show spinner for processing
-                ProgressView()
-                    .progressViewStyle(CircularProgressViewStyle(tint: status.color))
-                    .scaleEffect(0.6)
-                    .frame(width: 12, height: 12)
-            } else {
-                Circle()
-                    .fill(status.color)
-                    .frame(width: 8, height: 8)
-                    .opacity(isAnimating ? 0.7 : 1.0)
-                    .animation(.easeInOut(duration: 0.3), value: status.color)
-                    .onAppear {
-                        if status.shouldAnimate {
-                            withAnimation(Animation.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
-                                isAnimating = true
-                            }
+            Color.clear
+                .frame(width: 12, height: 12) // Fixed container size
+            
+            Circle()
+                .fill(status.color)
+                .frame(width: 8, height: 8)
+                .opacity(status.shouldAnimate ? (isAnimating ? 0.7 : 1.0) : 1.0)
+                .onAppear {
+                    if status.shouldAnimate {
+                        withAnimation(Animation.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
+                            isAnimating = true
                         }
                     }
-                    .onChange(of: status.shouldAnimate) { _, shouldAnimate in
-                        if shouldAnimate {
-                            withAnimation(Animation.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
-                                isAnimating = true
-                            }
-                        } else {
-                            withAnimation(.easeOut(duration: 0.2)) {
-                                isAnimating = false
-                            }
+                }
+                .onChange(of: status.shouldAnimate) { _, shouldAnimate in
+                    if shouldAnimate {
+                        withAnimation(Animation.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
+                            isAnimating = true
+                        }
+                    } else {
+                        withAnimation(.easeOut(duration: 0.2)) {
+                            isAnimating = false
                         }
                     }
-            }
+                }
         }
-        .frame(width: 12, height: 12) // Fixed container size
     }
 }
 
@@ -529,6 +516,7 @@ struct ContentView: View {
     @StateObject private var pasteManager = PasteManager()
     @StateObject private var statusViewModel = StatusViewModel()
     @StateObject private var permissionManager = PermissionManager()
+    @StateObject private var soundManager = SoundManager()
     @State private var isProcessing = false
     @State private var progressMessage = "Processing..."
     @State private var transcriptionStartTime: Date?
@@ -898,6 +886,9 @@ struct ContentView: View {
         // Show success state
         showSuccess = true
         isProcessing = false
+        
+        // Play gentle completion sound
+        soundManager.playCompletionSound()
         
         // Paste the text immediately
         pasteManager.pasteToActiveApp()

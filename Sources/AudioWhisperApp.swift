@@ -10,7 +10,8 @@ struct AudioWhisperApp: App {
     @StateObject private var windowManager = WindowManager()
     
     var body: some Scene {
-        WindowGroup(id: "main") {
+        // Recording window - always the same, chromeless
+        WindowGroup(id: "recording") {
             ContentView()
                 .frame(width: 280, height: 160)
                 .fixedSize()
@@ -22,6 +23,11 @@ struct AudioWhisperApp: App {
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
         .defaultPosition(.center)
+        
+        // Settings window - normal chrome
+        Settings {
+            SettingsView()
+        }
         .commands {
             CommandGroup(replacing: .appSettings) {
                 Button(LocalizedStrings.Menu.settings) {
@@ -81,6 +87,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Set up global keyboard monitoring 
         setupGlobalKeyMonitoring()
         
+        // Hide recording window initially (it will show when hotkey is pressed)
+        DispatchQueue.main.async {
+            let recordWindow = NSApp.windows.first { window in
+                window.title == "AudioWhisper Recording"
+            }
+            recordWindow?.orderOut(nil)
+        }
+
         // Check for first run and show settings if needed
         checkFirstRun()
     }
@@ -149,6 +163,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self,
             selector: #selector(openSettings),
             name: NSNotification.Name("OpenSettingsRequested"),
+            object: nil
+        )
+        
+        // Listen for welcome completion to setup recording window
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(onWelcomeCompleted),
+            name: NSNotification.Name("WelcomeCompleted"),
             object: nil
         )
         
@@ -269,6 +291,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     @objc func toggleRecordWindow() {
+        // Don't show recorder window during first-run welcome experience
+        let hasCompletedWelcome = UserDefaults.standard.bool(forKey: "hasCompletedWelcome")
+        if !hasCompletedWelcome {
+            return
+        }
+        
         // Find the recording window by title
         let recordWindow = NSApp.windows.first { window in
             window.title == "AudioWhisper Recording"
@@ -284,8 +312,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 window.isOpaque = false
                 window.hasShadow = true
                 
-                // Show and activate
+                // Force window to current Space and show
+                window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+                window.level = .floating
                 window.makeKeyAndOrderFront(nil)
+                window.orderFrontRegardless()
                 NSApp.activate(ignoringOtherApps: true)
                 
                 // Make window key but don't set first responder to prevent focus ring
@@ -307,7 +338,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let settingsWindow = NSApp.windows.first { $0.title == LocalizedStrings.Settings.title }
         
         if let window = settingsWindow {
+            // Bring existing window to front and focus
+            NSApp.activate(ignoringOtherApps: true)
             window.makeKeyAndOrderFront(nil)
+            window.orderFrontRegardless()
         } else {
             // Create new settings window manually since SwiftUI Settings scene is problematic
             let settingsWindow = NSWindow(
@@ -321,25 +355,33 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             settingsWindow.isReleasedWhenClosed = false
             settingsWindow.contentView = NSHostingView(rootView: SettingsView())
             settingsWindow.center()
-            settingsWindow.makeKeyAndOrderFront(nil)
+            
+            // Activate app first, then show window
             NSApp.activate(ignoringOtherApps: true)
+            settingsWindow.makeKeyAndOrderFront(nil)
+            settingsWindow.orderFrontRegardless()
         }
-        
-        NSApp.activate(ignoringOtherApps: true)
     }
     
     func checkFirstRun() {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            // Check if user has configured API keys or selected local transcription
-            let hasOpenAIKey = self.hasAPIKey(service: "AudioWhisper", account: "OpenAI")
-            let hasGeminiKey = self.hasAPIKey(service: "AudioWhisper", account: "Gemini")
-            let hasLocalProvider = UserDefaults.standard.string(forKey: "transcriptionProvider") == TranscriptionProvider.local.rawValue
+            // Check if this is truly the first run - no provider set at all
+            let hasExistingProvider = UserDefaults.standard.string(forKey: "transcriptionProvider") != nil
+            let hasCompletedWelcome = UserDefaults.standard.bool(forKey: "hasCompletedWelcome")
             
-            if !hasOpenAIKey && !hasGeminiKey && !hasLocalProvider {
-                // First run - show welcome dialog
+            if !hasExistingProvider && !hasCompletedWelcome {
+                // First run - default to LocalWhisper and show welcome dialog
+                UserDefaults.standard.set(TranscriptionProvider.local.rawValue, forKey: "transcriptionProvider")
                 self.showWelcomeAndSettings()
+            } else if !hasExistingProvider {
+                // Provider was somehow reset - default to LocalWhisper
+                UserDefaults.standard.set(TranscriptionProvider.local.rawValue, forKey: "transcriptionProvider")
             }
         }
+    }
+    
+    @objc func onWelcomeCompleted() {
+        // Nothing needed - the recording window exists and will be shown by hotkey
     }
     
     func hasAPIKey(service: String, account: String) -> Bool {

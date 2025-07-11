@@ -118,6 +118,7 @@ Temporary Items
 # App specific
 AudioWhisper.app/
 AudioWhisper.zip
+notarization.log
 *.xcodeproj/
 
 # Environment
