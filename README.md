@@ -10,9 +10,9 @@ A lightweight macOS menu bar app for quick audio transcription using OpenAI Whis
 
 - **🎯 Quick Access**: Global hotkey (⌘⇧Space) to start recording from anywhere
 - **🎙️ Menu Bar App**: Lives quietly in your menu bar, no dock icon
-- **🚀 Instant Transcription**: Powered by OpenAI Whisper, Google Gemini, or Local WhisperKit with CoreML
+- **🚀 Instant Transcription**: Powered by OpenAI Whisper, Google Gemini, or locally by WhisperKit with CoreML, [Parakeet with MLX](https://github.com/senstella/parakeet-mlx)
 - **📋 Auto-Paste**: Transcribed text is automatically copied and can be pasted
-- **🎚️ Visual Feedback**: Real-time audio level indicator while recording
+- **🔈 Visual and Sound Feedback**: Real-time audio level indicator while recording, chime when finished transcription
 - **⌨️ Keyboard Shortcuts**: Space to start/stop recording, ESC to cancel
 - **💬 User Guidance**: Clear on-screen instructions for all actions
 - **🌓 Dark Mode**: Beautiful native macOS design that adapts to your system
@@ -57,6 +57,13 @@ cp -r AudioWhisper.app /Applications/
 - Choose from 6 different model sizes (39MB to 2.9GB)
 - Models download automatically on first use
 
+**Local Parakeet (VERY Fast, English only, Privacy-First)**
+- No API key required
+- Audio never leaves your device
+- MLX hardware acceleration
+- ADVANCED: Make sure you have a Python installation on your machine: [Parakeet MLX Instructions](https://github.com/senstella/parakeet-mlx).
+- Pick Parakeet and Python in the full path to your Python binary
+
 **OpenAI (Recommended for Cloud)**
 1. Visit https://platform.openai.com/api-keys
 2. Create a new API key
@@ -75,6 +82,8 @@ cp -r AudioWhisper.app /Applications/
 4. Choose your preferred provider:
    - **Local WhisperKit**: Select model size (downloads automatically, no API key needed)
    - **OpenAI or Gemini**: Paste your API key and click "Save"
+   - **Advanced: Parakeet 🦜**: You need a working Python 3 installation with `parakeet-mlx` installed.
+
 5. Toggle "Start at Login" if you want the app to launch automatically
 
 ## Usage 🎯
