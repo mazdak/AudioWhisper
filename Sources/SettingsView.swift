@@ -183,63 +183,92 @@ struct SettingsView: View {
                 
                 // Parakeet Configuration
                 if transcriptionProvider == .parakeet {
-                    VStack(alignment: .leading, spacing: 12) {
-                        // Warning banner
-                        HStack(alignment: .top, spacing: 6) {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundColor(.orange)
-                                .font(.system(size: 12))
-                            Text("Advanced: Requires Python with parakeet-mlx and FFmpeg installed. First use will download ~600MB model, may be slow. Models stored in ~/.cache/huggingface/hub/")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
+                    VStack(alignment: .leading, spacing: 16) {
+                        // Info banner with icon
+                        HStack(alignment: .top, spacing: 12) {
+                            Image(systemName: "cpu")
+                                .font(.system(size: 20))
+                                .foregroundColor(.blue)
+                                .frame(width: 32, height: 32)
+                                .background(Color.blue.opacity(0.1))
+                                .clipShape(Circle())
+                            
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Advanced Local Processing")
+                                    .font(.headline)
+                                    .fontWeight(.semibold)
+                                
+                                Text("Requires Python with parakeet-mlx and FFmpeg. First use downloads ~600MB model.")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
                         }
                         
-                        // Python path configuration
-                        VStack(alignment: .leading, spacing: 8) {
+                        // Python Configuration Card
+                        VStack(alignment: .leading, spacing: 12) {
                             HStack {
+                                Image(systemName: "terminal")
+                                    .foregroundColor(.blue)
                                 Text("Python Path")
-                                    .font(.system(size: 11))
-                                    .foregroundColor(.secondary)
+                                    .font(.headline)
+                                    .fontWeight(.medium)
                                 Spacer()
                             }
                             
-                            TextField("", text: $parakeetPythonPath)
+                            TextField("Python executable path", text: $parakeetPythonPath)
                                 .textFieldStyle(.roundedBorder)
+                                .font(.system(.body, design: .monospaced))
                             
-                            HStack {
-                                Spacer()
+                            HStack(spacing: 8) {
                                 Button("Browse...") {
                                     selectPythonPath()
                                 }
                                 .buttonStyle(.bordered)
+                                .controlSize(.regular)
                                 
-                                Button("Test") {
+                                Button("Test Setup") {
                                     testParakeetSetup()
                                 }
-                                .buttonStyle(.bordered)
+                                .buttonStyle(.borderedProminent)
+                                .controlSize(.regular)
+                                
+                                Spacer()
                             }
                         }
+                        .padding(16)
+                        .background(Color(NSColor.controlBackgroundColor))
+                        .cornerRadius(8)
                         
-                        // FFmpeg path configuration (optional)
-                        VStack(alignment: .leading, spacing: 8) {
+                        // FFmpeg Configuration Card
+                        VStack(alignment: .leading, spacing: 12) {
                             HStack {
-                                Text("FFmpeg Path (Optional)")
-                                    .font(.system(size: 11))
-                                    .foregroundColor(.secondary)
+                                Image(systemName: "waveform")
+                                    .foregroundColor(.green)
+                                Text("FFmpeg Path")
+                                    .font(.headline)
+                                    .fontWeight(.medium)
                                 Spacer()
-                                Text("Leave empty to auto-detect")
-                                    .font(.caption2)
+                                Text("Optional")
+                                    .font(.caption)
                                     .foregroundColor(.secondary)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 2)
+                                    .background(Color.secondary.opacity(0.1))
+                                    .cornerRadius(4)
                             }
                             
-                            TextField("e.g., /opt/homebrew/bin or /usr/local/bin/ffmpeg", text: $parakeetFFmpegPath)
+                            TextField("Leave empty for auto-detection", text: $parakeetFFmpegPath)
                                 .textFieldStyle(.roundedBorder)
+                                .font(.system(.body, design: .monospaced))
                             
-                            Text("Accepts directory path (/opt/homebrew/bin) or full binary path (/opt/homebrew/bin/ffmpeg)")
-                                .font(.caption2)
+                            Text("Auto-detects from common locations: /opt/homebrew/bin, /usr/local/bin")
+                                .font(.caption)
                                 .foregroundColor(.secondary)
                         }
+                        .padding(16)
+                        .background(Color(NSColor.controlBackgroundColor))
+                        .cornerRadius(8)
                         
                         // Installation help
                         VStack(alignment: .leading, spacing: 4) {

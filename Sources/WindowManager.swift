@@ -45,8 +45,8 @@ class WindowManager: ObservableObject {
         window.titleVisibility = .hidden
         window.isMovableByWindowBackground = true
         window.backgroundColor = .clear
-        window.level = .floating
-        window.collectionBehavior = .canJoinAllSpaces
+        window.level = .modalPanel
+        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenPrimary, .fullScreenAuxiliary]
         window.title = "AudioWhisper Recording"
         window.hasShadow = true
         window.isOpaque = false

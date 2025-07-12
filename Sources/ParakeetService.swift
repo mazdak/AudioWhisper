@@ -51,9 +51,25 @@ class ParakeetService {
             throw ParakeetError.pythonNotFound(path: pythonPath)
         }
         
-        // Get the Parakeet script path from bundle
-        guard let scriptURL = Bundle.main.url(forResource: "parakeet_transcribe", withExtension: "py") else {
-            logger.error("Failed to find parakeet_transcribe.py in bundle")
+        // Get the Parakeet script path from bundle or source directory
+        var scriptURL: URL?
+        
+        // First try to find it in the app bundle (production)
+        scriptURL = Bundle.main.url(forResource: "parakeet_transcribe", withExtension: "py")
+        
+        // If not found, try development fallback (swift run)
+        if scriptURL == nil {
+            logger.info("Script not found in bundle, trying development fallback")
+            let currentDir = FileManager.default.currentDirectoryPath
+            let sourceScriptPath = "\(currentDir)/Sources/parakeet_transcribe.py"
+            if FileManager.default.fileExists(atPath: sourceScriptPath) {
+                scriptURL = URL(fileURLWithPath: sourceScriptPath)
+                logger.info("Found script in source directory: \(sourceScriptPath)")
+            }
+        }
+        
+        guard let scriptURL = scriptURL else {
+            logger.error("Failed to find parakeet_transcribe.py in bundle or source directory")
             throw ParakeetError.scriptNotFound
         }
         
@@ -64,27 +80,22 @@ class ParakeetService {
             .appendingPathComponent("parakeet_transcribe_\(UUID().uuidString).py")
         
         do {
-            // Read the original script asynchronously
-            let scriptContent = try await Task {
-                var content = try String(contentsOf: scriptURL, encoding: .utf8)
-                
-                // Replace the shebang with the user's Python path
-                if content.hasPrefix("#!") {
-                    let lines = content.components(separatedBy: .newlines)
-                    if !lines.isEmpty {
-                        var modifiedLines = lines
-                        modifiedLines[0] = "#!\(pythonPath)"
-                        content = modifiedLines.joined(separator: "\n")
-                    }
-                }
-                return content
-            }.value
+            // Read the original script
+            var scriptContent = try String(contentsOf: scriptURL, encoding: .utf8)
             
-            // Write the modified script asynchronously
-            try await Task {
-                try scriptContent.write(to: tempScriptURL, atomically: true, encoding: .utf8)
-                try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: tempScriptURL.path)
-            }.value
+            // Replace the shebang with the user's Python path
+            if scriptContent.hasPrefix("#!") {
+                let lines = scriptContent.components(separatedBy: .newlines)
+                if !lines.isEmpty {
+                    var modifiedLines = lines
+                    modifiedLines[0] = "#!\(pythonPath)"
+                    scriptContent = modifiedLines.joined(separator: "\n")
+                }
+            }
+            
+            // Write the modified script
+            try scriptContent.write(to: tempScriptURL, atomically: true, encoding: .utf8)
+            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: tempScriptURL.path)
             
             // Ensure we clean up the temp script
             defer {

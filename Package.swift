@@ -17,6 +17,7 @@ let package = Package(
             name: "AudioWhisper",
             dependencies: ["Alamofire", "HotKey", "WhisperKit"],
             path: "Sources",
+            exclude: ["__pycache__"],
             resources: [
                 .process("Assets.xcassets"),
                 .copy("parakeet_transcribe.py")
@@ -26,7 +27,7 @@ let package = Package(
             name: "AudioWhisperTests",
             dependencies: ["AudioWhisper"],
             path: "Tests",
-            exclude: ["README.md"]
+            exclude: ["README.md", "test_parakeet_transcribe.py"]
         )
     ]
 )

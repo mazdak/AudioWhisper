@@ -51,6 +51,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var hotKey: HotKey?
     var globalKeyMonitor: Any?
     var windowManager: WindowManager?
+    var previousApp: NSRunningApplication?
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Remove the app from dock
@@ -76,6 +77,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(NSMenuItem(title: LocalizedStrings.Menu.record, action: #selector(toggleRecordWindow), keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: LocalizedStrings.Menu.settings, action: #selector(openSettings), keyEquivalent: ","))
+        menu.addItem(NSMenuItem(title: "Help", action: #selector(showHelp), keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: LocalizedStrings.Menu.quit, action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         
@@ -113,40 +115,55 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { event in
             // Check if recording window is visible
             if let window = NSApp.windows.first(where: { $0.title == "AudioWhisper Recording" }), window.isVisible {
-                let key = event.charactersIgnoringModifiers?.lowercased() ?? ""
-                switch key {
-                case " ": // Space key
-                    DispatchQueue.main.async {
-                        NotificationCenter.default.post(name: NSNotification.Name("SpaceKeyPressed"), object: nil)
-                    }
-                case String(Character(UnicodeScalar(27)!)): // Escape
-                    DispatchQueue.main.async {
-                        window.orderOut(nil)
-                    }
-                default:
-                    break
-                }
+                _ = self.handleKeyEvent(event, for: window)
             }
         }
         
-        // Also add local monitor as backup
+        // Also add local monitor with proper filtering
         globalKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             // Check if recording window is visible
             if let window = NSApp.windows.first(where: { $0.title == "AudioWhisper Recording" }), window.isVisible {
-                let key = event.charactersIgnoringModifiers?.lowercased() ?? ""
-                switch key {
-                case " ": // Space key
-                    NotificationCenter.default.post(name: NSNotification.Name("SpaceKeyPressed"), object: nil)
-                    return nil // Consume the event
-                case String(Character(UnicodeScalar(27)!)): // Escape
-                    window.orderOut(nil)
-                    return nil // Consume the event
-                default:
-                    break
-                }
+                return self.handleKeyEvent(event, for: window)
             }
             return event
         }
+    }
+    
+    private func handleKeyEvent(_ event: NSEvent, for window: NSWindow) -> NSEvent? {
+        let key = event.charactersIgnoringModifiers?.lowercased() ?? ""
+        let modifiers = event.modifierFlags
+        
+        // Handle space key
+        if key == " " && !modifiers.contains(.command) {
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(name: NSNotification.Name("SpaceKeyPressed"), object: nil)
+            }
+            return nil // Consume the event
+        }
+        
+        // Handle escape key
+        if key == String(Character(UnicodeScalar(27)!)) { // Escape
+            DispatchQueue.main.async {
+                window.orderOut(nil)
+            }
+            return nil // Consume the event
+        }
+        
+        // Allow Cmd+, for settings
+        if key == "," && modifiers.contains(.command) {
+            DispatchQueue.main.async {
+                self.openSettings()
+            }
+            return nil // Consume the event
+        }
+        
+        // Block all other keyboard shortcuts when recording window is focused
+        if modifiers.contains(.command) {
+            return nil // Consume and block the event
+        }
+        
+        // Allow non-command keys to pass through
+        return event
     }
     
     func setupHotKey() {
@@ -171,6 +188,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self,
             selector: #selector(onWelcomeCompleted),
             name: NSNotification.Name("WelcomeCompleted"),
+            object: nil
+        )
+        
+        // Listen for focus restoration requests
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(restoreFocusToPreviousApp),
+            name: NSNotification.Name("RestoreFocusToPreviousApp"),
             object: nil
         )
         
@@ -305,26 +330,68 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if let window = recordWindow {
             if window.isVisible {
                 window.orderOut(nil)
+                restoreFocusToPreviousApp()
             } else {
-                // Configure window for proper keyboard handling
+                // Remember the currently active app before showing our window
+                storePreviousApp()
+                
+                // Configure window for proper keyboard handling and space management
                 window.canHide = false
                 window.acceptsMouseMovedEvents = true
                 window.isOpaque = false
                 window.hasShadow = true
                 
-                // Force window to current Space and show
-                window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-                window.level = .floating
-                window.makeKeyAndOrderFront(nil)
-                window.orderFrontRegardless()
-                NSApp.activate(ignoringOtherApps: true)
+                // Force window to appear in current space by resetting collection behavior
+                window.orderOut(nil)
+                window.collectionBehavior = []
                 
-                // Make window key but don't set first responder to prevent focus ring
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    window.makeKey()
-                    // Don't set first responder to prevent focus ring
+                // Force immediate reset and reconfiguration
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) {
+                    // Reset window level and behavior to force space redetection
+                    window.level = .normal
+                    
+                    // Use more aggressive collection behavior for fullscreen spaces
+                    window.collectionBehavior = [.canJoinAllSpaces, .fullScreenPrimary, .fullScreenAuxiliary]
+                    
+                    // Brief delay, then set final level and show
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
+                        // Use higher window level to ensure it appears over fullscreen apps
+                        window.level = .modalPanel
+                        
+                        // Activate app to ensure we're in right space context
+                        NSApp.activate(ignoringOtherApps: true)
+                        
+                        // Show window in current space with maximum priority
+                        window.orderFrontRegardless()
+                        window.makeKeyAndOrderFront(nil)
+                        
+                        // Ensure proper focus
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                            window.makeKey()
+                            window.makeFirstResponder(window.contentView)
+                        }
+                    }
                 }
             }
+        }
+    }
+    
+    private func storePreviousApp() {
+        // Get the frontmost app (excluding ourselves)
+        let workspace = NSWorkspace.shared
+        if let frontmostApp = workspace.frontmostApplication,
+           frontmostApp.bundleIdentifier != Bundle.main.bundleIdentifier {
+            previousApp = frontmostApp
+        }
+    }
+    
+    @objc private func restoreFocusToPreviousApp() {
+        guard let prevApp = previousApp else { return }
+        
+        // Small delay to ensure window is hidden first
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            prevApp.activate(options: [])
+            self.previousApp = nil
         }
     }
     
@@ -382,6 +449,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     @objc func onWelcomeCompleted() {
         // Nothing needed - the recording window exists and will be shown by hotkey
+    }
+    
+    @objc func showHelp() {
+        // Show the welcome dialog as help
+        let shouldOpenSettings = WelcomeWindow.showWelcomeDialog()
+        
+        if shouldOpenSettings {
+            openSettings()
+        }
     }
     
     func hasAPIKey(service: String, account: String) -> Bool {

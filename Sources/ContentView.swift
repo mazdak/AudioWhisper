@@ -535,6 +535,46 @@ struct ContentView: View {
         self._speechService = StateObject(wrappedValue: speechService)
     }
     
+    private func showErrorAlert() {
+        let alert = NSAlert()
+        alert.messageText = LocalizedStrings.Alerts.errorTitle
+        alert.informativeText = errorMessage
+        alert.alertStyle = .critical
+        
+        // Add OK button (default)
+        alert.addButton(withTitle: "OK")
+        
+        // Add contextual buttons based on error type
+        if errorMessage.contains("API key") {
+            alert.addButton(withTitle: "Open Settings")
+        } else if errorMessage.contains("microphone") || errorMessage.contains("permission") {
+            alert.addButton(withTitle: "Open System Settings")
+        } else if errorMessage.contains("internet") || errorMessage.contains("connection") {
+            alert.addButton(withTitle: "Try Again")
+        }
+        
+        // Show alert without blocking UI across Spaces
+        DispatchQueue.main.async {
+            let response = alert.runModal()
+            
+            // Handle button responses
+            if response == .alertSecondButtonReturn {
+                if self.errorMessage.contains("API key") {
+                    NotificationCenter.default.post(name: NSNotification.Name("OpenSettingsRequested"), object: nil)
+                } else if self.errorMessage.contains("microphone") || self.errorMessage.contains("permission") {
+                    self.permissionManager.openSystemSettings()
+                } else if self.errorMessage.contains("internet") || self.errorMessage.contains("connection") {
+                    if !self.audioRecorder.isRecording && !self.isProcessing {
+                        self.startRecording()
+                    }
+                }
+            }
+            
+            // Reset error state
+            self.showError = false
+        }
+    }
+    
     var body: some View {
         VStack(spacing: 20) {
             // Simplified status display
@@ -573,29 +613,6 @@ struct ContentView: View {
             }
         }
         .padding(20)
-        .alert(LocalizedStrings.Alerts.errorTitle, isPresented: $showError) {
-            Button("OK") { }
-            
-            // Add helpful action buttons based on error type
-            if errorMessage.contains("API key") {
-                Button("Open Settings") {
-                    // Post notification to open settings
-                    NotificationCenter.default.post(name: NSNotification.Name("OpenSettingsRequested"), object: nil)
-                }
-            } else if errorMessage.contains("microphone") || errorMessage.contains("permission") {
-                Button("Open System Settings") {
-                    permissionManager.openSystemSettings()
-                }
-            } else if errorMessage.contains("internet") || errorMessage.contains("connection") {
-                Button("Try Again") {
-                    if !audioRecorder.isRecording && !isProcessing {
-                        startRecording()
-                    }
-                }
-            }
-        } message: {
-            Text(errorMessage)
-        }
         .sheet(isPresented: $permissionManager.showEducationalModal) {
             PermissionEducationModal(
                 onProceed: {
@@ -643,6 +660,9 @@ struct ContentView: View {
                     // Fallback to key window if title search fails
                     NSApplication.shared.keyWindow?.orderOut(nil)
                 }
+                
+                // Notify app delegate to restore focus to previous app
+                NotificationCenter.default.post(name: NSNotification.Name("RestoreFocusToPreviousApp"), object: nil)
                 
                 // Reset success state
                 showSuccess = false
@@ -770,8 +790,11 @@ struct ContentView: View {
         .onChange(of: showSuccess) { _, _ in
             updateStatus()
         }
-        .onChange(of: showError) { _, _ in
+        .onChange(of: showError) { _, newValue in
             updateStatus()
+            if newValue {
+                showErrorAlert()
+            }
         }
         .onChange(of: permissionManager.permissionState) { _, newState in
             // Sync permission manager state with audio recorder

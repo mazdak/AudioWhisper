@@ -28,6 +28,10 @@ class WelcomeWindow {
         window.title = "Welcome to AudioWhisper"
         window.isReleasedWhenClosed = false
         
+        // Add window delegate to handle close button properly
+        let delegate = WelcomeWindowDelegate()
+        window.delegate = delegate
+        
         // Ensure proper focus and activation
         NSApplication.shared.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
@@ -44,5 +48,13 @@ class WelcomeWindow {
         window.close()
         
         return response == .OK
+    }
+}
+
+class WelcomeWindowDelegate: NSObject, NSWindowDelegate {
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        // End the modal session when close button is clicked
+        NSApplication.shared.stopModal(withCode: .cancel)
+        return true
     }
 }
