@@ -115,10 +115,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             if let window = NSApp.windows.first(where: { $0.title == "AudioWhisper Recording" }), window.isVisible {
                 let key = event.charactersIgnoringModifiers?.lowercased() ?? ""
                 switch key {
-                case " ": // Space key
-                    DispatchQueue.main.async {
-                        NotificationCenter.default.post(name: NSNotification.Name("SpaceKeyPressed"), object: nil)
-                    }
+                // Space key handling removed - now handled by SwiftUI .onKeyPress
                 case String(Character(UnicodeScalar(27)!)): // Escape
                     DispatchQueue.main.async {
                         window.orderOut(nil)
@@ -135,9 +132,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             if let window = NSApp.windows.first(where: { $0.title == "AudioWhisper Recording" }), window.isVisible {
                 let key = event.charactersIgnoringModifiers?.lowercased() ?? ""
                 switch key {
-                case " ": // Space key
-                    NotificationCenter.default.post(name: NSNotification.Name("SpaceKeyPressed"), object: nil)
-                    return nil // Consume the event
+                // Space key handling removed - now handled by SwiftUI .onKeyPress
                 case String(Character(UnicodeScalar(27)!)): // Escape
                     window.orderOut(nil)
                     return nil // Consume the event

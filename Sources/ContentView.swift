@@ -619,8 +619,15 @@ struct ContentView: View {
             )
         }
         .onKeyPress(.space) {
-            // Disabled - using global key monitor instead
-            return .ignored
+            // Handle space key press directly
+            if audioRecorder.isRecording {
+                stopAndProcess()
+            } else if !isProcessing && audioRecorder.hasPermission && !showSuccess {
+                startRecording()
+            } else if !audioRecorder.hasPermission {
+                permissionManager.requestPermissionWithEducation()
+            }
+            return .handled
         }
         .onKeyPress(.escape) {
             if audioRecorder.isRecording {
@@ -675,6 +682,8 @@ struct ContentView: View {
             }
             
             // Listen for global space key events
+            // Commented out - now handled by .onKeyPress(.space)
+            /*
             spaceKeyObserver = NotificationCenter.default.addObserver(
                 forName: NSNotification.Name("SpaceKeyPressed"),
                 object: nil,
@@ -698,6 +707,7 @@ struct ContentView: View {
                     isHandlingSpaceKey = false
                 }
             }
+            */
             
             // Listen for window becoming visible to handle immediate recording
             windowVisibilityObserver = NotificationCenter.default.addObserver(
@@ -736,10 +746,13 @@ struct ContentView: View {
                 transcriptionProgressObserver = nil
             }
             
+            // Commented out - no longer using spaceKeyObserver
+            /*
             if let observer = spaceKeyObserver {
                 NotificationCenter.default.removeObserver(observer)
                 spaceKeyObserver = nil
             }
+            */
             
             if let observer = windowFocusObserver {
                 NotificationCenter.default.removeObserver(observer)
