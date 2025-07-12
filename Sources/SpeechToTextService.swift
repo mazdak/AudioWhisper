@@ -27,6 +27,7 @@ enum SpeechToTextError: Error, LocalizedError {
 
 class SpeechToTextService: ObservableObject {
     private let localWhisperService = LocalWhisperService()
+    private let parakeetService = ParakeetService()
     private let keychainService: KeychainServiceProtocol
     
     init(keychainService: KeychainServiceProtocol = KeychainService.shared) {
@@ -62,6 +63,8 @@ class SpeechToTextService: ObservableObject {
                 throw SpeechToTextError.transcriptionFailed("Whisper model required for local transcription")
             }
             return try await transcribeWithLocal(audioURL: audioURL, model: model)
+        case .parakeet:
+            return try await transcribeWithParakeet(audioURL: audioURL)
         }
     }
     
@@ -248,6 +251,18 @@ class SpeechToTextService: ObservableObject {
             return Self.cleanTranscriptionText(text)
         } catch {
             throw SpeechToTextError.localTranscriptionFailed(error)
+        }
+    }
+    
+    private func transcribeWithParakeet(audioURL: URL) async throws -> String {
+        let pythonPath = UserDefaults.standard.string(forKey: "parakeetPythonPath") ?? "/usr/bin/python3"
+        let ffmpegPath = UserDefaults.standard.string(forKey: "parakeetFFmpegPath") ?? ""
+        
+        do {
+            let text = try await parakeetService.transcribe(audioFileURL: audioURL, pythonPath: pythonPath, ffmpegPath: ffmpegPath)
+            return Self.cleanTranscriptionText(text)
+        } catch {
+            throw SpeechToTextError.transcriptionFailed("Parakeet error: \(error.localizedDescription)")
         }
     }
     

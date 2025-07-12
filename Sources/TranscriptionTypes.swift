@@ -15,6 +15,7 @@ enum TranscriptionProvider: String, CaseIterable, Codable {
     case openai = "openai"
     case gemini = "gemini" 
     case local = "local"
+    case parakeet = "parakeet"
     
     var displayName: String {
         switch self {
@@ -24,6 +25,8 @@ enum TranscriptionProvider: String, CaseIterable, Codable {
             return "Google Gemini (Cloud)"
         case .local:
             return "Local Whisper"
+        case .parakeet:
+            return "Parakeet (Advanced)"
         }
     }
 }

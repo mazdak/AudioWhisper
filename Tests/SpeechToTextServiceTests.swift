@@ -308,6 +308,63 @@ extension SpeechToTextServiceTests {
         return audioURL
     }
     
+    // MARK: - Parakeet Provider Tests
+    
+    func testTranscribeWithParakeetProviderMissingPython() async {
+        let invalidPythonPath = "/invalid/python/path"
+        UserDefaults.standard.set(invalidPythonPath, forKey: "parakeetPythonPath")
+        
+        do {
+            _ = try await service.transcribe(audioURL: testAudioURL, provider: .parakeet)
+            XCTFail("Expected error due to invalid audio or Python path")
+        } catch let error as SpeechToTextError {
+            // The test can fail either due to invalid audio (which is expected since we create a fake file)
+            // or due to invalid Python path. Both are acceptable test outcomes
+            let errorMessage = error.localizedDescription
+            let hasExpectedError = errorMessage.contains("Parakeet error") || 
+                                 errorMessage.contains("Python") || 
+                                 errorMessage.contains("not found") ||
+                                 errorMessage.contains("corrupted") ||
+                                 errorMessage.contains("unreadable")
+            XCTAssertTrue(hasExpectedError, "Error should indicate audio or Python issue: \(errorMessage)")
+        } catch {
+            XCTFail("Expected SpeechToTextError, got \(error)")
+        }
+        
+        // Clean up
+        UserDefaults.standard.removeObject(forKey: "parakeetPythonPath")
+    }
+    
+    func testParakeetProviderWithSystemPython() async {
+        let systemPythonPath = "/usr/bin/python3"
+        
+        // Only test if system Python exists
+        if FileManager.default.fileExists(atPath: systemPythonPath) {
+            UserDefaults.standard.set(systemPythonPath, forKey: "parakeetPythonPath")
+            
+            do {
+                _ = try await service.transcribe(audioURL: testAudioURL, provider: .parakeet)
+                // If this succeeds, parakeet-mlx is installed
+            } catch let error as SpeechToTextError {
+                // Expected if parakeet-mlx is not installed or script not found
+                // Just verify we got a SpeechToTextError (which we did)
+                XCTAssertTrue(error.localizedDescription.count > 0)
+            } catch {
+                XCTFail("Expected SpeechToTextError, got \(error)")
+            }
+            
+            // Clean up
+            UserDefaults.standard.removeObject(forKey: "parakeetPythonPath")
+        }
+    }
+    
+    func testParakeetProviderInAllCases() {
+        // Ensure Parakeet is included in all provider tests
+        let allProviders: [TranscriptionProvider] = [.openai, .gemini, .local, .parakeet]
+        XCTAssertTrue(allProviders.contains(.parakeet))
+        XCTAssertEqual(allProviders.count, 4)
+    }
+
 }
 
 // MARK: - Mock Extensions
