@@ -97,6 +97,7 @@ export CODE_SIGN_IDENTITY="Developer ID Application: Your Name"
 13. **Immediate Recording** - Option to start recording immediately on hotkey
 14. **Auto-Boost Microphone Volume** - Temporarily increases mic volume to 100% during recording
 15. **Enhanced Model Management** - Real-time model detection, visual progress feedback, smart download estimates
+16. **Parakeet Support (Advanced)** - MLX-based local transcription for Apple Silicon with custom Python integration
 
 ## Architecture Notes
 - SwiftUI app with AppKit integration for menu bar
@@ -189,6 +190,20 @@ These are from Apple's frameworks, not our code. They can be safely ignored.
 - **Storage Monitoring**: Prevents downloads if insufficient disk space
 - **Background Downloads**: Continue even when settings window is closed
 - **System Notifications**: Alerts when model downloads complete
+
+### Parakeet (Advanced Users Only)
+- **MLX-Optimized**: Uses parakeet-mlx for Apple Silicon optimization
+- **Custom Python**: Requires user to configure Python path with parakeet-mlx installed
+- **Fast Processing**: Leverages Apple's Metal Performance Shaders via MLX
+- **Advanced Setup**: Not recommended for casual users due to Python dependency
+
+#### Parakeet Setup Instructions
+1. Install Python 3 (if not already installed)
+2. Install parakeet-mlx: `uv add parakeet-mlx -U` or `pip install parakeet-mlx`
+3. In AudioWhisper Settings, select "Parakeet (Advanced)" as provider
+4. Configure Python path (default: /usr/bin/python3)
+5. Click "Test" to verify setup
+6. Model downloads automatically on first use from Hugging Face
 
 ## Future Enhancements
 - Streaming transcription for real-time feedback

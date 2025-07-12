@@ -827,7 +827,7 @@ struct ContentView: View {
         processingTask = Task {
             isProcessing = true
             transcriptionStartTime = Date()
-            progressMessage = "Preparing audio for transcription..."
+            progressMessage = "Preparing audio..."
             
             do {
                 // Check for cancellation before starting

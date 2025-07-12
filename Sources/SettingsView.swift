@@ -14,6 +14,7 @@ struct SettingsView: View {
     @AppStorage("autoBoostMicrophoneVolume") private var autoBoostMicrophoneVolume = false
     @AppStorage("playCompletionSound") private var playCompletionSound = true
     @AppStorage("maxModelStorageGB") private var maxModelStorageGB = 5.0
+    @AppStorage("parakeetPythonPath") private var parakeetPythonPath = "/usr/bin/python3"
     @StateObject private var modelManager = ModelManager.shared
     @State private var availableMicrophones: [AVCaptureDevice] = []
     @State private var openAIKey = ""
@@ -177,6 +178,65 @@ struct SettingsView: View {
                         .font(.caption)
                         .accessibilityLabel("Get API key from \(transcriptionProvider == .openai ? "OpenAI" : "Google")")
                         .accessibilityHint("Opens \(transcriptionProvider == .openai ? "OpenAI" : "Google") website to create an API key")
+                }
+                
+                // Parakeet Configuration
+                if transcriptionProvider == .parakeet {
+                    VStack(alignment: .leading, spacing: 12) {
+                        // Warning banner
+                        HStack(alignment: .top, spacing: 6) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(.orange)
+                                .font(.system(size: 12))
+                            Text("Advanced: Requires Python with parakeet-mlx installed. First use will download ~600MB model, may be slow. Models stored in ~/.cache/huggingface/hub/")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        
+                        // Python path configuration
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("Python Path")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                            }
+                            
+                            TextField("", text: $parakeetPythonPath)
+                                .textFieldStyle(.roundedBorder)
+                            
+                            HStack {
+                                Spacer()
+                                Button("Browse...") {
+                                    selectPythonPath()
+                                }
+                                .buttonStyle(.bordered)
+                                
+                                Button("Test") {
+                                    testParakeetSetup()
+                                }
+                                .buttonStyle(.bordered)
+                            }
+                        }
+                        
+                        // Installation help
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(spacing: 4) {
+                                Text("Install:")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                                Text("uv add parakeet-mlx -U")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                                    .monospaced()
+                            }
+                            
+                            Link("Learn more about Parakeet", 
+                                 destination: URL(string: "https://github.com/senstella/parakeet-mlx")!)
+                                .font(.caption)
+                        }
+                    }
                 }
             }
             
@@ -408,6 +468,100 @@ struct SettingsView: View {
             name: NSNotification.Name("UpdateGlobalHotkey"),
             object: newHotkey
         )
+    }
+    
+    private func selectPythonPath() {
+        let panel = NSOpenPanel()
+        panel.title = "Select Python Executable"
+        panel.message = "Choose the Python executable with parakeet-mlx installed"
+        panel.prompt = "Select"
+        panel.allowsMultipleSelection = false
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowedContentTypes = []
+        panel.directoryURL = URL(fileURLWithPath: "/usr/local/bin")
+        
+        if panel.runModal() == .OK {
+            if let url = panel.url {
+                parakeetPythonPath = url.path
+            }
+        }
+    }
+    
+    private func testParakeetSetup() {
+        Task {
+            do {
+                let process = Process()
+                process.executableURL = URL(fileURLWithPath: parakeetPythonPath)
+                process.arguments = ["-c", "import parakeet_mlx; print('OK')"]
+                
+                let outputPipe = Pipe()
+                let errorPipe = Pipe()
+                process.standardOutput = outputPipe
+                process.standardError = errorPipe
+                
+                try process.run()
+                process.waitUntilExit()
+                
+                let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
+                let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+                let output = String(data: outputData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                let errorOutput = String(data: errorData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                
+                if process.terminationStatus == 0 && output == "OK" {
+                    await MainActor.run {
+                        let alert = NSAlert()
+                        alert.messageText = "Parakeet Setup Valid"
+                        alert.informativeText = "Python path is valid and parakeet-mlx is installed.\n\nPython: \(parakeetPythonPath)\n\nThe Parakeet model will be downloaded on first use."
+                        alert.alertStyle = .informational
+                        alert.addButton(withTitle: "OK")
+                        alert.runModal()
+                    }
+                } else {
+                    await MainActor.run {
+                        let alert = NSAlert()
+                        alert.messageText = "Parakeet Setup Failed"
+                        alert.informativeText = """
+                        parakeet-mlx is not installed in this Python environment.
+                        
+                        Python path: \(parakeetPythonPath)
+                        
+                        Error: \(errorOutput.isEmpty ? "Module not found" : errorOutput)
+                        
+                        To fix:
+                        1. Use the Python where you installed parakeet-mlx
+                        2. Or install it: pip install parakeet-mlx
+                        
+                        If using a virtual environment, make sure to use the Python binary from that environment.
+                        """
+                        alert.alertStyle = .critical
+                        alert.addButton(withTitle: "OK")
+                        alert.runModal()
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    let alert = NSAlert()
+                    alert.messageText = "Test Failed"
+                    alert.informativeText = """
+                    Could not run Python at: \(parakeetPythonPath)
+                    
+                    Error: \(error.localizedDescription)
+                    
+                    Make sure the path points to a valid Python executable.
+                    
+                    Common Python locations:
+                    • /usr/bin/python3
+                    • /usr/local/bin/python3
+                    • /opt/homebrew/bin/python3
+                    • Virtual environment: venv/bin/python3
+                    """
+                    alert.alertStyle = .critical
+                    alert.addButton(withTitle: "OK")
+                    alert.runModal()
+                }
+            }
+        }
     }
     
     private func deleteModel(_ model: WhisperModel) {

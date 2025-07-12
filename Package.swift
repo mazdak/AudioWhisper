@@ -18,7 +18,8 @@ let package = Package(
             dependencies: ["Alamofire", "HotKey", "WhisperKit"],
             path: "Sources",
             resources: [
-                .process("Assets.xcassets")
+                .process("Assets.xcassets"),
+                .copy("parakeet_transcribe.py")
             ]
         ),
         .testTarget(
