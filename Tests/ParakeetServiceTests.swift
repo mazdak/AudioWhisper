@@ -25,15 +25,21 @@ class ParakeetServiceTests: XCTestCase {
     // MARK: - Error Tests
     
     func testParakeetErrorDescriptions() {
-        let pythonNotFoundError = ParakeetError.pythonNotFound
+        let pythonNotFoundError = ParakeetError.pythonNotFound(path: "/invalid/path")
         let scriptNotFoundError = ParakeetError.scriptNotFound
         let transcriptionFailedError = ParakeetError.transcriptionFailed("Test error")
         let invalidResponseError = ParakeetError.invalidResponse("Invalid JSON")
+        let ffmpegNotFoundError = ParakeetError.ffmpegNotFound(suggestedPaths: ["/usr/local/bin/ffmpeg"])
+        let dependencyMissingError = ParakeetError.dependencyMissing("parakeet-mlx", installCommand: "pip install parakeet-mlx")
+        let timeoutError = ParakeetError.processTimedOut(30)
         
-        XCTAssertEqual(pythonNotFoundError.errorDescription, "Python executable not found at the specified path")
-        XCTAssertEqual(scriptNotFoundError.errorDescription, "Parakeet transcription script not found")
+        XCTAssertTrue(pythonNotFoundError.errorDescription!.contains("/invalid/path"))
+        XCTAssertEqual(scriptNotFoundError.errorDescription, "Parakeet transcription script not found in app bundle")
         XCTAssertEqual(transcriptionFailedError.errorDescription, "Parakeet transcription failed: Test error")
         XCTAssertEqual(invalidResponseError.errorDescription, "Invalid response from Parakeet: Invalid JSON")
+        XCTAssertTrue(ffmpegNotFoundError.errorDescription!.contains("brew install ffmpeg"))
+        XCTAssertTrue(dependencyMissingError.errorDescription!.contains("pip install parakeet-mlx"))
+        XCTAssertTrue(timeoutError.errorDescription!.contains("30.0 seconds"))
     }
     
     // MARK: - Validation Tests
@@ -45,7 +51,7 @@ class ParakeetServiceTests: XCTestCase {
             try await parakeetService.validateSetup(pythonPath: invalidPath)
             XCTFail("Should have thrown an error for invalid Python path")
         } catch let error as ParakeetError {
-            XCTAssertEqual(error, ParakeetError.pythonNotFound)
+            XCTAssertEqual(error, ParakeetError.pythonNotFound(path: invalidPath))
         } catch {
             XCTFail("Should have thrown ParakeetError, got \(error)")
         }
@@ -113,7 +119,37 @@ class ParakeetServiceTests: XCTestCase {
             _ = try await parakeetService.transcribe(audioFileURL: testAudioURL, pythonPath: invalidPythonPath)
             XCTFail("Should have thrown an error for invalid Python path")
         } catch let error as ParakeetError {
-            XCTAssertEqual(error, ParakeetError.pythonNotFound)
+            XCTAssertEqual(error, ParakeetError.pythonNotFound(path: invalidPythonPath))
+        } catch {
+            XCTFail("Should have thrown ParakeetError, got \(error)")
+        }
+    }
+    
+    func testTranscribeWithFFmpegPath() async {
+        let invalidPythonPath = "/invalid/python/path"
+        let testAudioURL = URL(fileURLWithPath: "/tmp/test.m4a")
+        let customFFmpegPath = "/opt/homebrew/bin/ffmpeg"
+        
+        do {
+            _ = try await parakeetService.transcribe(audioFileURL: testAudioURL, pythonPath: invalidPythonPath, ffmpegPath: customFFmpegPath)
+            XCTFail("Should have thrown an error for invalid Python path")
+        } catch let error as ParakeetError {
+            // Should still fail on Python path validation before FFmpeg is used
+            XCTAssertEqual(error, ParakeetError.pythonNotFound(path: invalidPythonPath))
+        } catch {
+            XCTFail("Should have thrown ParakeetError, got \(error)")
+        }
+    }
+    
+    func testTranscribeWithEmptyFFmpegPath() async {
+        let invalidPythonPath = "/invalid/python/path"
+        let testAudioURL = URL(fileURLWithPath: "/tmp/test.m4a")
+        
+        do {
+            _ = try await parakeetService.transcribe(audioFileURL: testAudioURL, pythonPath: invalidPythonPath, ffmpegPath: "")
+            XCTFail("Should have thrown an error for invalid Python path")
+        } catch let error as ParakeetError {
+            XCTAssertEqual(error, ParakeetError.pythonNotFound(path: invalidPythonPath))
         } catch {
             XCTFail("Should have thrown ParakeetError, got \(error)")
         }
@@ -130,7 +166,7 @@ class ParakeetServiceTests: XCTestCase {
     
     func testErrorDescriptionPerformance() {
         let errors: [ParakeetError] = [
-            .pythonNotFound,
+            .pythonNotFound(path: "/test/path"),
             .scriptNotFound,
             .transcriptionFailed("Test"),
             .invalidResponse("Test")
@@ -152,7 +188,7 @@ class ParakeetServiceTests: XCTestCase {
         // Only test if system Python exists
         if FileManager.default.fileExists(atPath: systemPythonPath) {
             do {
-                _ = try await parakeetService.transcribe(audioFileURL: nonExistentAudioURL, pythonPath: systemPythonPath)
+                _ = try await parakeetService.transcribe(audioFileURL: nonExistentAudioURL, pythonPath: systemPythonPath, ffmpegPath: "")
                 XCTFail("Should have thrown an error for non-existent audio file")
             } catch {
                 // Expected - either parakeet-mlx not installed or audio file doesn't exist
@@ -165,11 +201,20 @@ class ParakeetServiceTests: XCTestCase {
     
     func testParakeetScriptExists() {
         // Test that the Python script can be found in the bundle
-        let bundle = Bundle.module
-        let scriptURL = bundle.url(forResource: "parakeet_transcribe", withExtension: "py")
+        // In test environment, check both Bundle.main and source directory
+        let scriptURL = Bundle.main.url(forResource: "parakeet_transcribe", withExtension: "py")
         
-        // Script should exist in test bundle or main bundle
-        XCTAssertTrue(scriptURL != nil || Bundle.main.url(forResource: "parakeet_transcribe", withExtension: "py") != nil,
-                     "Parakeet Python script should be available in bundle")
+        if scriptURL != nil {
+            // Script found in bundle
+            XCTAssertNotNil(scriptURL, "Parakeet Python script should be available in app bundle")
+        } else {
+            // In test environment, check if script exists in source directory
+            let currentDir = URL(fileURLWithPath: #file).deletingLastPathComponent()
+            let sourceDir = currentDir.deletingLastPathComponent().appendingPathComponent("Sources")
+            let sourceScriptURL = sourceDir.appendingPathComponent("parakeet_transcribe.py")
+            
+            XCTAssertTrue(FileManager.default.fileExists(atPath: sourceScriptURL.path), 
+                         "Parakeet Python script should be available in source directory during tests")
+        }
     }
 }

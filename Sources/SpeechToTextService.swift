@@ -256,9 +256,10 @@ class SpeechToTextService: ObservableObject {
     
     private func transcribeWithParakeet(audioURL: URL) async throws -> String {
         let pythonPath = UserDefaults.standard.string(forKey: "parakeetPythonPath") ?? "/usr/bin/python3"
+        let ffmpegPath = UserDefaults.standard.string(forKey: "parakeetFFmpegPath") ?? ""
         
         do {
-            let text = try await parakeetService.transcribe(audioFileURL: audioURL, pythonPath: pythonPath)
+            let text = try await parakeetService.transcribe(audioFileURL: audioURL, pythonPath: pythonPath, ffmpegPath: ffmpegPath)
             return Self.cleanTranscriptionText(text)
         } catch {
             throw SpeechToTextError.transcriptionFailed("Parakeet error: \(error.localizedDescription)")

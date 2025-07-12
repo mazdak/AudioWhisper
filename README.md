@@ -1,6 +1,6 @@
 # AudioWhisper 🎙️
 
-A lightweight macOS menu bar app for quick audio transcription using OpenAI Whisper or Google Gemini. Press a hotkey, record your thoughts, and get instant text that's automatically copied to your clipboard.
+A lightweight macOS menu bar app for quick audio transcription using OpenAI Whisper, Google Gemini, Local WhisperKit, or Parakeet. Press a hotkey, record your thoughts, and get instant text that's automatically copied to your clipboard.
 
 <p align="center">
   <img src="https://github.com/mazdak/AudioWhisper/blob/master/AudioWhisperIcon.png" width="128" height="128" alt="AudioWhisper Icon">
@@ -10,9 +10,9 @@ A lightweight macOS menu bar app for quick audio transcription using OpenAI Whis
 
 - **🎯 Quick Access**: Global hotkey (⌘⇧Space) to start recording from anywhere
 - **🎙️ Menu Bar App**: Lives quietly in your menu bar, no dock icon
-- **🚀 Instant Transcription**: Powered by OpenAI Whisper, Google Gemini, or Local WhisperKit with CoreML
+- **🚀 Instant Transcription**: Powered by OpenAI Whisper, Google Gemini, Local WhisperKit with CoreML, or Parakeet-MLX
 - **📋 Auto-Paste**: Transcribed text is automatically copied and can be pasted
-- **🎚️ Visual Feedback**: Real-time audio level indicator while recording
+- **🔈 Visual and Sound Feedback**: Real-time audio level indicator while recording, chime when finished transcription
 - **⌨️ Keyboard Shortcuts**: Space to start/stop recording, ESC to cancel
 - **💬 User Guidance**: Clear on-screen instructions for all actions
 - **🌓 Dark Mode**: Beautiful native macOS design that adapts to your system
@@ -23,7 +23,7 @@ A lightweight macOS menu bar app for quick audio transcription using OpenAI Whis
 ## Requirements 📋
 
 - macOS 14.0 (Sonoma) or later  
-- OpenAI API key, Google Gemini API key, or use Local Whisper (no API key required)
+- OpenAI API key, Google Gemini API key, Local Whisper (no API key required), or Parakeet with Python/FFmpeg
 - Swift 5.9+ (for building from source)
 
 ## Installation 🛠️
@@ -57,6 +57,13 @@ cp -r AudioWhisper.app /Applications/
 - Choose from 6 different model sizes (39MB to 2.9GB)
 - Models download automatically on first use
 
+**Local Parakeet (VERY Fast, English only, Privacy-First)**
+- No API key required
+- Audio never leaves your device
+- MLX hardware acceleration
+- ADVANCED: Make sure you have a Python installation on your machine: [Parakeet MLX Instructions](https://github.com/senstella/parakeet-mlx).
+- Pick Parakeet and Python in the full path to your Python binary
+
 **OpenAI (Recommended for Cloud)**
 1. Visit https://platform.openai.com/api-keys
 2. Create a new API key
@@ -67,6 +74,26 @@ cp -r AudioWhisper.app /Applications/
 2. Create a new API key
 3. Copy the key starting with `AIza`
 
+**Parakeet (Advanced)**
+- Local transcription using MLX framework for Apple Silicon optimization
+- Requires Python with parakeet-mlx and FFmpeg installed
+- First use downloads ~600MB model from Hugging Face
+- Setup instructions:
+  ```bash
+  # Install FFmpeg (required for audio processing)
+  brew install ffmpeg
+  
+  # Install parakeet-mlx 
+  uv add parakeet-mlx -U
+  # or
+  pip install parakeet-mlx
+  ```
+- Configure Python path in settings (usually `/usr/bin/python3`)
+- Optionally specify custom FFmpeg path if not in standard locations
+  - Can be directory path: `/opt/homebrew/bin`
+  - Or full binary path: `/opt/homebrew/bin/ffmpeg`
+  - Auto-detects common locations if left empty
+
 ### First Run
 
 1. Launch AudioWhisper from Applications
@@ -75,6 +102,8 @@ cp -r AudioWhisper.app /Applications/
 4. Choose your preferred provider:
    - **Local WhisperKit**: Select model size (downloads automatically, no API key needed)
    - **OpenAI or Gemini**: Paste your API key and click "Save"
+   - **Advanced: Parakeet 🦜**: You need a working Python 3 installation with `parakeet-mlx` installed.
+
 5. Toggle "Start at Login" if you want the app to launch automatically
 
 ## Usage 🎯
@@ -153,6 +182,14 @@ swift build -c release
 - The window floats above all apps
 - Click outside or press ESC to dismiss
 - Use ⌘⇧Space to toggle visibility
+
+**Parakeet Setup Issues**
+- Ensure Python and parakeet-mlx are installed: `python3 -c "import parakeet_mlx; print('OK')"`
+- Install FFmpeg: `brew install ffmpeg`
+- Verify FFmpeg is in PATH: `which ffmpeg`
+- Use "Test" button in settings to validate setup
+- Check Python path is correct (usually `/usr/bin/python3`)
+- For custom Python installations, specify full path to python executable
 
 ## Contributing 🤝
 

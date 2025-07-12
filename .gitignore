@@ -120,6 +120,7 @@ AudioWhisper.app/
 AudioWhisper.zip
 notarization.log
 *.xcodeproj/
+__pycache__
 
 # Environment
 .env

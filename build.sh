@@ -43,6 +43,14 @@ mkdir -p AudioWhisper.app/Contents/Resources
 # Copy executable (universal binary)
 cp .build/apple/Products/Release/AudioWhisper AudioWhisper.app/Contents/MacOS/
 
+# Copy Python script for Parakeet support
+if [ -f "Sources/parakeet_transcribe.py" ]; then
+  cp Sources/parakeet_transcribe.py AudioWhisper.app/Contents/Resources/
+  echo "📜 Copied Parakeet Python script"
+else
+  echo "⚠️  parakeet_transcribe.py not found, Parakeet functionality will not work"
+fi
+
 # Create proper Info.plist
 echo "📝 Creating Info.plist..."
 cat >AudioWhisper.app/Contents/Info.plist <<'EOF'

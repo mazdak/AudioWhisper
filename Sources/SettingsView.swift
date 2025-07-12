@@ -15,6 +15,7 @@ struct SettingsView: View {
     @AppStorage("playCompletionSound") private var playCompletionSound = true
     @AppStorage("maxModelStorageGB") private var maxModelStorageGB = 5.0
     @AppStorage("parakeetPythonPath") private var parakeetPythonPath = "/usr/bin/python3"
+    @AppStorage("parakeetFFmpegPath") private var parakeetFFmpegPath = ""
     @StateObject private var modelManager = ModelManager.shared
     @State private var availableMicrophones: [AVCaptureDevice] = []
     @State private var openAIKey = ""
@@ -112,7 +113,7 @@ struct SettingsView: View {
                     .accessibilityHint("When enabled, plays a gentle sound when transcription is finished and text is pasted")
             }
             
-            Section("Speech-to-Text Provider") {
+            Section(header: Text("Speech-to-Text Provider")) {
                 Picker("Service", selection: $transcriptionProvider) {
                     ForEach(TranscriptionProvider.allCases, id: \.self) { provider in
                         Text(provider.displayName).tag(provider)
@@ -188,7 +189,7 @@ struct SettingsView: View {
                             Image(systemName: "exclamationmark.triangle.fill")
                                 .foregroundColor(.orange)
                                 .font(.system(size: 12))
-                            Text("Advanced: Requires Python with parakeet-mlx installed. First use will download ~600MB model, may be slow. Models stored in ~/.cache/huggingface/hub/")
+                            Text("Advanced: Requires Python with parakeet-mlx and FFmpeg installed. First use will download ~600MB model, may be slow. Models stored in ~/.cache/huggingface/hub/")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -220,13 +221,33 @@ struct SettingsView: View {
                             }
                         }
                         
+                        // FFmpeg path configuration (optional)
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("FFmpeg Path (Optional)")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                                Text("Leave empty to auto-detect")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
+                            
+                            TextField("e.g., /opt/homebrew/bin or /usr/local/bin/ffmpeg", text: $parakeetFFmpegPath)
+                                .textFieldStyle(.roundedBorder)
+                            
+                            Text("Accepts directory path (/opt/homebrew/bin) or full binary path (/opt/homebrew/bin/ffmpeg)")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                        
                         // Installation help
                         VStack(alignment: .leading, spacing: 4) {
                             HStack(spacing: 4) {
                                 Text("Install:")
                                     .font(.caption2)
                                     .foregroundColor(.secondary)
-                                Text("uv add parakeet-mlx -U")
+                                Text("brew install ffmpeg && uv add parakeet-mlx -U")
                                     .font(.caption2)
                                     .foregroundColor(.secondary)
                                     .monospaced()
