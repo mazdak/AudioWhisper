@@ -1,0 +1,33 @@
+# Core dependencies
+PyGObject>=3.42.0
+pyaudio>=0.2.11
+numpy>=1.24.0
+
+# Transcription services
+openai>=1.0.0
+google-generativeai>=0.3.0
+openai-whisper>=20231117
+parakeet-mlx>=0.2.0
+
+# System integration
+pydbus>=0.6.0
+python-xlib>=0.33
+pyxdg>=0.28
+pygobject-stubs>=2.10.0
+
+# Utilities
+requests>=2.31.0
+aiohttp>=3.9.0
+asyncio>=3.4.3
+toml>=0.10.2
+
+# Audio processing
+sounddevice>=0.4.6
+scipy>=1.10.0
+
+# Security
+python-gnupg>=0.5.0
+cryptography>=41.0.0
+
+# Optional for better performance
+numba>=0.58.0
