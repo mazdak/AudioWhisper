@@ -21,7 +21,9 @@ class KeyboardEventHandler {
         globalKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             // Check if recording window is visible
             if let window = NSApp.windows.first(where: { $0.title == "AudioWhisper Recording" }), window.isVisible {
-                return self.handleKeyEvent(event, for: window)
+                // Always consume events when recording window is visible to prevent passthrough
+                _ = self.handleKeyEvent(event, for: window)
+                return nil // Consume the event to prevent it from reaching other apps
             }
             return event
         }
@@ -42,7 +44,7 @@ class KeyboardEventHandler {
         // Handle escape key
         if key == String(Character(UnicodeScalar(27)!)) { // Escape
             DispatchQueue.main.async {
-                window.orderOut(nil)
+                NotificationCenter.default.post(name: NSNotification.Name("EscapeKeyPressed"), object: nil)
             }
             return nil // Consume the event
         }

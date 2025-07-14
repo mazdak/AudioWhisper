@@ -25,6 +25,9 @@ echo "🎙️ Building AudioWhisper..."
 # Clean previous builds
 rm -rf .build/release
 rm -rf AudioWhisper.app
+rm -f Sources/AudioProcessorCLI
+
+# Note: AudioProcessorCLI binary no longer needed - audio processing is done directly in Swift
 
 # Build for release
 echo "📦 Building for release..."
@@ -44,12 +47,14 @@ mkdir -p AudioWhisper.app/Contents/Resources
 cp .build/apple/Products/Release/AudioWhisper AudioWhisper.app/Contents/MacOS/
 
 # Copy Python script for Parakeet support
-if [ -f "Sources/parakeet_transcribe.py" ]; then
-  cp Sources/parakeet_transcribe.py AudioWhisper.app/Contents/Resources/
-  echo "📜 Copied Parakeet Python script"
+if [ -f "Sources/parakeet_transcribe_pcm.py" ]; then
+  cp Sources/parakeet_transcribe_pcm.py AudioWhisper.app/Contents/Resources/
+  echo "📜 Copied Parakeet PCM Python script"
 else
-  echo "⚠️  parakeet_transcribe.py not found, Parakeet functionality will not work"
+  echo "⚠️  parakeet_transcribe_pcm.py not found, Parakeet functionality will not work"
 fi
+
+# Note: AudioProcessorCLI binary no longer needed - using direct Swift audio processing
 
 # Create proper Info.plist
 echo "📝 Creating Info.plist..."

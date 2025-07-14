@@ -15,7 +15,6 @@ struct SettingsView: View {
     @AppStorage("playCompletionSound") private var playCompletionSound = true
     @AppStorage("maxModelStorageGB") private var maxModelStorageGB = 5.0
     @AppStorage("parakeetPythonPath") private var parakeetPythonPath = "/usr/bin/python3"
-    @AppStorage("parakeetFFmpegPath") private var parakeetFFmpegPath = ""
     @StateObject private var modelManager = ModelManager.shared
     @State private var availableMicrophones: [AVCaptureDevice] = []
     @State private var openAIKey = ""
@@ -198,7 +197,7 @@ struct SettingsView: View {
                                     .font(.headline)
                                     .fontWeight(.semibold)
                                 
-                                Text("Requires Python with parakeet-mlx and FFmpeg. First use downloads ~600MB model.")
+                                Text("Requires Python with parakeet-mlx. First use downloads ~600MB model.")
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
                                     .fixedSize(horizontal: false, vertical: true)
@@ -240,43 +239,13 @@ struct SettingsView: View {
                         .background(Color(NSColor.controlBackgroundColor))
                         .cornerRadius(8)
                         
-                        // FFmpeg Configuration Card
-                        VStack(alignment: .leading, spacing: 12) {
-                            HStack {
-                                Image(systemName: "waveform")
-                                    .foregroundColor(.green)
-                                Text("FFmpeg Path")
-                                    .font(.headline)
-                                    .fontWeight(.medium)
-                                Spacer()
-                                Text("Optional")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 2)
-                                    .background(Color.secondary.opacity(0.1))
-                                    .cornerRadius(4)
-                            }
-                            
-                            TextField("Leave empty for auto-detection", text: $parakeetFFmpegPath)
-                                .textFieldStyle(.roundedBorder)
-                                .font(.system(.body, design: .monospaced))
-                            
-                            Text("Auto-detects from common locations: /opt/homebrew/bin, /usr/local/bin")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                        .padding(16)
-                        .background(Color(NSColor.controlBackgroundColor))
-                        .cornerRadius(8)
-                        
                         // Installation help
                         VStack(alignment: .leading, spacing: 4) {
                             HStack(spacing: 4) {
                                 Text("Install:")
                                     .font(.caption2)
                                     .foregroundColor(.secondary)
-                                Text("brew install ffmpeg && uv add parakeet-mlx -U")
+                                Text("uv add parakeet-mlx -U")
                                     .font(.caption2)
                                     .foregroundColor(.secondary)
                                     .monospaced()

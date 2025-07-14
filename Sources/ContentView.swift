@@ -23,6 +23,7 @@ struct ContentView: View {
     @State private var processingTask: Task<Void, Never>?
     @State private var transcriptionProgressObserver: NSObjectProtocol?
     @State private var spaceKeyObserver: NSObjectProtocol?
+    @State private var escapeKeyObserver: NSObjectProtocol?
     @State private var windowFocusObserver: NSObjectProtocol?
     @State private var windowVisibilityObserver: NSObjectProtocol?
     
@@ -95,40 +96,6 @@ struct ContentView: View {
                 }
             )
         }
-        .onKeyPress(.space) {
-            // Disabled - using global key monitor instead
-            return .ignored
-        }
-        .onKeyPress(.escape) {
-            if audioRecorder.isRecording {
-                // Cancel recording
-                audioRecorder.cancelRecording()
-                isProcessing = false
-            } else if isProcessing {
-                // Cancel processing task
-                processingTask?.cancel()
-                isProcessing = false
-            } else {
-                // Hide window - use reliable window finding method
-                let recordWindow = NSApp.windows.first { window in
-                    window.title == "AudioWhisper Recording"
-                }
-                
-                if let window = recordWindow {
-                    window.orderOut(nil)
-                } else {
-                    // Fallback to key window if title search fails
-                    NSApplication.shared.keyWindow?.orderOut(nil)
-                }
-                
-                // Notify app delegate to restore focus to previous app
-                NotificationCenter.default.post(name: NSNotification.Name("RestoreFocusToPreviousApp"), object: nil)
-                
-                // Reset success state
-                showSuccess = false
-            }
-            return .handled
-        }
         .focusable(false)
         .onAppear {
             // Check permission status when view appears
@@ -179,6 +146,41 @@ struct ContentView: View {
                 }
             }
             
+            // Listen for global escape key events
+            escapeKeyObserver = NotificationCenter.default.addObserver(
+                forName: NSNotification.Name("EscapeKeyPressed"),
+                object: nil,
+                queue: .main
+            ) { _ in
+                if audioRecorder.isRecording {
+                    // Cancel recording
+                    audioRecorder.cancelRecording()
+                    isProcessing = false
+                } else if isProcessing {
+                    // Cancel processing task
+                    processingTask?.cancel()
+                    isProcessing = false
+                } else {
+                    // Hide window - use reliable window finding method
+                    let recordWindow = NSApp.windows.first { window in
+                        window.title == "AudioWhisper Recording"
+                    }
+                    
+                    if let window = recordWindow {
+                        window.orderOut(nil)
+                    } else {
+                        // Fallback to key window if title search fails
+                        NSApplication.shared.keyWindow?.orderOut(nil)
+                    }
+                    
+                    // Notify app delegate to restore focus to previous app
+                    NotificationCenter.default.post(name: NSNotification.Name("RestoreFocusToPreviousApp"), object: nil)
+                    
+                    // Reset success state
+                    showSuccess = false
+                }
+            }
+            
             // Listen for window becoming visible to handle immediate recording
             windowVisibilityObserver = NotificationCenter.default.addObserver(
                 forName: NSWindow.didBecomeKeyNotification,
@@ -219,6 +221,11 @@ struct ContentView: View {
             if let observer = spaceKeyObserver {
                 NotificationCenter.default.removeObserver(observer)
                 spaceKeyObserver = nil
+            }
+            
+            if let observer = escapeKeyObserver {
+                NotificationCenter.default.removeObserver(observer)
+                escapeKeyObserver = nil
             }
             
             if let observer = windowFocusObserver {
@@ -373,8 +380,13 @@ struct ContentView: View {
         // Play gentle completion sound
         soundManager.playCompletionSound()
         
-        // Paste the text immediately
-        pasteManager.pasteToActiveApp()
+        // First restore focus to previous app, then paste after a delay
+        NotificationCenter.default.post(name: NSNotification.Name("RestoreFocusToPreviousApp"), object: nil)
+        
+        // Wait for focus restoration before pasting
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            self.pasteManager.pasteToActiveApp()
+        }
         
         // Auto-dismiss after 2 seconds
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
