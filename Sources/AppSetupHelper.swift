@@ -38,10 +38,19 @@ class AppSetupHelper {
     static func checkFirstRun() -> Bool {
         let hasExistingProvider = UserDefaults.standard.string(forKey: "transcriptionProvider") != nil
         let hasCompletedWelcome = UserDefaults.standard.bool(forKey: "hasCompletedWelcome")
+        let lastWelcomeVersion = UserDefaults.standard.string(forKey: "lastWelcomeVersion") ?? "0"
         
-        if !hasExistingProvider && !hasCompletedWelcome {
-            // First run - default to LocalWhisper
-            UserDefaults.standard.set(TranscriptionProvider.local.rawValue, forKey: "transcriptionProvider")
+        // Current version that includes SmartPaste feature
+        let currentWelcomeVersion = "1.1" // Update this when SmartPaste feature is released
+        
+        // Show welcome for new users OR existing users who haven't seen the SmartPaste welcome
+        let shouldShowWelcome = (!hasExistingProvider && !hasCompletedWelcome) || (lastWelcomeVersion != currentWelcomeVersion)
+        
+        if shouldShowWelcome {
+            if !hasExistingProvider {
+                // First run - default to LocalWhisper
+                UserDefaults.standard.set(TranscriptionProvider.local.rawValue, forKey: "transcriptionProvider")
+            }
             return true
         } else if !hasExistingProvider {
             // Provider was somehow reset - default to LocalWhisper

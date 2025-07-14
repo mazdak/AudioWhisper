@@ -7,23 +7,8 @@ import os.log
 @main
 struct AudioWhisperApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    @StateObject private var windowManager = WindowManager()
     
     var body: some Scene {
-        // Recording window - always the same, chromeless
-        WindowGroup(id: "recording") {
-            ContentView()
-                .frame(width: 280, height: 160)
-                .fixedSize()
-                .background(VisualEffectView())
-                .onAppear {
-                    windowManager.setupRecordingWindow()
-                }
-        }
-        .windowStyle(.hiddenTitleBar)
-        .windowResizability(.contentSize)
-        .defaultPosition(.center)
-        
         // Settings window - normal chrome
         Settings {
             SettingsView()
@@ -51,6 +36,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var hotKeyManager: HotKeyManager?
     private var keyboardEventHandler: KeyboardEventHandler?
     private var windowController = WindowController()
+    private var recordingWindow: NSWindow?
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Setup app configuration
@@ -84,14 +70,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         // Setup additional notification observers
         setupNotificationObservers()
-        
-        // Hide recording window initially (it will show when hotkey is pressed)
-        DispatchQueue.main.async {
-            let recordWindow = NSApp.windows.first { window in
-                window.title == "AudioWhisper Recording"
-            }
-            recordWindow?.orderOut(nil)
-        }
 
         // Check for first run and show settings if needed
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
@@ -128,7 +106,48 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     @objc func toggleRecordWindow() {
-        windowController.toggleRecordWindow()
+        // Create recording window on-demand if it doesn't exist
+        if recordingWindow == nil {
+            createRecordingWindow()
+        }
+        windowController.toggleRecordWindow(recordingWindow)
+    }
+    
+    private func createRecordingWindow() {
+        // Create the recording window programmatically
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 280, height: 160),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        
+        // Configure window properties
+        window.title = "AudioWhisper Recording"
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        window.isMovableByWindowBackground = true
+        window.backgroundColor = .clear
+        window.level = .modalPanel
+        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenPrimary, .fullScreenAuxiliary]
+        window.hasShadow = true
+        window.isOpaque = false
+        
+        // Create ContentView and set it as content
+        let contentView = ContentView()
+            .frame(width: 280, height: 160)
+            .fixedSize()
+            .background(VisualEffectView())
+        
+        window.contentView = NSHostingView(rootView: contentView)
+        window.center()
+        
+        // Hide standard window buttons
+        window.standardWindowButton(.closeButton)?.isHidden = true
+        window.standardWindowButton(.miniaturizeButton)?.isHidden = true
+        window.standardWindowButton(.zoomButton)?.isHidden = true
+        
+        recordingWindow = window
     }
     
     @objc private func restoreFocusToPreviousApp() {

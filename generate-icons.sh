@@ -5,8 +5,8 @@ SOURCE_IMAGE="AudioWhisperIcon.png"
 ICONSET_DIR="AudioWhisper.iconset"
 
 if [ ! -f "$SOURCE_IMAGE" ]; then
-    echo "Error: $SOURCE_IMAGE not found!"
-    exit 1
+  echo "Error: $SOURCE_IMAGE not found!"
+  exit 1
 fi
 
 # Create iconset directory
@@ -39,14 +39,12 @@ sips -z 1024 1024 "$SOURCE_IMAGE" --out "$ICONSET_DIR/icon_512x512@2x.png" --set
 
 # Copy to Assets if they exist
 if [ -d "Assets.xcassets/AppIcon.appiconset" ]; then
-    echo "Copying icons to Assets..."
-    cp "$ICONSET_DIR"/*.png Assets.xcassets/AppIcon.appiconset/
-    echo "✅ Icons generated and copied to Assets!"
-else
-    echo "✅ Icons generated! Ready for app bundle."
+  echo "Copying icons to Assets..."
+  cp "$ICONSET_DIR"/*.png Assets.xcassets/AppIcon.appiconset/
 fi
 
 # Don't clean up iconset - build.sh needs it
 # rm -rf "$ICONSET_DIR"
 
 echo "Done!"
+

@@ -1,6 +1,6 @@
 # AudioWhisper 🎙️
 
-A lightweight macOS menu bar app for quick audio transcription using OpenAI Whisper, Google Gemini, Local WhisperKit, or Parakeet. Press a hotkey, record your thoughts, and get instant text that's automatically copied to your clipboard.
+A lightweight macOS menu bar app for quick audio transcription using OpenAI Whisper, Google Gemini, Local WhisperKit, or Nvidia Parakeet. Press a hotkey, record your thoughts, and get instant text that's automatically copied to your clipboard.
 
 <p align="center">
   <img src="https://github.com/mazdak/AudioWhisper/blob/master/AudioWhisperIcon.png" width="128" height="128" alt="AudioWhisper Icon">
@@ -11,7 +11,7 @@ A lightweight macOS menu bar app for quick audio transcription using OpenAI Whis
 - **🎯 Quick Access**: Global hotkey (⌘⇧Space) to start recording from anywhere
 - **🎙️ Menu Bar App**: Lives quietly in your menu bar, no dock icon
 - **🚀 Instant Transcription**: Powered by OpenAI Whisper, Google Gemini, Local WhisperKit with CoreML, or Parakeet-MLX
-- **📋 Auto-Paste**: Transcribed text is automatically copied and can be pasted
+- **📋 Smart Paste**: Transcribed text is automatically copied and can be pasted
 - **🔈 Visual and Sound Feedback**: Real-time audio level indicator while recording, chime when finished transcription
 - **⌨️ Keyboard Shortcuts**: Space to start/stop recording, ESC to cancel
 - **💬 User Guidance**: Clear on-screen instructions for all actions
@@ -23,7 +23,7 @@ A lightweight macOS menu bar app for quick audio transcription using OpenAI Whis
 ## Requirements 📋
 
 - macOS 14.0 (Sonoma) or later  
-- OpenAI API key, Google Gemini API key, Local Whisper (no API key required), or Parakeet with Python/FFmpeg
+- OpenAI API key, Google Gemini API key, Local Whisper (no API key required), or Parakeet with Python
 - Swift 5.9+ (for building from source)
 
 ## Installation 🛠️
@@ -62,7 +62,7 @@ cp -r AudioWhisper.app /Applications/
 - Audio never leaves your device
 - MLX hardware acceleration
 - ADVANCED: Make sure you have a Python installation on your machine: [Parakeet MLX Instructions](https://github.com/senstella/parakeet-mlx).
-- Pick Parakeet and Python in the full path to your Python binary
+- Pick Parakeet (Advanced) and enter the full path to your Python binary
 
 **OpenAI (Recommended for Cloud)**
 1. Visit https://platform.openai.com/api-keys
@@ -76,12 +76,10 @@ cp -r AudioWhisper.app /Applications/
 
 **Parakeet (Advanced)**
 - Local transcription using MLX framework for Apple Silicon optimization
-- Requires Python with parakeet-mlx and FFmpeg installed
+- Requires Python with parakeet-mlx installed
 - First use downloads ~600MB model from Hugging Face
 - Setup instructions:
   ```bash
-  # Install FFmpeg (required for audio processing)
-  brew install ffmpeg
   
   # Install parakeet-mlx 
   uv add parakeet-mlx -U
@@ -89,10 +87,6 @@ cp -r AudioWhisper.app /Applications/
   pip install parakeet-mlx
   ```
 - Configure Python path in settings (usually `/usr/bin/python3`)
-- Optionally specify custom FFmpeg path if not in standard locations
-  - Can be directory path: `/opt/homebrew/bin`
-  - Or full binary path: `/opt/homebrew/bin/ffmpeg`
-  - Auto-detects common locations if left empty
 
 ### First Run
 
@@ -185,8 +179,6 @@ swift build -c release
 
 **Parakeet Setup Issues**
 - Ensure Python and parakeet-mlx are installed: `python3 -c "import parakeet_mlx; print('OK')"`
-- Install FFmpeg: `brew install ffmpeg`
-- Verify FFmpeg is in PATH: `which ffmpeg`
 - Use "Test" button in settings to validate setup
 - Check Python path is correct (usually `/usr/bin/python3`)
 - For custom Python installations, specify full path to python executable
@@ -217,7 +209,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Uses OpenAI Whisper API for cloud transcription
 - Supports Google Gemini as an alternative
 - Local transcription powered by WhisperKit with CoreML acceleration
-- Inspired by macOS Spotlight and quick capture apps
+- Parakeet-MLX library for providing an easy accelerated Python interface
 
 ---
 

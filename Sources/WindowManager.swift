@@ -101,13 +101,9 @@ class WindowManager: ObservableObject {
     }
     
     private func setInitialFocus(for window: NSWindow) {
-        // Ensure initial window gets focus on first launch
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-            window.makeKeyAndOrderFront(nil)
-            NSApp?.activate(ignoringOtherApps: true)
-            window.makeKey()
-            window.makeFirstResponder(window.contentView)
-        }
+        // NEVER show recording window automatically on app launch
+        // It should only be shown when hotkey is pressed
+        window.orderOut(nil)
     }
     
     private func configureFallbackWindow() {
