@@ -24,8 +24,10 @@ struct ContentView: View {
     @State private var transcriptionProgressObserver: NSObjectProtocol?
     @State private var spaceKeyObserver: NSObjectProtocol?
     @State private var escapeKeyObserver: NSObjectProtocol?
+    @State private var returnKeyObserver: NSObjectProtocol?
+    @State private var targetAppObserver: NSObjectProtocol?
+    @State private var targetAppForPaste: NSRunningApplication?
     @State private var windowFocusObserver: NSObjectProtocol?
-    @State private var windowVisibilityObserver: NSObjectProtocol?
     
     init(speechService: SpeechToTextService = SpeechToTextService()) {
         self._speechService = StateObject(wrappedValue: speechService)
@@ -57,7 +59,16 @@ struct ContentView: View {
                 onTap: {
                     if audioRecorder.isRecording {
                         stopAndProcess()
-                    } else if !showSuccess {
+                    } else if showSuccess {
+                        let enableSmartPaste = UserDefaults.standard.bool(forKey: "enableSmartPaste")
+                        if enableSmartPaste {
+                            // User-triggered paste: Focus target app FIRST, then paste
+                            performUserTriggeredPaste()
+                        } else {
+                            // SmartPaste disabled - just dismiss window
+                            showSuccess = false
+                        }
+                    } else {
                         startRecording()
                     }
                 },
@@ -67,10 +78,28 @@ struct ContentView: View {
             )
             
             // Instruction text below microphone
-            if audioRecorder.hasPermission && !showSuccess && !isProcessing && !audioRecorder.isRecording {
-                Text(LocalizedStrings.UI.spaceToRecord)
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary.opacity(0.7))
+            if audioRecorder.hasPermission && !isProcessing && !audioRecorder.isRecording {
+                if showSuccess {
+                    let enableSmartPaste = UserDefaults.standard.bool(forKey: "enableSmartPaste")
+                    if enableSmartPaste {
+                        VStack(spacing: 4) {
+                            Text("Click to paste, Return to paste, or ⌘V")
+                                .font(.system(size: 10))
+                                .foregroundColor(.secondary.opacity(0.7))
+                            Text("Text copied to clipboard • ESC to dismiss")
+                                .font(.system(size: 9))
+                                .foregroundColor(.secondary.opacity(0.5))
+                        }
+                    } else {
+                        Text("Text copied to clipboard")
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary.opacity(0.7))
+                    }
+                } else {
+                    Text(LocalizedStrings.UI.spaceToRecord)
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary.opacity(0.7))
+                }
             }
         }
         .padding(20)
@@ -140,9 +169,12 @@ struct ContentView: View {
                     permissionManager.requestPermissionWithEducation()
                 }
                 
-                // Reset the flag after a delay
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                    isHandlingSpaceKey = false
+                // Reset the flag after a delay to prevent double-triggering
+                Task {
+                    try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
+                    await MainActor.run {
+                        isHandlingSpaceKey = false
+                    }
                 }
             }
             
@@ -181,32 +213,51 @@ struct ContentView: View {
                 }
             }
             
-            // Listen for window becoming visible to handle immediate recording
-            windowVisibilityObserver = NotificationCenter.default.addObserver(
+            // Listen for Return key to paste when in success state
+            returnKeyObserver = NotificationCenter.default.addObserver(
+                forName: NSNotification.Name("ReturnKeyPressed"),
+                object: nil,
+                queue: .main
+            ) { _ in
+                if showSuccess {
+                    let enableSmartPaste = UserDefaults.standard.bool(forKey: "enableSmartPaste")
+                    if enableSmartPaste {
+                        // User pressed Return - trigger paste
+                        performUserTriggeredPaste()
+                    }
+                }
+            }
+            
+            // Listen for target app storage from WindowController
+            targetAppObserver = NotificationCenter.default.addObserver(
+                forName: NSNotification.Name("TargetAppStored"),
+                object: nil,
+                queue: .main
+            ) { notification in
+                if let app = notification.object as? NSRunningApplication {
+                    targetAppForPaste = app
+                }
+            }
+            
+            // Listen for window becoming key - combined handler for immediate recording and focus
+            windowFocusObserver = NotificationCenter.default.addObserver(
                 forName: NSWindow.didBecomeKeyNotification,
                 object: nil,
                 queue: .main
             ) { _ in
+                // Ensure window is ready for keyboard input
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                    if let window = NSApp.keyWindow {
+                        window.makeFirstResponder(window.contentView)
+                    }
+                }
+                
                 // Start recording immediately if enabled and conditions are met
                 if immediateRecording && !audioRecorder.isRecording && !isProcessing && audioRecorder.hasPermission && !showSuccess {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                         if !audioRecorder.isRecording && !isProcessing && audioRecorder.hasPermission {
                             startRecording()
                         }
-                    }
-                }
-            }
-            
-            // Listen for window focus events to ensure keyboard input works
-            windowFocusObserver = NotificationCenter.default.addObserver(
-                forName: NSWindow.didBecomeKeyNotification,
-                object: nil,
-                queue: .main
-            ) { _ in
-                // When window becomes key, ensure it's ready for keyboard input
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                    if let window = NSApp.keyWindow {
-                        window.makeFirstResponder(window.contentView)
                     }
                 }
             }
@@ -228,14 +279,19 @@ struct ContentView: View {
                 escapeKeyObserver = nil
             }
             
+            if let observer = returnKeyObserver {
+                NotificationCenter.default.removeObserver(observer)
+                returnKeyObserver = nil
+            }
+            
+            if let observer = targetAppObserver {
+                NotificationCenter.default.removeObserver(observer)
+                targetAppObserver = nil
+            }
+            
             if let observer = windowFocusObserver {
                 NotificationCenter.default.removeObserver(observer)
                 windowFocusObserver = nil
-            }
-            
-            if let observer = windowVisibilityObserver {
-                NotificationCenter.default.removeObserver(observer)
-                windowVisibilityObserver = nil
             }
             
             // Cancel any running processing task
@@ -263,9 +319,9 @@ struct ContentView: View {
                 showErrorAlert()
             }
         }
-        .onChange(of: permissionManager.permissionState) { _, newState in
+        .onChange(of: permissionManager.allPermissionsGranted) { _, granted in
             // Sync permission manager state with audio recorder
-            audioRecorder.hasPermission = (newState == .granted)
+            audioRecorder.hasPermission = (permissionManager.microphonePermissionState == .granted)
             updateStatus()
         }
         .onAppear {
@@ -295,6 +351,98 @@ struct ContentView: View {
         )
     }
     
+    // MARK: - Paste Management
+    
+    private func performUserTriggeredPaste() {
+        guard let targetApp = findValidTargetApp() else {
+            showSuccess = false
+            hideRecordingWindow()
+            return
+        }
+        
+        // Small delay to ensure Return key event is fully consumed
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            // Hide window after ensuring key event is consumed
+            self.hideRecordingWindow()
+            
+            // Then activate target app and paste
+            self.activateTargetAppAndPaste(targetApp)
+        }
+    }
+    
+    private func findValidTargetApp() -> NSRunningApplication? {
+        // Try stored target app first
+        var targetApp = WindowController.storedTargetApp
+        if targetApp == nil {
+            targetApp = targetAppForPaste
+        }
+        
+        // Verify the stored app is still running and valid
+        if let stored = targetApp, stored.isTerminated {
+            targetApp = nil
+        }
+        
+        // Fallback: find a suitable app, avoiding known problematic ones
+        if targetApp == nil {
+            targetApp = findFallbackTargetApp()
+        }
+        
+        return targetApp
+    }
+    
+    private func findFallbackTargetApp() -> NSRunningApplication? {
+        let workspace = NSWorkspace.shared
+        let runningApps = workspace.runningApplications
+        
+        return runningApps.first { app in
+            app.bundleIdentifier != Bundle.main.bundleIdentifier &&
+            app.bundleIdentifier != "com.tinyspeck.slackmacgap" &&
+            app.bundleIdentifier != "com.cron.electron" &&  // Notion Calendar
+            app.activationPolicy == .regular &&
+            !app.isTerminated
+        }
+    }
+    
+    private func hideRecordingWindow() {
+        let recordWindow = NSApp.windows.first { window in
+            window.title == "AudioWhisper Recording"
+        }
+        if let window = recordWindow {
+            window.orderOut(nil)
+        } else {
+            NSApplication.shared.keyWindow?.orderOut(nil)
+        }
+    }
+    
+    private func activateTargetAppAndPaste(_ target: NSRunningApplication) {
+        // Try activation with fallback handling
+        let success = target.activate(options: [])
+        
+        // If activation fails, try alternative approach
+        if !success {
+            attemptFallbackActivation(target)
+        }
+        
+        // Wait for focus restoration, then paste and cleanup
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            Task { @MainActor in
+                self.pasteManager.pasteWithUserInteraction()
+                
+                // Reset success state after brief delay for paste completion
+                try? await Task.sleep(nanoseconds: 200_000_000) // 0.2 seconds
+                self.showSuccess = false
+            }
+        }
+    }
+    
+    private func attemptFallbackActivation(_ target: NSRunningApplication) {
+        if let bundleURL = target.bundleURL {
+            let configuration = NSWorkspace.OpenConfiguration()
+            configuration.activates = true
+            NSWorkspace.shared.openApplication(at: bundleURL, configuration: configuration, completionHandler: nil)
+        }
+    }
+    
     // MARK: - Recording Management
     
     private func startRecording() {
@@ -302,6 +450,9 @@ struct ContentView: View {
             permissionManager.requestPermissionWithEducation()
             return
         }
+        
+        // Note: Target app is already stored by WindowController.storePreviousApp() when window is shown
+        // We don't need to store it again here since AudioWhisper may already be frontmost
         
         let success = audioRecorder.startRecording()
         if !success {
@@ -380,30 +531,35 @@ struct ContentView: View {
         // Play gentle completion sound
         soundManager.playCompletionSound()
         
-        // First restore focus to previous app, then paste after a delay
-        NotificationCenter.default.post(name: NSNotification.Name("RestoreFocusToPreviousApp"), object: nil)
-        
-        // Wait for focus restoration before pasting
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-            self.pasteManager.pasteToActiveApp()
-        }
-        
-        // Auto-dismiss after 2 seconds
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-            // Find the recording window reliably by title
-            let recordWindow = NSApp.windows.first { window in
-                window.title == "AudioWhisper Recording"
-            }
+        // Handle auto-dismiss based on SmartPaste setting
+        let enableSmartPaste = UserDefaults.standard.bool(forKey: "enableSmartPaste")
+        if enableSmartPaste {
+            // Keep AudioWhisper focused so we can capture Return key
+            // Window stays open until user pastes or manually closes
+            // No auto-dismiss - let user control when to paste
+        } else {
+            // Restore focus to previous app when SmartPaste is disabled
+            NotificationCenter.default.post(name: NSNotification.Name("RestoreFocusToPreviousApp"), object: nil)
             
-            if let window = recordWindow {
-                window.orderOut(nil)
-            } else {
-                // Fallback to key window if title search fails
-                NSApplication.shared.keyWindow?.orderOut(nil)
+            // Auto-dismiss after 2 seconds when SmartPaste is disabled
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                let recordWindow = NSApp.windows.first { window in
+                    window.title == "AudioWhisper Recording"
+                }
+                
+                if let window = recordWindow {
+                    window.orderOut(nil)
+                } else {
+                    // Fallback to key window if title search fails
+                    NSApplication.shared.keyWindow?.orderOut(nil)
+                }
+                
+                // Notify app delegate to restore focus to previous app
+                NotificationCenter.default.post(name: NSNotification.Name("RestoreFocusToPreviousApp"), object: nil)
+                
+                // Reset success state
+                showSuccess = false
             }
-            
-            // Reset success state for next use
-            showSuccess = false
         }
     }
     

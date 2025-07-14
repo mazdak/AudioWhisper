@@ -104,7 +104,7 @@ struct WelcomeView: View {
                 setupOptions
             }
             
-            accessibilityInstructions
+            smartPasteInstructions
         }
         .padding()
         .background(Color(NSColor.controlBackgroundColor))
@@ -188,29 +188,28 @@ struct WelcomeView: View {
         }
     }
     
-    private var accessibilityInstructions: some View {
+    private var smartPasteInstructions: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("Enable Auto-Paste", systemImage: "hand.raised.fill")
+            Label("Smart Paste Feature", systemImage: "accessibility")
                 .font(.headline)
-                .foregroundColor(.orange)
+                .foregroundColor(.green)
             
-            Text("To enable automatic pasting of transcribed text:")
+            Text("AudioWhisper can automatically paste transcribed text using CGEvent-based automation:")
                 .font(.callout)
             
             VStack(alignment: .leading, spacing: 8) {
-                InstructionRow(number: 1, text: "Open System Settings → Privacy & Security → Accessibility")
-                InstructionRow(number: 2, text: "Click the '+' button")
-                InstructionRow(number: 3, text: "Add AudioWhisper from your Applications folder")
-                InstructionRow(number: 4, text: "Make sure the toggle is enabled")
+                InstructionRow(number: 1, text: "Enable 'Smart Paste' in Settings → General")
+                InstructionRow(number: 2, text: "Grant Accessibility permission when prompted")
+                InstructionRow(number: 3, text: "Transcribed text will automatically paste into the active app")
             }
             
-            Text("You can do this later if you prefer.")
+            Text("You can enable this later in Settings if you prefer manual pasting.")
                 .font(.caption)
                 .foregroundColor(.secondary)
                 .padding(.top, 4)
         }
         .padding()
-        .background(Color.orange.opacity(0.1))
+        .background(Color.green.opacity(0.1))
         .cornerRadius(8)
     }
     
@@ -234,6 +233,7 @@ struct WelcomeView: View {
         // Set the settings
         UserDefaults.standard.set(TranscriptionProvider.local.rawValue, forKey: "transcriptionProvider")
         UserDefaults.standard.set(true, forKey: "hasCompletedWelcome")
+        UserDefaults.standard.set("1.1", forKey: "lastWelcomeVersion") // Match version in AppSetupHelper
         
         // Notify that welcome is complete and open settings
         NotificationCenter.default.post(name: NSNotification.Name("WelcomeCompleted"), object: nil)

@@ -6,20 +6,37 @@ class WindowController {
     private var previousApp: NSRunningApplication?
     private let isTestEnvironment: Bool
     
+    // Thread-safe static property to share target app with ContentView
+    private static let storedTargetAppQueue = DispatchQueue(label: "com.audiowhisper.storedTargetApp", attributes: .concurrent)
+    private static var _storedTargetApp: NSRunningApplication?
+    
+    static var storedTargetApp: NSRunningApplication? {
+        get {
+            return storedTargetAppQueue.sync {
+                return _storedTargetApp
+            }
+        }
+        set {
+            storedTargetAppQueue.async(flags: .barrier) {
+                _storedTargetApp = newValue
+            }
+        }
+    }
+    
     init() {
         // Detect if running in tests
         isTestEnvironment = NSClassFromString("XCTestCase") != nil
     }
     
-    func toggleRecordWindow() {
+    func toggleRecordWindow(_ window: NSWindow? = nil) {
         // Don't show recorder window during first-run welcome experience
         let hasCompletedWelcome = UserDefaults.standard.bool(forKey: "hasCompletedWelcome")
         if !hasCompletedWelcome {
             return
         }
         
-        // Find the recording window by title
-        let recordWindow = NSApp.windows.first { window in
+        // Use provided window or find the recording window by title
+        let recordWindow = window ?? NSApp.windows.first { window in
             window.title == "AudioWhisper Recording"
         }
         
@@ -91,6 +108,13 @@ class WindowController {
         if let frontmostApp = workspace.frontmostApplication,
            frontmostApp.bundleIdentifier != Bundle.main.bundleIdentifier {
             previousApp = frontmostApp
+            WindowController.storedTargetApp = frontmostApp  // Store in static property
+            
+            // Also notify via NotificationCenter as backup
+            NotificationCenter.default.post(
+                name: NSNotification.Name("TargetAppStored"),
+                object: frontmostApp
+            )
         }
     }
     

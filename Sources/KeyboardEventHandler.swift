@@ -49,6 +49,14 @@ class KeyboardEventHandler {
             return nil // Consume the event
         }
         
+        // Handle return key
+        if key == String(Character(UnicodeScalar(13)!)) || key == "\r" { // Return/Enter
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(name: NSNotification.Name("ReturnKeyPressed"), object: nil)
+            }
+            return nil // Consume the event
+        }
+        
         // Allow Cmd+, for settings
         if key == "," && modifiers.contains(.command) {
             DispatchQueue.main.async {

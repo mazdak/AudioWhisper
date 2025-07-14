@@ -4,26 +4,44 @@ struct PermissionEducationModal: View {
     let onProceed: () -> Void
     let onCancel: () -> Void
     
+    private var enableSmartPaste: Bool {
+        UserDefaults.standard.bool(forKey: "enableSmartPaste")
+    }
+    
     var body: some View {
         VStack(spacing: 20) {
-            Image(systemName: "mic.circle.fill")
-                .font(.system(size: 48))
-                .foregroundColor(.blue)
-                .accessibilityLabel("Microphone permission required")
+            HStack(spacing: 16) {
+                Image(systemName: "mic.circle.fill")
+                    .font(.system(size: 36))
+                    .foregroundColor(.blue)
+                if enableSmartPaste {
+                    Image(systemName: "accessibility.circle.fill")
+                        .font(.system(size: 36))
+                        .foregroundColor(.green)
+                }
+            }
+            .accessibilityLabel("Permissions required")
             
             VStack(spacing: 12) {
-                Text("Microphone Access Required")
+                Text(enableSmartPaste ? "Permissions Required" : "Microphone Permission Required")
                     .font(.title2)
                     .fontWeight(.semibold)
                 
-                Text("AudioWhisper needs access to your microphone to record audio for transcription.")
+                Text(enableSmartPaste ? 
+                     "AudioWhisper needs permissions to work properly:" :
+                     "AudioWhisper needs microphone access to record audio:")
                     .multilineTextAlignment(.center)
                     .foregroundColor(.secondary)
                 
                 VStack(alignment: .leading, spacing: 8) {
-                    Label("Record high-quality audio", systemImage: "waveform.circle.fill")
-                    Label("Process everything locally or in the cloud", systemImage: "cloud.circle.fill")
+                    Label("Microphone access to record audio", systemImage: "mic.circle.fill")
+                        .foregroundColor(.blue)
+                    if enableSmartPaste {
+                        Label("Accessibility access to paste transcribed text", systemImage: "accessibility.circle.fill")
+                            .foregroundColor(.green)
+                    }
                     Label("Your audio is never stored permanently", systemImage: "lock.circle.fill")
+                        .foregroundColor(.secondary)
                 }
                 .font(.callout)
                 .foregroundColor(.primary)
@@ -34,17 +52,17 @@ struct PermissionEducationModal: View {
                     onCancel()
                 }
                 .buttonStyle(.bordered)
-                .accessibilityHint("Dismiss this dialog without granting microphone permission")
+                .accessibilityHint("Dismiss this dialog without granting permissions")
                 
-                Button("Allow Microphone Access") {
+                Button(enableSmartPaste ? "Allow Permissions" : "Allow Microphone Access") {
                     onProceed()
                 }
                 .buttonStyle(.borderedProminent)
-                .accessibilityHint("Grant microphone permission to start recording audio")
+                .accessibilityHint(enableSmartPaste ? "Grant microphone and accessibility permissions" : "Grant microphone permission")
             }
         }
         .padding(24)
-        .frame(width: 400)
+        .frame(width: enableSmartPaste ? 420 : 400)
         .background(Color(NSColor.windowBackgroundColor))
         .cornerRadius(12)
         .shadow(radius: 20)
@@ -60,14 +78,14 @@ struct PermissionRecoveryModal: View {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: 48))
                 .foregroundColor(.orange)
-                .accessibilityLabel("Warning: Microphone access denied")
+                .accessibilityLabel("Warning: Permissions denied")
             
             VStack(spacing: 12) {
-                Text("Microphone Access Denied")
+                Text("Permissions Required")
                     .font(.title2)
                     .fontWeight(.semibold)
                 
-                Text("To use AudioWhisper, you'll need to enable microphone access in System Settings.")
+                Text("AudioWhisper needs microphone and accessibility permissions to work properly.")
                     .multilineTextAlignment(.center)
                     .foregroundColor(.secondary)
                 
@@ -81,13 +99,13 @@ struct PermissionRecoveryModal: View {
                     HStack {
                         Text("2.")
                             .fontWeight(.semibold)
-                        Text("Find AudioWhisper in the microphone list")
+                        Text("Enable AudioWhisper in 'Microphone' section")
                     }
                     
                     HStack {
                         Text("3.")
                             .fontWeight(.semibold)
-                        Text("Toggle the switch to enable access")
+                        Text("Enable AudioWhisper in 'Accessibility' section")
                     }
                 }
                 .font(.callout)
@@ -105,11 +123,11 @@ struct PermissionRecoveryModal: View {
                     onOpenSettings()
                 }
                 .buttonStyle(.borderedProminent)
-                .accessibilityHint("Open macOS System Settings to enable microphone access")
+                .accessibilityHint("Open macOS System Settings to enable permissions")
             }
         }
         .padding(24)
-        .frame(width: 400)
+        .frame(width: 450)
         .background(Color(NSColor.windowBackgroundColor))
         .cornerRadius(12)
         .shadow(radius: 20)

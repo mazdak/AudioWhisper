@@ -39,7 +39,7 @@ if [ $? -ne 0 ]; then
 fi
 
 # Create app bundle
-echo "📱 Creating app bundle..."
+echo "Creating app bundle..."
 mkdir -p AudioWhisper.app/Contents/MacOS
 mkdir -p AudioWhisper.app/Contents/Resources
 
@@ -49,15 +49,15 @@ cp .build/apple/Products/Release/AudioWhisper AudioWhisper.app/Contents/MacOS/
 # Copy Python script for Parakeet support
 if [ -f "Sources/parakeet_transcribe_pcm.py" ]; then
   cp Sources/parakeet_transcribe_pcm.py AudioWhisper.app/Contents/Resources/
-  echo "📜 Copied Parakeet PCM Python script"
+  echo "Copied Parakeet PCM Python script"
 else
-  echo "⚠️  parakeet_transcribe_pcm.py not found, Parakeet functionality will not work"
+  echo "⚠️ parakeet_transcribe_pcm.py not found, Parakeet functionality will not work"
 fi
 
 # Note: AudioProcessorCLI binary no longer needed - using direct Swift audio processing
 
 # Create proper Info.plist
-echo "📝 Creating Info.plist..."
+echo "Creating Info.plist..."
 cat >AudioWhisper.app/Contents/Info.plist <<'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -113,7 +113,6 @@ cat >AudioWhisper.app/Contents/Info.plist <<'EOF'
 EOF
 
 # Generate app icon from our source image
-echo "🎨 Generating app icon..."
 if [ -f "AudioWhisperIcon.png" ]; then
   ./generate-icons.sh
 
@@ -126,14 +125,14 @@ if [ -f "AudioWhisperIcon.png" ]; then
   rm -rf AudioWhisper.iconset
   rm -f AppIcon.icns # Remove any stray icns file from root
 else
-  echo "⚠️  AudioWhisperIcon.png not found, app will use default icon"
+  echo "⚠️ AudioWhisperIcon.png not found, app will use default icon"
 fi
 
 # Make executable
 chmod +x AudioWhisper.app/Contents/MacOS/AudioWhisper
 
 # Create entitlements file for hardened runtime
-echo "🔐 Creating entitlements for hardened runtime..."
+echo "Creating entitlements for hardened runtime..."
 cat >AudioWhisper.entitlements <<'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -141,61 +140,66 @@ cat >AudioWhisper.entitlements <<'EOF'
 <dict>
     <key>com.apple.security.device.audio-input</key>
     <true/>
-    <key>com.apple.security.automation.apple-events</key>
-    <true/>
     <key>com.apple.security.network.client</key>
     <true/>
 </dict>
 </plist>
 EOF
 
-# Optional: Code sign the app (requires Apple Developer account)
-if [ -n "$CODE_SIGN_IDENTITY" ]; then
-  echo "🔏 Code signing app with: $CODE_SIGN_IDENTITY"
-  codesign --force --deep --sign "$CODE_SIGN_IDENTITY" --options runtime --entitlements AudioWhisper.entitlements AudioWhisper.app
+# Function to sign the app with a given identity
+sign_app() {
+  local identity="$1"
+  local identity_name="$2"
+  
+  if [ -n "$identity_name" ]; then
+    echo "🔏 Code signing app with: $identity_name ($identity)"
+  else
+    echo "🔏 Code signing app with: $identity"
+  fi
+  
+  codesign --force --deep --sign "$identity" --options runtime --entitlements AudioWhisper.entitlements AudioWhisper.app
   if [ $? -eq 0 ]; then
-    echo "✅ App signed successfully"
     echo "🔍 Verifying signature..."
     codesign --verify --verbose AudioWhisper.app
-    spctl -a -v AudioWhisper.app 2>/dev/null && echo "✅ Gatekeeper approved" || echo "⚠️  Gatekeeper check failed"
+    echo "✅ App signed successfully"
+    return 0
   else
     echo "❌ Code signing failed"
+    return 1
   fi
+}
 
-  # Clean up entitlements file
-  rm -f AudioWhisper.entitlements
+# Optional: Code sign the app (requires Apple Developer account)
+SIGNING_IDENTITY=""
+SIGNING_NAME=""
+
+if [ -n "$CODE_SIGN_IDENTITY" ]; then
+  SIGNING_IDENTITY="$CODE_SIGN_IDENTITY"
 else
   # Try to auto-detect Developer ID (use the first one found)
   DETECTED_HASH=$(security find-identity -v -p codesigning | grep "Developer ID Application" | head -1 | awk '{print $2}')
   DETECTED_NAME=$(security find-identity -v -p codesigning | grep "Developer ID Application" | head -1 | awk '{print $3}' | tr -d '"')
   if [ -n "$DETECTED_HASH" ]; then
     echo "🔍 Auto-detected signing identity: $DETECTED_NAME"
-    echo "🔏 Code signing app with: $DETECTED_HASH"
-
-    # Use the same entitlements file already created above
-
-    codesign --force --deep --sign "$DETECTED_HASH" --options runtime --entitlements AudioWhisper.entitlements AudioWhisper.app
-    if [ $? -eq 0 ]; then
-      echo "✅ App signed successfully"
-      echo "🔍 Verifying signature..."
-      codesign --verify --verbose AudioWhisper.app
-      spctl -a -v AudioWhisper.app 2>/dev/null && echo "✅ Gatekeeper approved" || echo "⚠️  Gatekeeper check failed"
-    else
-      echo "❌ Code signing failed"
-    fi
-  else
-    echo "💡 No Developer ID found. App will be unsigned."
-    echo "💡 To sign the app, get a Developer ID certificate from Apple Developer Portal."
+    SIGNING_IDENTITY="$DETECTED_HASH"
+    SIGNING_NAME="$DETECTED_NAME"
   fi
-
-  # Clean up entitlements file
-  rm -f AudioWhisper.entitlements
 fi
+
+if [ -n "$SIGNING_IDENTITY" ]; then
+  sign_app "$SIGNING_IDENTITY" "$SIGNING_NAME"
+else
+  echo "💡 No Developer ID found. App will be unsigned."
+  echo "💡 To sign the app, get a Developer ID certificate from Apple Developer Portal."
+fi
+
+# Clean up entitlements file
+rm -f AudioWhisper.entitlements
 
 # Notarization (requires code signing first)
 if [ "$NOTARIZE" = true ]; then
   echo ""
-  echo "🔔 Starting notarization process..."
+  echo "🔐 Starting notarization process..."
 
   # Check for required environment variables
   if [ -z "$AUDIO_WHISPER_APPLE_ID" ] || [ -z "$AUDIO_WHISPER_APPLE_PASSWORD" ] || [ -z "$AUDIO_WHISPER_TEAM_ID" ]; then
@@ -213,16 +217,14 @@ if [ "$NOTARIZE" = true ]; then
   fi
 
   # Check if app is signed
-  if ! codesign -dvvv AudioWhisper.app 2>&1 | grep -q "Signature=adhoc"; then
-    echo "✅ App is properly signed, proceeding with notarization..."
-  else
+  if codesign -dvvv AudioWhisper.app 2>&1 | grep -q "Signature=adhoc"; then
     echo "❌ App must be properly signed before notarization (not adhoc signed)"
     echo "Please ensure CODE_SIGN_IDENTITY is set or a Developer ID is available"
     exit 1
   fi
 
   # Create a zip file for notarization
-  echo "📦 Creating zip for notarization..."
+  echo "Creating zip for notarization..."
   ditto -c -k --keepParent AudioWhisper.app AudioWhisper.zip
 
   # Submit for notarization
@@ -235,8 +237,6 @@ if [ "$NOTARIZE" = true ]; then
 
   # Check if notarization was successful
   if grep -q "status: Accepted" notarization.log; then
-    echo "✅ Notarization successful!"
-
     # Staple the notarization ticket to the app
     echo "📎 Stapling notarization ticket..."
     xcrun stapler staple AudioWhisper.app
@@ -244,7 +244,7 @@ if [ "$NOTARIZE" = true ]; then
     if [ $? -eq 0 ]; then
       echo "✅ Notarization ticket stapled successfully!"
     else
-      echo "⚠️  Failed to staple notarization ticket, but app is notarized"
+      echo "⚠️ Failed to staple notarization ticket, but app is notarized"
     fi
   else
     echo "❌ Notarization failed. Check notarization.log for details"
@@ -263,18 +263,4 @@ fi
 
 echo "✅ Build complete!"
 echo ""
-echo "📦 App bundle created: AudioWhisper.app"
-if [ "$NOTARIZE" = true ]; then
-  echo "✅ App has been notarized and can be distributed!"
-fi
-echo ""
-echo ""
-echo "To run immediately:"
-echo "  open AudioWhisper.app"
-echo ""
-
-# Open Finder to show the built app
-echo ""
-echo "📂 Opening Finder..."
 open -R AudioWhisper.app
-
