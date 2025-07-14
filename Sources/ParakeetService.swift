@@ -1,9 +1,9 @@
 import Foundation
 import os.log
+import AudioToolbox
 
 enum ParakeetError: Error, LocalizedError, Equatable {
     case pythonNotFound(path: String)
-    case ffmpegNotFound(suggestedPaths: [String])
     case scriptNotFound
     case transcriptionFailed(String)
     case invalidResponse(String)
@@ -14,9 +14,6 @@ enum ParakeetError: Error, LocalizedError, Equatable {
         switch self {
         case .pythonNotFound(let path):
             return "Python executable not found at: \(path)\n\nTry:\n• Use system Python: /usr/bin/python3\n• Install via Homebrew: brew install python3\n• Check if path exists and is executable"
-        case .ffmpegNotFound(let suggestedPaths):
-            let suggestions = suggestedPaths.joined(separator: "\n• ")
-            return "FFmpeg not found in PATH\n\nInstall FFmpeg:\n• brew install ffmpeg\n\nOr specify custom path in settings:\n• \(suggestions)"
         case .scriptNotFound:
             return "Parakeet transcription script not found in app bundle"
         case .transcriptionFailed(let message):
@@ -40,44 +37,171 @@ struct ParakeetResponse: Codable {
 class ParakeetService {
     private let logger = Logger(subsystem: "com.audiowhisper.app", category: "ParakeetService")
     
-    func transcribe(audioFileURL: URL, pythonPath: String, ffmpegPath: String = "") async throws -> String {
-        logger.info("Starting Parakeet transcription...")
-        logger.info("Audio file: \(audioFileURL.path)")
-        logger.info("Python path: \(pythonPath)")
+    func transcribe(audioFileURL: URL, pythonPath: String) async throws -> String {
         
+        // Step 1: Process audio with Swift AudioProcessor to create raw PCM data
+        let pcmDataURL = try await processAudioToRawPCM(audioFileURL: audioFileURL)
+        defer {
+            // Clean up the temporary PCM file
+            try? FileManager.default.removeItem(at: pcmDataURL)
+        }
+        
+        // Step 2: Call Python with the raw PCM data instead of original audio
+        return try await transcribeWithRawPCM(pcmDataURL: pcmDataURL, pythonPath: pythonPath)
+    }
+    
+    private func processAudioToRawPCM(audioFileURL: URL) async throws -> URL {
+        // Create temporary file for raw PCM data
+        let tempPCMURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("audio_pcm_\(UUID().uuidString).raw")
+        
+        do {
+            // Use AudioProcessor.swift logic directly
+            let samples = try loadAudio(url: audioFileURL, samplingRate: 16000)
+            
+            // Write raw float32 data
+            let data = Data(bytes: samples, count: samples.count * MemoryLayout<Float>.size)
+            try data.write(to: tempPCMURL)
+            
+            return tempPCMURL
+            
+        } catch {
+            throw ParakeetError.transcriptionFailed("Audio processing failed: \(error.localizedDescription)")
+        }
+    }
+    
+    // Audio processing function from AudioProcessor.swift
+    private func loadAudio(url: URL, samplingRate: Int) throws -> [Float] {
+        var extAudioFile: ExtAudioFileRef?
+        
+        // Open the audio file
+        var status = ExtAudioFileOpenURL(url as CFURL, &extAudioFile)
+        guard status == noErr, let extFile = extAudioFile else {
+            throw ParakeetError.transcriptionFailed("Failed to open audio file: \(status)")
+        }
+        defer { ExtAudioFileDispose(extFile) }
+        
+        // Get file's original format and length
+        var fileFormat = AudioStreamBasicDescription()
+        var propertySize = UInt32(MemoryLayout<AudioStreamBasicDescription>.size)
+        status = ExtAudioFileGetProperty(extFile, kExtAudioFileProperty_FileDataFormat, &propertySize, &fileFormat)
+        guard status == noErr else {
+            throw ParakeetError.transcriptionFailed("Failed to get audio format: \(status)")
+        }
+        
+        var fileLengthFrames: Int64 = 0
+        propertySize = UInt32(MemoryLayout<Int64>.size)
+        status = ExtAudioFileGetProperty(extFile, kExtAudioFileProperty_FileLengthFrames, &propertySize, &fileLengthFrames)
+        guard status == noErr else {
+            throw ParakeetError.transcriptionFailed("Failed to get audio length: \(status)")
+        }
+        
+        // Define client format: mono, float32, target sample rate, interleaved/packed
+        var clientFormat = AudioStreamBasicDescription(
+            mSampleRate: Float64(samplingRate),
+            mFormatID: kAudioFormatLinearPCM,
+            mFormatFlags: kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked,
+            mBytesPerPacket: 4,
+            mFramesPerPacket: 1,
+            mBytesPerFrame: 4,
+            mChannelsPerFrame: 1,
+            mBitsPerChannel: 32,
+            mReserved: 0
+        )
+        
+        propertySize = UInt32(MemoryLayout<AudioStreamBasicDescription>.size)
+        status = ExtAudioFileSetProperty(extFile, kExtAudioFileProperty_ClientDataFormat, propertySize, &clientFormat)
+        guard status == noErr else {
+            throw ParakeetError.transcriptionFailed("Failed to set audio format: \(status)")
+        }
+        
+        // Estimate client length for preallocation
+        let fileSampleRate = fileFormat.mSampleRate
+        let duration = Double(fileLengthFrames) / fileSampleRate
+        let estimatedClientFrames = Int(duration * Double(samplingRate) + 0.5)
+        var samples: [Float] = []
+        samples.reserveCapacity(estimatedClientFrames)
+        
+        // Read in chunks until EOF
+        let bufferFrameSize = 4096
+        var buffer = [Float](repeating: 0, count: bufferFrameSize)
+        
+        while true {
+            var numFrames = UInt32(bufferFrameSize)
+            
+            let audioBuffer = buffer.withUnsafeMutableBytes { bytes in
+                AudioBuffer(
+                    mNumberChannels: 1,
+                    mDataByteSize: UInt32(bufferFrameSize * MemoryLayout<Float>.size),
+                    mData: bytes.baseAddress
+                )
+            }
+            var audioBufferList = AudioBufferList(mNumberBuffers: 1, mBuffers: audioBuffer)
+            
+            status = ExtAudioFileRead(extFile, &numFrames, &audioBufferList)
+            guard status == noErr else {
+                throw ParakeetError.transcriptionFailed("Failed to read audio data: \(status)")
+            }
+            
+            if numFrames == 0 {
+                break  // EOF
+            }
+            
+            samples.append(contentsOf: buffer[0..<Int(numFrames)])
+        }
+        
+        return samples
+    }
+    
+    private func transcribeWithRawPCM(pcmDataURL: URL, pythonPath: String) async throws -> String {
         // Validate Python path
         guard FileManager.default.fileExists(atPath: pythonPath) else {
-            logger.error("Python not found at: \(pythonPath)")
             throw ParakeetError.pythonNotFound(path: pythonPath)
         }
         
-        // Get the Parakeet script path from bundle or source directory
+        // Test Python interpreter
+        let testProcess = Process()
+        testProcess.executableURL = URL(fileURLWithPath: pythonPath)
+        testProcess.arguments = ["-c", "import sys; print(f'Python {sys.version} at {sys.executable}'); import parakeet_mlx; print('parakeet-mlx is available')"]
+        let testPipe = Pipe()
+        testProcess.standardOutput = testPipe
+        testProcess.standardError = testPipe
+        
+        do {
+            try testProcess.run()
+            testProcess.waitUntilExit()
+            let testData = testPipe.fileHandleForReading.readDataToEndOfFile()
+            _ = String(data: testData, encoding: .utf8) ?? ""
+            
+            if testProcess.terminationStatus != 0 {
+                throw ParakeetError.pythonNotFound(path: pythonPath)
+            }
+        } catch {
+            throw ParakeetError.pythonNotFound(path: pythonPath)
+        }
+        
+        // Get the Parakeet PCM script path from bundle or source directory
         var scriptURL: URL?
         
-        // First try to find it in the app bundle (production)
-        scriptURL = Bundle.main.url(forResource: "parakeet_transcribe", withExtension: "py")
+        // First try to find the PCM script in the app bundle (production)
+        scriptURL = Bundle.main.url(forResource: "parakeet_transcribe_pcm", withExtension: "py")
         
         // If not found, try development fallback (swift run)
         if scriptURL == nil {
-            logger.info("Script not found in bundle, trying development fallback")
             let currentDir = FileManager.default.currentDirectoryPath
-            let sourceScriptPath = "\(currentDir)/Sources/parakeet_transcribe.py"
+            let sourceScriptPath = "\(currentDir)/Sources/parakeet_transcribe_pcm.py"
             if FileManager.default.fileExists(atPath: sourceScriptPath) {
                 scriptURL = URL(fileURLWithPath: sourceScriptPath)
-                logger.info("Found script in source directory: \(sourceScriptPath)")
             }
         }
         
         guard let scriptURL = scriptURL else {
-            logger.error("Failed to find parakeet_transcribe.py in bundle or source directory")
             throw ParakeetError.scriptNotFound
         }
         
-        logger.info("Found script at: \(scriptURL.path)")
-        
         // Create a temporary copy of the script with the correct shebang
         let tempScriptURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("parakeet_transcribe_\(UUID().uuidString).py")
+            .appendingPathComponent("parakeet_transcribe_pcm_\(UUID().uuidString).py")
         
         do {
             // Read the original script
@@ -107,14 +231,7 @@ class ParakeetService {
                 let process = Process()
                 process.executableURL = URL(fileURLWithPath: pythonPath)
                 
-                // Pass FFmpeg path as environment variable if provided
-                if !ffmpegPath.isEmpty {
-                    var environment = ProcessInfo.processInfo.environment
-                    environment["PARAKEET_FFMPEG_PATH"] = ffmpegPath
-                    process.environment = environment
-                }
-                
-                process.arguments = [tempScriptURL.path, audioFileURL.path]
+                process.arguments = [tempScriptURL.path, pcmDataURL.path]
                 
                 let outputPipe = Pipe()
                 let errorPipe = Pipe()
@@ -144,8 +261,6 @@ class ParakeetService {
                     continuation.resume(returning: (outputString, errorString, process.terminationStatus))
                 }
                 
-                logger.info("Running Parakeet transcription for file: \(audioFileURL.path)")
-                
                 do {
                     try process.run()
                 } catch {
@@ -154,21 +269,16 @@ class ParakeetService {
                 }
             }
             
-            // Log stderr output for debugging
-            if !errorString.isEmpty {
-                logger.info("Parakeet stderr: \(errorString)")
-            }
-            
             if terminationStatus != 0 {
                 logger.error("Parakeet process failed with status: \(terminationStatus)")
                 logger.error("Error output: \(errorString)")
                 
                 // Provide more specific error handling
+                logger.error("Python script failed with error: \(errorString)")
+                logger.error("Termination status: \(terminationStatus)")
+                
                 if errorString.contains("parakeet_mlx") || errorString.contains("ModuleNotFoundError") {
                     throw ParakeetError.dependencyMissing("parakeet-mlx", installCommand: "pip install parakeet-mlx")
-                } else if errorString.contains("ffmpeg") || errorString.contains("FFmpeg") {
-                    let suggestedPaths = ["/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg", "/usr/bin/ffmpeg"]
-                    throw ParakeetError.ffmpegNotFound(suggestedPaths: suggestedPaths)
                 } else {
                     throw ParakeetError.transcriptionFailed(errorString.isEmpty ? "Process exited with status \(terminationStatus)" : errorString)
                 }

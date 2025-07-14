@@ -20,7 +20,7 @@ let package = Package(
             exclude: ["__pycache__"],
             resources: [
                 .process("Assets.xcassets"),
-                .copy("parakeet_transcribe.py")
+                .copy("parakeet_transcribe_pcm.py")
             ]
         ),
         .testTarget(

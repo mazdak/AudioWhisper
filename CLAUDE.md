@@ -97,7 +97,7 @@ export CODE_SIGN_IDENTITY="Developer ID Application: Your Name"
 13. **Immediate Recording** - Option to start recording immediately on hotkey
 14. **Auto-Boost Microphone Volume** - Temporarily increases mic volume to 100% during recording
 15. **Enhanced Model Management** - Real-time model detection, visual progress feedback, smart download estimates
-16. **Parakeet Support (Advanced)** - MLX-based local transcription for Apple Silicon with custom Python integration and intelligent FFmpeg handling
+16. **Parakeet Support (Advanced)** - MLX-based local transcription for Apple Silicon with custom Python integration and native Swift audio processing
 
 ## Architecture Notes
 - SwiftUI app with AppKit integration for menu bar
@@ -194,28 +194,23 @@ These are from Apple's frameworks, not our code. They can be safely ignored.
 ### Parakeet (Advanced Users Only)
 - **MLX-Optimized**: Uses parakeet-mlx for Apple Silicon optimization
 - **Custom Python**: Requires user to configure Python path with parakeet-mlx installed
-- **FFmpeg Integration**: Intelligent FFmpeg path detection and validation
+- **Native Audio Processing**: Uses integrated Swift AudioProcessor for optimal performance
 - **Fast Processing**: Leverages Apple's Metal Performance Shaders via MLX
-- **Advanced Setup**: Not recommended for casual users due to Python/FFmpeg dependencies
+- **Advanced Setup**: Not recommended for casual users due to Python dependencies
 
 #### Parakeet Setup Instructions
 1. Install Python 3 (if not already installed)
-2. Install FFmpeg: `brew install ffmpeg`
-3. Install parakeet-mlx: `uv add parakeet-mlx -U` or `pip install parakeet-mlx`
-4. In AudioWhisper Settings, select "Parakeet (Advanced)" as provider
-5. Configure Python path (default: /usr/bin/python3)
-6. Optionally configure FFmpeg path (auto-detects common locations)
-   - Accepts directory: `/opt/homebrew/bin`
-   - Or full binary path: `/opt/homebrew/bin/ffmpeg`
-7. Click "Test" to verify setup
-8. Model downloads automatically on first use from Hugging Face
+2. Install parakeet-mlx: `uv add parakeet-mlx -U` or `pip install parakeet-mlx`
+3. In AudioWhisper Settings, select "Parakeet (Advanced)" as provider
+4. Configure Python path (default: /usr/bin/python3)
+5. Click "Test" to verify setup
+6. Model downloads automatically on first use from Hugging Face
 
-#### FFmpeg Path Handling
-- **Auto-Detection**: Checks common installation paths automatically
-- **Custom Paths**: Supports both directory and full binary paths
-- **Validation**: Warns users if FFmpeg is not found at specified path
-- **Fallback**: Falls back to PATH search if custom path is invalid
-- **Debug Output**: Shows which FFmpeg path is being used
+#### Native Audio Processing
+- **No FFmpeg Required**: Uses integrated Swift AudioProcessor for optimal performance
+- **Direct Integration**: Audio processing logic built directly into ParakeetService
+- **Native Performance**: Direct use of macOS AudioToolbox APIs
+- **Optimized Pipeline**: Swift audio processing → raw PCM → Python MLX processing
 
 ## Future Enhancements
 - Streaming transcription for real-time feedback
