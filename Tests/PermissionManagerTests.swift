@@ -39,7 +39,8 @@ final class PermissionManagerTests: XCTestCase {
     // MARK: - PermissionManager Tests
     
     func testInitialState() {
-        XCTAssertEqual(permissionManager.permissionState, .unknown)
+        XCTAssertEqual(permissionManager.microphonePermissionState, .unknown)
+        XCTAssertEqual(permissionManager.accessibilityPermissionState, .unknown)
         XCTAssertFalse(permissionManager.showEducationalModal)
         XCTAssertFalse(permissionManager.showRecoveryModal)
     }
@@ -51,11 +52,12 @@ final class PermissionManagerTests: XCTestCase {
         
         // The actual state depends on system permissions
         // In CI/testing environment, it's typically .denied or .notDetermined
-        XCTAssertTrue([.unknown, .notRequested, .denied, .granted, .restricted].contains(permissionManager.permissionState))
+        XCTAssertTrue([.unknown, .notRequested, .denied, .granted, .restricted].contains(permissionManager.microphonePermissionState))
+        XCTAssertTrue([.unknown, .notRequested, .denied, .granted, .restricted].contains(permissionManager.accessibilityPermissionState))
     }
     
     func testRequestPermissionWithEducationForNewPermission() {
-        permissionManager.permissionState = .notRequested
+        permissionManager.microphonePermissionState = .notRequested
         
         permissionManager.requestPermissionWithEducation()
         
@@ -64,7 +66,7 @@ final class PermissionManagerTests: XCTestCase {
     }
     
     func testRequestPermissionWithEducationForDeniedPermission() {
-        permissionManager.permissionState = .denied
+        permissionManager.microphonePermissionState = .denied
         
         permissionManager.requestPermissionWithEducation()
         
@@ -73,7 +75,8 @@ final class PermissionManagerTests: XCTestCase {
     }
     
     func testRequestPermissionWithEducationForGrantedPermission() {
-        permissionManager.permissionState = .granted
+        permissionManager.microphonePermissionState = .granted
+        permissionManager.accessibilityPermissionState = .granted
         
         permissionManager.requestPermissionWithEducation()
         
@@ -84,10 +87,10 @@ final class PermissionManagerTests: XCTestCase {
     func testProceedWithPermissionRequest() {
         let expectation = XCTestExpectation(description: "Permission request completed")
         
-        permissionManager.permissionState = .notRequested
+        permissionManager.microphonePermissionState = .notRequested
         
         // Monitor for state changes
-        let observation = permissionManager.$permissionState.sink { state in
+        let observation = permissionManager.$microphonePermissionState.sink { state in
             if state == .denied {
                 expectation.fulfill()
             }
@@ -96,13 +99,14 @@ final class PermissionManagerTests: XCTestCase {
         // Start the permission request
         permissionManager.proceedWithPermissionRequest()
         
-        // Should immediately set to requesting
-        XCTAssertEqual(permissionManager.permissionState, .requesting)
+        // In test environment, state change happens asynchronously
+        // So we should still be in the initial state immediately after calling
+        XCTAssertEqual(permissionManager.microphonePermissionState, .notRequested)
         
         wait(for: [expectation], timeout: 1.0)
         
         // In test environment, should be denied
-        XCTAssertEqual(permissionManager.permissionState, .denied)
+        XCTAssertEqual(permissionManager.microphonePermissionState, .denied)
         
         observation.cancel()
     }
@@ -110,10 +114,10 @@ final class PermissionManagerTests: XCTestCase {
     func testProceedWithPermissionRequestShowsRecoveryOnDenial() {
         let expectation = XCTestExpectation(description: "Permission request completed")
         
-        permissionManager.permissionState = .notRequested
+        permissionManager.microphonePermissionState = .notRequested
         
         // Monitor for state changes
-        let observation = permissionManager.$permissionState.sink { state in
+        let observation = permissionManager.$microphonePermissionState.sink { state in
             if state != .notRequested && state != .requesting {
                 expectation.fulfill()
             }
@@ -124,7 +128,7 @@ final class PermissionManagerTests: XCTestCase {
         wait(for: [expectation], timeout: 1.0)
         
         // In test environment, should simulate denied state
-        XCTAssertEqual(permissionManager.permissionState, .denied)
+        XCTAssertEqual(permissionManager.microphonePermissionState, .denied)
         XCTAssertTrue(permissionManager.showRecoveryModal)
         
         observation.cancel()
@@ -139,24 +143,43 @@ final class PermissionManagerTests: XCTestCase {
     // MARK: - State Transition Tests
     
     func testStateTransitions() {
-        // Test valid state transitions
-        permissionManager.permissionState = .unknown
-        XCTAssertEqual(permissionManager.permissionState, .unknown)
+        // Test valid state transitions for microphone permission
+        permissionManager.microphonePermissionState = .unknown
+        XCTAssertEqual(permissionManager.microphonePermissionState, .unknown)
         
-        permissionManager.permissionState = .notRequested
-        XCTAssertEqual(permissionManager.permissionState, .notRequested)
+        permissionManager.microphonePermissionState = .notRequested
+        XCTAssertEqual(permissionManager.microphonePermissionState, .notRequested)
         
-        permissionManager.permissionState = .requesting
-        XCTAssertEqual(permissionManager.permissionState, .requesting)
+        permissionManager.microphonePermissionState = .requesting
+        XCTAssertEqual(permissionManager.microphonePermissionState, .requesting)
         
-        permissionManager.permissionState = .granted
-        XCTAssertEqual(permissionManager.permissionState, .granted)
+        permissionManager.microphonePermissionState = .granted
+        XCTAssertEqual(permissionManager.microphonePermissionState, .granted)
         
-        permissionManager.permissionState = .denied
-        XCTAssertEqual(permissionManager.permissionState, .denied)
+        permissionManager.microphonePermissionState = .denied
+        XCTAssertEqual(permissionManager.microphonePermissionState, .denied)
         
-        permissionManager.permissionState = .restricted
-        XCTAssertEqual(permissionManager.permissionState, .restricted)
+        permissionManager.microphonePermissionState = .restricted
+        XCTAssertEqual(permissionManager.microphonePermissionState, .restricted)
+        
+        // Test valid state transitions for accessibility permission
+        permissionManager.accessibilityPermissionState = .unknown
+        XCTAssertEqual(permissionManager.accessibilityPermissionState, .unknown)
+        
+        permissionManager.accessibilityPermissionState = .notRequested
+        XCTAssertEqual(permissionManager.accessibilityPermissionState, .notRequested)
+        
+        permissionManager.accessibilityPermissionState = .requesting
+        XCTAssertEqual(permissionManager.accessibilityPermissionState, .requesting)
+        
+        permissionManager.accessibilityPermissionState = .granted
+        XCTAssertEqual(permissionManager.accessibilityPermissionState, .granted)
+        
+        permissionManager.accessibilityPermissionState = .denied
+        XCTAssertEqual(permissionManager.accessibilityPermissionState, .denied)
+        
+        permissionManager.accessibilityPermissionState = .restricted
+        XCTAssertEqual(permissionManager.accessibilityPermissionState, .restricted)
     }
     
     func testModalStateManagement() {
@@ -178,7 +201,7 @@ final class PermissionManagerTests: XCTestCase {
     // MARK: - Edge Cases
     
     func testRequestPermissionInRestrictedState() {
-        permissionManager.permissionState = .restricted
+        permissionManager.microphonePermissionState = .restricted
         
         permissionManager.requestPermissionWithEducation()
         
@@ -187,7 +210,7 @@ final class PermissionManagerTests: XCTestCase {
     }
     
     func testRequestPermissionWhileAlreadyRequesting() {
-        permissionManager.permissionState = .requesting
+        permissionManager.microphonePermissionState = .requesting
         
         permissionManager.requestPermissionWithEducation()
         
@@ -211,7 +234,8 @@ final class PermissionManagerTests: XCTestCase {
         measure {
             for _ in 0..<100 {
                 let manager = PermissionManager()
-                _ = manager.permissionState
+                _ = manager.microphonePermissionState
+                _ = manager.accessibilityPermissionState
             }
         }
     }
@@ -222,11 +246,11 @@ final class PermissionManagerTests: XCTestCase {
         let manager1 = PermissionManager()
         let manager2 = PermissionManager()
         
-        manager1.permissionState = .granted
-        manager2.permissionState = .denied
+        manager1.microphonePermissionState = .granted
+        manager2.microphonePermissionState = .denied
         
-        XCTAssertEqual(manager1.permissionState, .granted)
-        XCTAssertEqual(manager2.permissionState, .denied)
+        XCTAssertEqual(manager1.microphonePermissionState, .granted)
+        XCTAssertEqual(manager2.microphonePermissionState, .denied)
         
         manager1.showEducationalModal = true
         manager2.showRecoveryModal = true
@@ -235,5 +259,162 @@ final class PermissionManagerTests: XCTestCase {
         XCTAssertFalse(manager1.showRecoveryModal)
         XCTAssertFalse(manager2.showEducationalModal)
         XCTAssertTrue(manager2.showRecoveryModal)
+    }
+    
+    // MARK: - AllPermissionsGranted Tests
+    
+    func testAllPermissionsGrantedWithSmartPasteDisabled() {
+        // When SmartPaste is disabled, only microphone permission is required
+        UserDefaults.standard.set(false, forKey: "enableSmartPaste")
+        
+        permissionManager.microphonePermissionState = .granted
+        permissionManager.accessibilityPermissionState = .denied
+        
+        XCTAssertTrue(permissionManager.allPermissionsGranted)
+        
+        // Clean up
+        UserDefaults.standard.removeObject(forKey: "enableSmartPaste")
+    }
+    
+    func testAllPermissionsGrantedWithSmartPasteEnabled() {
+        // When SmartPaste is enabled, both microphone and accessibility permissions are required
+        UserDefaults.standard.set(true, forKey: "enableSmartPaste")
+        
+        permissionManager.microphonePermissionState = .granted
+        permissionManager.accessibilityPermissionState = .denied
+        
+        XCTAssertFalse(permissionManager.allPermissionsGranted)
+        
+        permissionManager.accessibilityPermissionState = .granted
+        XCTAssertTrue(permissionManager.allPermissionsGranted)
+        
+        // Clean up
+        UserDefaults.standard.removeObject(forKey: "enableSmartPaste")
+    }
+    
+    func testAllPermissionsGrantedWithMicrophoneDenied() {
+        // Microphone permission is always required
+        UserDefaults.standard.set(false, forKey: "enableSmartPaste")
+        
+        permissionManager.microphonePermissionState = .denied
+        permissionManager.accessibilityPermissionState = .granted
+        
+        XCTAssertFalse(permissionManager.allPermissionsGranted)
+        
+        // Clean up
+        UserDefaults.standard.removeObject(forKey: "enableSmartPaste")
+    }
+    
+    // MARK: - SmartPaste Permission Logic Tests
+    
+    func testCheckPermissionStateWithSmartPasteEnabled() {
+        UserDefaults.standard.set(true, forKey: "enableSmartPaste")
+        
+        // Check that accessibility permission is checked when SmartPaste is enabled
+        permissionManager.checkPermissionState()
+        
+        // Both permissions should be checked (we can't mock the actual results in this test)
+        XCTAssertTrue([.unknown, .notRequested, .denied, .granted, .restricted].contains(permissionManager.microphonePermissionState))
+        XCTAssertTrue([.unknown, .notRequested, .denied, .granted, .restricted].contains(permissionManager.accessibilityPermissionState))
+        
+        // Clean up
+        UserDefaults.standard.removeObject(forKey: "enableSmartPaste")
+    }
+    
+    func testCheckPermissionStateWithSmartPasteDisabled() {
+        UserDefaults.standard.set(false, forKey: "enableSmartPaste")
+        
+        permissionManager.checkPermissionState()
+        
+        // Microphone permission should be checked
+        XCTAssertTrue([.unknown, .notRequested, .denied, .granted, .restricted].contains(permissionManager.microphonePermissionState))
+        
+        // Accessibility permission should be set to granted (not needed)
+        XCTAssertEqual(permissionManager.accessibilityPermissionState, .granted)
+        
+        // Clean up
+        UserDefaults.standard.removeObject(forKey: "enableSmartPaste")
+    }
+    
+    func testRequestPermissionWithSmartPasteEnabled() {
+        UserDefaults.standard.set(true, forKey: "enableSmartPaste")
+        
+        permissionManager.microphonePermissionState = .notRequested
+        permissionManager.accessibilityPermissionState = .notRequested
+        
+        permissionManager.requestPermissionWithEducation()
+        
+        XCTAssertTrue(permissionManager.showEducationalModal)
+        XCTAssertFalse(permissionManager.showRecoveryModal)
+        
+        // Clean up
+        UserDefaults.standard.removeObject(forKey: "enableSmartPaste")
+    }
+    
+    func testRequestPermissionWithSmartPasteDisabled() {
+        UserDefaults.standard.set(false, forKey: "enableSmartPaste")
+        
+        permissionManager.microphonePermissionState = .notRequested
+        permissionManager.accessibilityPermissionState = .denied  // This should be ignored
+        
+        permissionManager.requestPermissionWithEducation()
+        
+        XCTAssertTrue(permissionManager.showEducationalModal)
+        XCTAssertFalse(permissionManager.showRecoveryModal)
+        
+        // Clean up
+        UserDefaults.standard.removeObject(forKey: "enableSmartPaste")
+    }
+    
+    func testRequestPermissionWithMixedStates() {
+        UserDefaults.standard.set(true, forKey: "enableSmartPaste")
+        
+        permissionManager.microphonePermissionState = .granted
+        permissionManager.accessibilityPermissionState = .denied
+        
+        permissionManager.requestPermissionWithEducation()
+        
+        XCTAssertFalse(permissionManager.showEducationalModal)
+        XCTAssertTrue(permissionManager.showRecoveryModal)
+        
+        // Clean up
+        UserDefaults.standard.removeObject(forKey: "enableSmartPaste")
+    }
+    
+    // MARK: - Combined Permission Testing
+    
+    func testProceedWithPermissionRequestWithSmartPasteEnabled() {
+        UserDefaults.standard.set(true, forKey: "enableSmartPaste")
+        
+        let expectation = XCTestExpectation(description: "Permission request completed")
+        
+        permissionManager.microphonePermissionState = .notRequested
+        permissionManager.accessibilityPermissionState = .notRequested
+        
+        // Monitor for state changes
+        let observation = permissionManager.$microphonePermissionState.sink { state in
+            if state == .denied {
+                expectation.fulfill()
+            }
+        }
+        
+        // Start the permission request
+        permissionManager.proceedWithPermissionRequest()
+        
+        // In test environment, state change happens asynchronously
+        // So we should still be in the initial state immediately after calling
+        XCTAssertEqual(permissionManager.microphonePermissionState, .notRequested)
+        
+        wait(for: [expectation], timeout: 1.0)
+        
+        // In test environment, should be denied and show recovery modal
+        XCTAssertEqual(permissionManager.microphonePermissionState, .denied)
+        XCTAssertEqual(permissionManager.accessibilityPermissionState, .denied)
+        XCTAssertTrue(permissionManager.showRecoveryModal)
+        
+        observation.cancel()
+        
+        // Clean up
+        UserDefaults.standard.removeObject(forKey: "enableSmartPaste")
     }
 }

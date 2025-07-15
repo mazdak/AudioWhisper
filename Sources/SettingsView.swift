@@ -97,10 +97,10 @@ struct SettingsView: View {
                         updateLoginItem(enabled: newValue)
                     }
                 
-                Toggle("Start Recording Immediately", isOn: $immediateRecording)
+                Toggle("Hotkey Start & Stop Mode", isOn: $immediateRecording)
                     .toggleStyle(.switch)
-                    .accessibilityLabel("Start recording immediately on hotkey")
-                    .accessibilityHint("When enabled, recording starts immediately when you press the hotkey without needing to press space")
+                    .accessibilityLabel("Hotkey start and stop mode")
+                    .accessibilityHint("When enabled, the hotkey starts recording immediately and pressing it again stops recording and pastes the text")
                 
                 Toggle("Auto-Boost Microphone Volume", isOn: $autoBoostMicrophoneVolume)
                     .toggleStyle(.switch)

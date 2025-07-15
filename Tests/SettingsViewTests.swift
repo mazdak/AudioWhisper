@@ -40,7 +40,7 @@ class SettingsViewTests: XCTestCase {
         XCTAssertEqual(UserDefaults.standard.string(forKey: "globalHotkey") ?? "⌘⇧Space", "⌘⇧Space")
         XCTAssertEqual(UserDefaults.standard.bool(forKey: "useOpenAI"), false) // Default is false when not set
         XCTAssertEqual(UserDefaults.standard.bool(forKey: "startAtLogin"), false) // Default is false when not set
-        XCTAssertEqual(UserDefaults.standard.bool(forKey: "immediateRecording"), false) // Default is false when not set
+        XCTAssertEqual(UserDefaults.standard.bool(forKey: "immediateRecording"), false) // Default is Manual Start & Stop mode
     }
     
     func testSettingsInitialization() {
@@ -49,7 +49,7 @@ class SettingsViewTests: XCTestCase {
         UserDefaults.standard.set("⌘⇧R", forKey: "globalHotkey")
         UserDefaults.standard.set(false, forKey: "useOpenAI")
         UserDefaults.standard.set(true, forKey: "startAtLogin")
-        UserDefaults.standard.set(true, forKey: "immediateRecording")
+        UserDefaults.standard.set(true, forKey: "immediateRecording") // Enable Hotkey Start & Stop mode
         
         // Values should persist
         XCTAssertEqual(UserDefaults.standard.string(forKey: "selectedMicrophone"), "test-microphone")
@@ -202,18 +202,18 @@ class SettingsViewTests: XCTestCase {
         XCTAssertFalse(UserDefaults.standard.bool(forKey: "startAtLogin"))
     }
     
-    func testImmediateRecordingDefault() {
-        // Test default value
-        let defaultImmediateRecording = UserDefaults.standard.bool(forKey: "immediateRecording")
-        XCTAssertEqual(defaultImmediateRecording, false) // Default is false when not set
+    func testHotkeyStartStopModeDefault() {
+        // Test default value (should be false - Manual Start & Stop mode)
+        let defaultHotkeyMode = UserDefaults.standard.bool(forKey: "immediateRecording")
+        XCTAssertEqual(defaultHotkeyMode, false) // Default is false when not set
     }
     
-    func testImmediateRecordingPersistence() {
-        // Enable immediate recording
+    func testHotkeyStartStopModePersistence() {
+        // Enable Hotkey Start & Stop mode
         UserDefaults.standard.set(true, forKey: "immediateRecording")
         XCTAssertTrue(UserDefaults.standard.bool(forKey: "immediateRecording"))
         
-        // Disable immediate recording
+        // Disable Hotkey Start & Stop mode (back to Manual mode)
         UserDefaults.standard.set(false, forKey: "immediateRecording")
         XCTAssertFalse(UserDefaults.standard.bool(forKey: "immediateRecording"))
     }

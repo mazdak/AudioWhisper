@@ -3,7 +3,7 @@ import AVFoundation
 import ApplicationServices
 
 struct ContentView: View {
-    @StateObject private var audioRecorder = AudioRecorder()
+    @StateObject private var audioRecorder: AudioRecorder
     @AppStorage("transcriptionProvider") private var transcriptionProvider = TranscriptionProvider.openai
     @AppStorage("selectedWhisperModel") private var selectedWhisperModel = WhisperModel.base
     @AppStorage("immediateRecording") private var immediateRecording = false
@@ -26,11 +26,13 @@ struct ContentView: View {
     @State private var escapeKeyObserver: NSObjectProtocol?
     @State private var returnKeyObserver: NSObjectProtocol?
     @State private var targetAppObserver: NSObjectProtocol?
+    @State private var recordingFailedObserver: NSObjectProtocol?
     @State private var targetAppForPaste: NSRunningApplication?
     @State private var windowFocusObserver: NSObjectProtocol?
     
-    init(speechService: SpeechToTextService = SpeechToTextService()) {
+    init(speechService: SpeechToTextService = SpeechToTextService(), audioRecorder: AudioRecorder) {
         self._speechService = StateObject(wrappedValue: speechService)
+        self._audioRecorder = StateObject(wrappedValue: audioRecorder)
     }
     
     private func showErrorAlert() {
@@ -125,14 +127,7 @@ struct ContentView: View {
             // Check permission status when view appears
             audioRecorder.checkMicrophonePermission()
             
-            // Start recording immediately if enabled (with a small delay to allow permission check)
-            if immediateRecording {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    if audioRecorder.hasPermission && !audioRecorder.isRecording && !isProcessing {
-                        startRecording()
-                    }
-                }
-            }
+            // Immediate recording is now handled by the hotkey handler in AudioWhisperApp
             
             // Listen for transcription progress updates
             transcriptionProgressObserver = NotificationCenter.default.addObserver(
@@ -234,6 +229,17 @@ struct ContentView: View {
                 }
             }
             
+            // Listen for recording start failures from hotkey handler
+            recordingFailedObserver = NotificationCenter.default.addObserver(
+                forName: NSNotification.Name("RecordingStartFailed"),
+                object: nil,
+                queue: .main
+            ) { _ in
+                errorMessage = LocalizedStrings.Errors.failedToStartRecording
+                showError = true
+            }
+            
+            
             // Listen for window becoming key - combined handler for immediate recording and focus
             windowFocusObserver = NotificationCenter.default.addObserver(
                 forName: NSWindow.didBecomeKeyNotification,
@@ -247,14 +253,7 @@ struct ContentView: View {
                     }
                 }
                 
-                // Start recording immediately if enabled and conditions are met
-                if immediateRecording && !audioRecorder.isRecording && !isProcessing && audioRecorder.hasPermission && !showSuccess {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                        if !audioRecorder.isRecording && !isProcessing && audioRecorder.hasPermission {
-                            startRecording()
-                        }
-                    }
-                }
+                // Immediate recording is now handled by the hotkey handler in AudioWhisperApp
             }
         }
         .onDisappear {
@@ -282,6 +281,11 @@ struct ContentView: View {
             if let observer = targetAppObserver {
                 NotificationCenter.default.removeObserver(observer)
                 targetAppObserver = nil
+            }
+            
+            if let observer = recordingFailedObserver {
+                NotificationCenter.default.removeObserver(observer)
+                recordingFailedObserver = nil
             }
             
             if let observer = windowFocusObserver {

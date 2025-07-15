@@ -11,6 +11,7 @@ final class AppSetupHelperTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: "startAtLogin")
         UserDefaults.standard.removeObject(forKey: "transcriptionProvider")
         UserDefaults.standard.removeObject(forKey: "hasCompletedWelcome")
+        UserDefaults.standard.removeObject(forKey: "lastWelcomeVersion")
     }
     
     override func tearDown() {
@@ -18,6 +19,7 @@ final class AppSetupHelperTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: "startAtLogin")
         UserDefaults.standard.removeObject(forKey: "transcriptionProvider")
         UserDefaults.standard.removeObject(forKey: "hasCompletedWelcome")
+        UserDefaults.standard.removeObject(forKey: "lastWelcomeVersion")
         super.tearDown()
     }
     
@@ -92,6 +94,8 @@ final class AppSetupHelperTests: XCTestCase {
     
     func testCheckFirstRunWithProviderButNoWelcome() {
         UserDefaults.standard.set(TranscriptionProvider.openai.rawValue, forKey: "transcriptionProvider")
+        // Set lastWelcomeVersion to current version so it doesn't trigger welcome
+        UserDefaults.standard.set("1.1", forKey: "lastWelcomeVersion")
         
         let isFirstRun = AppSetupHelper.checkFirstRun()
         
@@ -104,6 +108,8 @@ final class AppSetupHelperTests: XCTestCase {
     
     func testCheckFirstRunWithWelcomeButNoProvider() {
         UserDefaults.standard.set(true, forKey: "hasCompletedWelcome")
+        // Set lastWelcomeVersion to current version so it doesn't trigger welcome
+        UserDefaults.standard.set("1.1", forKey: "lastWelcomeVersion")
         
         let isFirstRun = AppSetupHelper.checkFirstRun()
         
@@ -117,6 +123,8 @@ final class AppSetupHelperTests: XCTestCase {
     func testCheckFirstRunWithBothProviderAndWelcome() {
         UserDefaults.standard.set(TranscriptionProvider.gemini.rawValue, forKey: "transcriptionProvider")
         UserDefaults.standard.set(true, forKey: "hasCompletedWelcome")
+        // Set lastWelcomeVersion to current version so it doesn't trigger welcome
+        UserDefaults.standard.set("1.1", forKey: "lastWelcomeVersion")
         
         let isFirstRun = AppSetupHelper.checkFirstRun()
         
@@ -135,6 +143,21 @@ final class AppSetupHelperTests: XCTestCase {
             let provider = UserDefaults.standard.string(forKey: "transcriptionProvider")
             XCTAssertEqual(provider, TranscriptionProvider.local.rawValue)
         }
+    }
+    
+    func testCheckFirstRunWithOldWelcomeVersion() {
+        // Existing user with old welcome version should trigger welcome
+        UserDefaults.standard.set(TranscriptionProvider.openai.rawValue, forKey: "transcriptionProvider")
+        UserDefaults.standard.set(true, forKey: "hasCompletedWelcome")
+        UserDefaults.standard.set("1.0", forKey: "lastWelcomeVersion") // Old version
+        
+        let isFirstRun = AppSetupHelper.checkFirstRun()
+        
+        XCTAssertTrue(isFirstRun) // Should trigger welcome for new version
+        
+        // Provider should remain unchanged
+        let provider = UserDefaults.standard.string(forKey: "transcriptionProvider")
+        XCTAssertEqual(provider, TranscriptionProvider.openai.rawValue)
     }
     
     // MARK: - Cleanup Tests
@@ -319,6 +342,7 @@ final class AppSetupHelperTests: XCTestCase {
         XCTAssertNoThrow(AppSetupHelper.setupLoginItem())
         
         UserDefaults.standard.removeObject(forKey: "transcriptionProvider")
+        UserDefaults.standard.removeObject(forKey: "lastWelcomeVersion")
         XCTAssertNoThrow(AppSetupHelper.checkFirstRun())
     }
     

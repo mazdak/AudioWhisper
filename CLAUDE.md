@@ -83,7 +83,7 @@ export CODE_SIGN_IDENTITY="Developer ID Application: Your Name"
 
 ## Key Features Implemented
 1. **Menu Bar App** - Lives in menu bar with microphone.circle SF Symbol
-2. **Global Hotkey** - Cmd+Shift+Space to toggle recording window
+2. **Global Hotkey** - Cmd+Shift+Space to toggle recording window or start/stop recording
 3. **Chromeless Recording Window** - Spotlight-style floating window
 4. **Proper Settings Window** - Traditional macOS window with close button
 5. **Visual Audio Levels** - Real-time audio level indicator while recording
@@ -94,7 +94,7 @@ export CODE_SIGN_IDENTITY="Developer ID Application: Your Name"
 10. **First-Run Experience** - Welcome dialog and automatic settings on first launch
 11. **App Bundle Creation** - Proper macOS app with real icon from MicrophoneIcon.jpg
 12. **Local Transcription** - Fully offline whisper.cpp integration with model management
-13. **Immediate Recording** - Option to start recording immediately on hotkey
+13. **Dual Recording Modes** - Manual Start & Stop (default) or Hotkey Start & Stop for streamlined workflow
 14. **Auto-Boost Microphone Volume** - Temporarily increases mic volume to 100% during recording
 15. **Enhanced Model Management** - Real-time model detection, visual progress feedback, smart download estimates
 16. **Parakeet Support (Advanced)** - MLX-based local transcription for Apple Silicon with custom Python integration and native Swift audio processing
@@ -188,11 +188,45 @@ These are from Apple's frameworks, not our code. They can be safely ignored.
 - **Benefits**: Ensures optimal audio levels without manual adjustment
 - **Compatibility**: May not work with all USB/external microphones due to driver limitations
 
-### Immediate Recording
-- **Purpose**: Skip the "press space to record" step
-- **Setting**: Enable/disable in Settings > General > "Start Recording Immediately"
-- **Behavior**: Recording begins instantly when hotkey is pressed
-- **Use Case**: Faster workflow for frequent users
+## Recording Modes
+
+AudioWhisper supports two distinct recording modes to accommodate different user preferences and workflows:
+
+### Mode 1: Manual Start & Stop (Default)
+- **Behavior**: Traditional two-step recording process
+- **Hotkey Action**: Opens recording window
+- **User Flow**: 
+  1. Press hotkey (⌘⇧Space) → Recording window appears
+  2. Press space → Recording starts
+  3. Press space again → Recording stops and processes
+- **Use Case**: Ideal for deliberate recording sessions with visual feedback
+- **Window Visibility**: Always shows recording window for full control
+
+### Mode 2: Hotkey Start & Stop
+- **Setting**: Enable in Settings > General > "Hotkey Start & Stop Mode"
+- **Behavior**: Single-hotkey recording workflow
+- **Hotkey Action**: Starts/stops recording directly
+- **User Flow**:
+  1. Press hotkey (⌘⇧Space) → Recording starts immediately (no window)
+  2. Press hotkey again → Recording stops and window appears for processing
+- **Use Case**: Streamlined workflow for frequent users who want minimal UI
+- **Visual Feedback**: Menu bar icon changes to filled microphone during recording
+- **Error Handling**: Window appears automatically for permission requests or errors
+
+### Recording Mode Comparison
+| Feature | Manual Start & Stop | Hotkey Start & Stop |
+|---------|-------------------|-------------------|
+| Window on Start | Always | Only on errors |
+| Hotkey Presses | 1 (then space) | 1 (start) + 1 (stop) |
+| Visual Feedback | Recording window | Menu bar icon |
+| Best For | Deliberate recording | Quick capture |
+| Error Handling | In-window | Auto-show window |
+
+### Recording Mode Implementation
+- **Setting Storage**: Uses existing `immediateRecording` boolean in UserDefaults
+- **Backward Compatibility**: Existing users maintain current behavior
+- **Shared Audio Engine**: Both modes use the same underlying AudioRecorder
+- **SmartPaste Integration**: Both modes support automatic text pasting
 
 ### Enhanced Model Management
 - **Real-time Detection**: File system monitoring detects downloaded models automatically

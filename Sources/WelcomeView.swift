@@ -85,7 +85,7 @@ struct WelcomeView: View {
         ]
         
         return LazyVGrid(columns: columns, spacing: 16) {
-            FeatureRow(icon: "command", title: "Global Hotkey", description: "Press ⌘⇧Space anywhere to start recording")
+            FeatureRow(icon: "command", title: "Global Hotkey", description: "Press ⌘⇧Space anywhere to record (configurable modes available)")
             FeatureRow(icon: "waveform", title: "Real-time Audio Levels", description: "Visual feedback while recording")
             FeatureRow(icon: "text.cursor", title: "Auto-Paste", description: "Transcribed text automatically pastes to your active app")
             FeatureRow(icon: "brain", title: "Multiple AI Models", description: "Choose from 6 Whisper models based on your needs")
