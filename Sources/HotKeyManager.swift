@@ -16,7 +16,7 @@ class HotKeyManager {
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(updateHotKey),
-            name: NSNotification.Name("UpdateGlobalHotkey"),
+            name: .updateGlobalHotkey,
             object: nil
         )
     }

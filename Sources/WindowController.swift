@@ -1,7 +1,13 @@
 import Foundation
 import AppKit
 import SwiftUI
+import SwiftData
 
+/// Manages window display and focus restoration for AudioWhisper
+/// 
+/// This class handles showing/hiding the recording window and restoring focus
+/// to the previous application. All window operations now support optional
+/// completion handlers for better coordination and testing.
 class WindowController {
     private var previousApp: NSRunningApplication?
     private let isTestEnvironment: Bool
@@ -24,14 +30,14 @@ class WindowController {
     }
     
     init() {
-        // Detect if running in tests
         isTestEnvironment = NSClassFromString("XCTestCase") != nil
     }
     
-    func toggleRecordWindow(_ window: NSWindow? = nil) {
+    func toggleRecordWindow(_ window: NSWindow? = nil, completion: (() -> Void)? = nil) {
         // Don't show recorder window during first-run welcome experience
         let hasCompletedWelcome = UserDefaults.standard.bool(forKey: "hasCompletedWelcome")
         if !hasCompletedWelcome {
+            completion?()
             return
         }
         
@@ -42,21 +48,24 @@ class WindowController {
         
         if let window = recordWindow {
             if window.isVisible {
-                hideWindow(window)
+                hideWindow(window, completion: completion)
             } else {
-                showWindow(window)
+                showWindow(window, completion: completion)
             }
+        } else {
+            completion?()
         }
     }
     
-    private func hideWindow(_ window: NSWindow) {
+    private func hideWindow(_ window: NSWindow, completion: (() -> Void)? = nil) {
         window.orderOut(nil)
-        restoreFocusToPreviousApp()
+        restoreFocusToPreviousApp(completion: completion)
     }
     
-    private func showWindow(_ window: NSWindow) {
+    private func showWindow(_ window: NSWindow, completion: (() -> Void)? = nil) {
         // Skip actual window operations in test environment
         if isTestEnvironment {
+            completion?()
             return
         }
         
@@ -73,16 +82,26 @@ class WindowController {
         window.orderOut(nil)
         window.collectionBehavior = []
         
-        // Force immediate reset and reconfiguration
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) {
+        // Step 1: Reset and reconfigure window
+        performWindowOperation(after: 0.02) { [weak self] in
+            guard self != nil else {
+                completion?()
+                return
+            }
+            
             // Reset window level and behavior to force space redetection
             window.level = .normal
             
             // Use more aggressive collection behavior for fullscreen spaces
             window.collectionBehavior = [.canJoinAllSpaces, .fullScreenPrimary, .fullScreenAuxiliary]
             
-            // Brief delay, then set final level and show
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
+            // Step 2: Set final level and show window
+            self?.performWindowOperation(after: 0.01) { [weak self] in
+                guard self != nil else {
+                    completion?()
+                    return
+                }
+                
                 // Use higher window level to ensure it appears over fullscreen apps
                 window.level = .modalPanel
                 
@@ -93,42 +112,58 @@ class WindowController {
                 window.orderFrontRegardless()
                 window.makeKeyAndOrderFront(nil)
                 
-                // Ensure proper focus
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                // Step 3: Ensure proper focus
+                self?.performWindowOperation(after: 0.05) {
                     window.makeKey()
                     window.makeFirstResponder(window.contentView)
+                    completion?()
                 }
             }
         }
     }
     
+    /// Helper method to perform window operations with delays and completion handlers
+    private func performWindowOperation(after delay: TimeInterval, operation: @escaping () -> Void) {
+        if delay > 0 {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: operation)
+        } else {
+            DispatchQueue.main.async(execute: operation)
+        }
+    }
+    
     private func storePreviousApp() {
-        // Get the frontmost app (excluding ourselves)
         let workspace = NSWorkspace.shared
         if let frontmostApp = workspace.frontmostApplication,
            frontmostApp.bundleIdentifier != Bundle.main.bundleIdentifier {
             previousApp = frontmostApp
-            WindowController.storedTargetApp = frontmostApp  // Store in static property
+            WindowController.storedTargetApp = frontmostApp
             
             // Also notify via NotificationCenter as backup
             NotificationCenter.default.post(
-                name: NSNotification.Name("TargetAppStored"),
+                name: .targetAppStored,
                 object: frontmostApp
             )
         }
     }
     
-    func restoreFocusToPreviousApp() {
-        guard let prevApp = previousApp else { return }
+    func restoreFocusToPreviousApp(completion: (() -> Void)? = nil) {
+        guard let prevApp = previousApp else {
+            completion?()
+            return
+        }
         
         // Small delay to ensure window is hidden first
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+        performWindowOperation(after: 0.1) { [weak self] in
             prevApp.activate(options: [])
-            self.previousApp = nil
+            self?.previousApp = nil
+            completion?()
         }
     }
     
-    func openSettings() {
+    private weak var settingsWindow: NSWindow?
+    private var settingsWindowDelegate: SettingsWindowDelegate?
+    
+    @MainActor func openSettings() {
         // Skip actual window operations in test environment
         if isTestEnvironment {
             return
@@ -139,32 +174,71 @@ class WindowController {
             recordWindow.orderOut(nil)
         }
         
-        // Find existing settings window
-        let settingsWindow = NSApp.windows.first { $0.title == LocalizedStrings.Settings.title }
-        
-        if let window = settingsWindow {
+        // Check if settings window already exists
+        if let existingWindow = settingsWindow, existingWindow.isVisible {
             // Bring existing window to front and focus
             NSApp.activate(ignoringOtherApps: true)
-            window.makeKeyAndOrderFront(nil)
-            window.orderFrontRegardless()
+            existingWindow.makeKeyAndOrderFront(nil)
+            existingWindow.orderFrontRegardless()
         } else {
-            // Create new settings window manually since SwiftUI Settings scene is problematic
-            let settingsWindow = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 450, height: 450),
-                styleMask: [.titled, .closable],
+            // Create new settings window (SwiftUI Settings scene can have focus issues)
+            let window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 500, height: 600),
+                styleMask: [.titled, .closable, .miniaturizable],
                 backing: .buffered,
                 defer: false
             )
-            settingsWindow.title = LocalizedStrings.Settings.title
-            settingsWindow.level = .floating
-            settingsWindow.isReleasedWhenClosed = false
-            settingsWindow.contentView = NSHostingView(rootView: SettingsView())
-            settingsWindow.center()
+            window.title = LocalizedStrings.Settings.title
+            window.level = .floating
             
-            // Activate app first, then show window
+            // Ensure window doesn't cause app to quit when closed
+            window.isReleasedWhenClosed = false
+            
+            // Create SettingsView with proper ModelContainer
+            let settingsView = SettingsView()
+                .modelContainer(DataManager.shared.sharedModelContainer ?? createFallbackModelContainer())
+            
+            window.contentView = NSHostingView(rootView: settingsView)
+            window.center()
+            
+            // Set up delegate to handle window lifecycle
+            settingsWindowDelegate = SettingsWindowDelegate { [weak self] in
+                self?.settingsWindow = nil
+                self?.settingsWindowDelegate = nil
+            }
+            window.delegate = settingsWindowDelegate
+            
+            // Store weak reference
+            settingsWindow = window
+            
             NSApp.activate(ignoringOtherApps: true)
-            settingsWindow.makeKeyAndOrderFront(nil)
-            settingsWindow.orderFrontRegardless()
+            window.makeKeyAndOrderFront(nil)
+            window.orderFrontRegardless()
         }
+    }
+    
+    /// Creates a fallback container if DataManager initialization fails
+    private func createFallbackModelContainer() -> ModelContainer {
+        do {
+            let schema = Schema([TranscriptionRecord.self])
+            let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+            return try ModelContainer(for: schema, configurations: [config])
+        } catch {
+            fatalError("Failed to create fallback ModelContainer: \(error)")
+        }
+    }
+}
+
+/// Window delegate that handles the settings window lifecycle
+private class SettingsWindowDelegate: NSObject, NSWindowDelegate {
+    private let onClose: () -> Void
+    
+    init(onClose: @escaping () -> Void) {
+        self.onClose = onClose
+        super.init()
+    }
+    
+    func windowWillClose(_ notification: Notification) {
+        onClose()
     }
 }

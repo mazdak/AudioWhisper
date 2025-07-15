@@ -26,7 +26,8 @@ struct WelcomeView: View {
                     featuresList
                     setupSection
                 }
-                .padding(30)
+                .padding(.vertical, 20)
+                .padding(.horizontal, 30)
             }
             
             Divider()
@@ -39,7 +40,7 @@ struct WelcomeView: View {
     }
     
     private var headerSection: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 8) {
             Image(systemName: "mic.circle.fill")
                 .font(.system(size: 64))
                 .foregroundColor(.accentColor)
@@ -52,9 +53,13 @@ struct WelcomeView: View {
             Text("Your AI-powered audio transcription assistant")
                 .font(.title3)
                 .foregroundColor(.secondary)
+            
+            Text(VersionInfo.fullVersionInfo)
+                .font(.caption)
+                .foregroundColor(Color(NSColor.tertiaryLabelColor))
         }
         .padding(.top, 30)
-        .padding(.bottom, 20)
+        .padding(.bottom, 8)
     }
     
     private var welcomeSection: some View {
@@ -85,10 +90,10 @@ struct WelcomeView: View {
         ]
         
         return LazyVGrid(columns: columns, spacing: 16) {
-            FeatureRow(icon: "command", title: "Global Hotkey", description: "Press ⌘⇧Space anywhere to record (configurable modes available)")
-            FeatureRow(icon: "waveform", title: "Real-time Audio Levels", description: "Visual feedback while recording")
-            FeatureRow(icon: "text.cursor", title: "Auto-Paste", description: "Transcribed text automatically pastes to your active app")
-            FeatureRow(icon: "brain", title: "Multiple AI Models", description: "Choose from 6 Whisper models based on your needs")
+            FeatureRow(icon: "command", title: "Global Hotkey", description: "Press ⌘⇧Space anywhere (configurable) to record")
+            FeatureRow(icon: "waveform", title: "Transcription History", description: "Keep track of your previous chats. Easily clear or disable it")
+            FeatureRow(icon: "text.cursor", title: "Smart Paste", description: "Transcribed text automatically pastes to your active app")
+            FeatureRow(icon: "brain", title: "Multiple AI Models", description: "Choose from offline and online models based on your needs")
         }
         .padding(.horizontal, 20) // Add padding to move it right
     }
@@ -236,8 +241,8 @@ struct WelcomeView: View {
         UserDefaults.standard.set("1.1", forKey: "lastWelcomeVersion") // Match version in AppSetupHelper
         
         // Notify that welcome is complete and open settings
-        NotificationCenter.default.post(name: NSNotification.Name("WelcomeCompleted"), object: nil)
-        NotificationCenter.default.post(name: NSNotification.Name("OpenSettingsRequested"), object: nil)
+        NotificationCenter.default.post(name: .welcomeCompleted, object: nil)
+        NotificationCenter.default.post(name: .openSettingsRequested, object: nil)
         
         dismissWindow()
     }

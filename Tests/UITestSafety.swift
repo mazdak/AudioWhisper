@@ -4,7 +4,8 @@ import XCTest
 /// Test class to verify that no actual UI dialogs appear during testing
 final class UITestSafetyTests: XCTestCase {
     
-    func testErrorPresenterDoesNotShowActualDialogs() {
+    @MainActor
+    func testErrorPresenterDoesNotShowActualDialogs() async {
         let errorPresenter = ErrorPresenter.shared
         
         // Verify test environment is detected
@@ -16,11 +17,7 @@ final class UITestSafetyTests: XCTestCase {
         XCTAssertNoThrow(errorPresenter.showError("Test internet connection error"))
         
         // Give a moment for any async operations
-        let expectation = XCTestExpectation(description: "No dialogs shown")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            expectation.fulfill()
-        }
-        wait(for: [expectation], timeout: 0.5)
+        try? await Task.sleep(for: .milliseconds(100))
     }
     
     func testPermissionManagerDoesNotShowActualDialogs() {
@@ -38,6 +35,7 @@ final class UITestSafetyTests: XCTestCase {
         wait(for: [expectation], timeout: 0.5)
     }
     
+    @MainActor
     func testWindowControllerDoesNotCreateActualWindows() {
         let windowController = WindowController()
         
@@ -55,9 +53,8 @@ final class UITestSafetyTests: XCTestCase {
     }
     
     func testHotKeyManagerDoesNotCreateActualHotKeys() {
-        var hotkeyTriggered = false
         let hotKeyManager = HotKeyManager {
-            hotkeyTriggered = true
+            // Hotkey callback - no need to track in test
         }
         
         // Should not crash or show system dialogs for hotkey registration
@@ -65,7 +62,7 @@ final class UITestSafetyTests: XCTestCase {
         
         // Test hotkey updates don't show system prompts
         NotificationCenter.default.post(
-            name: NSNotification.Name("UpdateGlobalHotkey"),
+            name: .updateGlobalHotkey,
             object: "⌘⇧T"
         )
         
@@ -89,11 +86,12 @@ final class UITestSafetyTests: XCTestCase {
         XCTAssertNoThrow(AppSetupHelper.cleanupOldTemporaryFiles())
     }
     
+    @MainActor
     func testAllComponentsDetectTestEnvironment() {
         // Verify all components properly detect test environment
         XCTAssertTrue(ErrorPresenter.shared.isTestEnvironment)
         
-        let permissionManager = PermissionManager()
+        _ = PermissionManager()
         // Access private property through runtime check
         let isTestEnv = NSClassFromString("XCTestCase") != nil
         XCTAssertTrue(isTestEnv, "Test environment should be detected")

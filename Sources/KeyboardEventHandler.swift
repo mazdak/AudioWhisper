@@ -36,7 +36,7 @@ class KeyboardEventHandler {
         // Handle space key
         if key == " " && !modifiers.contains(.command) {
             DispatchQueue.main.async {
-                NotificationCenter.default.post(name: NSNotification.Name("SpaceKeyPressed"), object: nil)
+                NotificationCenter.default.post(name: .spaceKeyPressed, object: nil)
             }
             return nil // Consume the event
         }
@@ -44,7 +44,7 @@ class KeyboardEventHandler {
         // Handle escape key
         if key == String(Character(UnicodeScalar(27)!)) { // Escape
             DispatchQueue.main.async {
-                NotificationCenter.default.post(name: NSNotification.Name("EscapeKeyPressed"), object: nil)
+                NotificationCenter.default.post(name: .escapeKeyPressed, object: nil)
             }
             return nil // Consume the event
         }
@@ -52,15 +52,15 @@ class KeyboardEventHandler {
         // Handle return key
         if key == String(Character(UnicodeScalar(13)!)) || key == "\r" { // Return/Enter
             DispatchQueue.main.async {
-                NotificationCenter.default.post(name: NSNotification.Name("ReturnKeyPressed"), object: nil)
+                NotificationCenter.default.post(name: .returnKeyPressed, object: nil)
             }
             return nil // Consume the event
         }
         
-        // Allow Cmd+, for settings
+        // Allow ⌘, for settings
         if key == "," && modifiers.contains(.command) {
             DispatchQueue.main.async {
-                NotificationCenter.default.post(name: NSNotification.Name("OpenSettingsRequested"), object: nil)
+                NotificationCenter.default.post(name: .openSettingsRequested, object: nil)
             }
             return nil // Consume the event
         }

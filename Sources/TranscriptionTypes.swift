@@ -1,6 +1,6 @@
 import Foundation
 
-enum WhisperModelError: Error, LocalizedError {
+enum WhisperModelError: Error, LocalizedError, Sendable {
     case invalidURL(fileName: String)
     
     var errorDescription: String? {
@@ -11,7 +11,7 @@ enum WhisperModelError: Error, LocalizedError {
     }
 }
 
-enum TranscriptionProvider: String, CaseIterable, Codable {
+enum TranscriptionProvider: String, CaseIterable, Codable, Sendable {
     case openai = "openai"
     case gemini = "gemini" 
     case local = "local"
@@ -31,7 +31,7 @@ enum TranscriptionProvider: String, CaseIterable, Codable {
     }
 }
 
-enum WhisperModel: String, CaseIterable, Codable {
+enum WhisperModel: String, CaseIterable, Codable, Sendable {
     case tiny = "tiny"
     case base = "base"
     case small = "small"

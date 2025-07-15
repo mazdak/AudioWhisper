@@ -35,6 +35,7 @@ class PermissionManager: ObservableObject {
     @Published var showEducationalModal = false
     @Published var showRecoveryModal = false
     private let isTestEnvironment: Bool
+    private let accessibilityManager = AccessibilityPermissionManager()
     
     var allPermissionsGranted: Bool {
         let enableSmartPaste = UserDefaults.standard.bool(forKey: "enableSmartPaste")
@@ -83,8 +84,8 @@ class PermissionManager: ObservableObject {
     }
     
     private func checkAccessibilityPermission() {
-        // Check without prompting (like Maccy)
-        let trusted = AXIsProcessTrustedWithOptions(nil)
+        // Use dedicated AccessibilityPermissionManager for consistent checking
+        let trusted = accessibilityManager.checkPermission()
         
         DispatchQueue.main.async {
             self.accessibilityPermissionState = trusted ? .granted : .notRequested
@@ -146,16 +147,12 @@ class PermissionManager: ObservableObject {
         if accessibilityPermissionState.needsRequest {
             accessibilityPermissionState = .requesting
             
-            // Request permission with prompt (like Maccy would)
-            let checkOptionPrompt = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
-            let options = [checkOptionPrompt: true] as CFDictionary
-            let _ = AXIsProcessTrustedWithOptions(options)
-            
-            // Check the result after a brief delay
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                let trusted = AXIsProcessTrustedWithOptions(nil)
-                self.accessibilityPermissionState = trusted ? .granted : .denied
-                self.checkIfAllPermissionsHandled()
+            // Use dedicated AccessibilityPermissionManager for proper explanation and handling
+            accessibilityManager.requestPermissionWithExplanation { [weak self] granted in
+                DispatchQueue.main.async {
+                    self?.accessibilityPermissionState = granted ? .granted : .denied
+                    self?.checkIfAllPermissionsHandled()
+                }
             }
         }
     }

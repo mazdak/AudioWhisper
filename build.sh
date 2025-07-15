@@ -20,14 +20,59 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-echo "🎙️ Building AudioWhisper..."
+# Generate version info
+GIT_HASH=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
+BUILD_DATE=$(date '+%Y-%m-%d')
+
+# Version can be overridden with AUDIO_WHISPER_VERSION environment variable
+VERSION="${AUDIO_WHISPER_VERSION:-1.1.0}"
+
+echo "🎙️ Building AudioWhisper version $VERSION..."
 
 # Clean previous builds
 rm -rf .build/release
 rm -rf AudioWhisper.app
 rm -f Sources/AudioProcessorCLI
 
-# Note: AudioProcessorCLI binary no longer needed - audio processing is done directly in Swift
+# Create version file from template
+if [ -f "Sources/VersionInfo.swift.template" ]; then
+    sed -e "s/VERSION_PLACEHOLDER/$VERSION/g" \
+        -e "s/GIT_HASH_PLACEHOLDER/$GIT_HASH/g" \
+        -e "s/BUILD_DATE_PLACEHOLDER/$BUILD_DATE/g" \
+        Sources/VersionInfo.swift.template > Sources/VersionInfo.swift
+    echo "Generated VersionInfo.swift from template"
+else
+    echo "Warning: VersionInfo.swift.template not found, using fallback"
+    cat >Sources/VersionInfo.swift <<EOF
+import Foundation
+
+struct VersionInfo {
+    static let version = "$VERSION"
+    static let gitHash = "$GIT_HASH"
+    static let buildDate = "$BUILD_DATE"
+    
+    static var displayVersion: String {
+        if gitHash != "unknown" && !gitHash.isEmpty {
+            let shortHash = String(gitHash.prefix(7))
+            return "\(version) (\(shortHash))"
+        }
+        return version
+    }
+    
+    static var fullVersionInfo: String {
+        var info = "AudioWhisper \(version)"
+        if gitHash != "unknown" && !gitHash.isEmpty {
+            let shortHash = String(gitHash.prefix(7))
+            info += " • \(shortHash)"
+        }
+        if buildDate.count > 0 {
+            info += " • \(buildDate)"
+        }
+        return info
+    }
+}
+EOF
+fi
 
 # Build for release
 echo "📦 Building for release..."
@@ -150,13 +195,13 @@ EOF
 sign_app() {
   local identity="$1"
   local identity_name="$2"
-  
+
   if [ -n "$identity_name" ]; then
     echo "🔏 Code signing app with: $identity_name ($identity)"
   else
     echo "🔏 Code signing app with: $identity"
   fi
-  
+
   codesign --force --deep --sign "$identity" --options runtime --entitlements AudioWhisper.entitlements AudioWhisper.app
   if [ $? -eq 0 ]; then
     echo "🔍 Verifying signature..."

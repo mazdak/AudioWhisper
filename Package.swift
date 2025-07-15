@@ -17,7 +17,7 @@ let package = Package(
             name: "AudioWhisper",
             dependencies: ["Alamofire", "HotKey", "WhisperKit"],
             path: "Sources",
-            exclude: ["__pycache__"],
+            exclude: ["__pycache__", "VersionInfo.swift.template"],
             resources: [
                 .process("Assets.xcassets"),
                 .copy("parakeet_transcribe_pcm.py")

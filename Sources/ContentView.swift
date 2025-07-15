@@ -2,6 +2,27 @@ import SwiftUI
 import AVFoundation
 import ApplicationServices
 
+// Helper class to safely capture observer in closure
+// Uses a lock to ensure thread-safe access to the mutable observer property
+// @unchecked is required because we have mutable state but we ensure thread safety via NSLock
+private final class ObserverBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _observer: NSObjectProtocol?
+    
+    var observer: NSObjectProtocol? {
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return _observer
+        }
+        set {
+            lock.lock()
+            defer { lock.unlock() }
+            _observer = newValue
+        }
+    }
+}
+
 struct ContentView: View {
     @StateObject private var audioRecorder: AudioRecorder
     @AppStorage("transcriptionProvider") private var transcriptionProvider = TranscriptionProvider.openai
@@ -29,6 +50,9 @@ struct ContentView: View {
     @State private var recordingFailedObserver: NSObjectProtocol?
     @State private var targetAppForPaste: NSRunningApplication?
     @State private var windowFocusObserver: NSObjectProtocol?
+    @State private var retryObserver: NSObjectProtocol?
+    @State private var showAudioFileObserver: NSObjectProtocol?
+    @State private var lastAudioURL: URL?
     
     init(speechService: SpeechToTextService = SpeechToTextService(), audioRecorder: AudioRecorder) {
         self._speechService = StateObject(wrappedValue: speechService)
@@ -131,7 +155,7 @@ struct ContentView: View {
             
             // Listen for transcription progress updates
             transcriptionProgressObserver = NotificationCenter.default.addObserver(
-                forName: NSNotification.Name("TranscriptionProgress"),
+                forName: .transcriptionProgress,
                 object: nil,
                 queue: .main
             ) { notification in
@@ -142,7 +166,7 @@ struct ContentView: View {
             
             // Listen for global space key events
             spaceKeyObserver = NotificationCenter.default.addObserver(
-                forName: NSNotification.Name("SpaceKeyPressed"),
+                forName: .spaceKeyPressed,
                 object: nil,
                 queue: .main
             ) { _ in
@@ -170,7 +194,7 @@ struct ContentView: View {
             
             // Listen for global escape key events
             escapeKeyObserver = NotificationCenter.default.addObserver(
-                forName: NSNotification.Name("EscapeKeyPressed"),
+                forName: .escapeKeyPressed,
                 object: nil,
                 queue: .main
             ) { _ in
@@ -196,7 +220,7 @@ struct ContentView: View {
                     }
                     
                     // Notify app delegate to restore focus to previous app
-                    NotificationCenter.default.post(name: NSNotification.Name("RestoreFocusToPreviousApp"), object: nil)
+                    NotificationCenter.default.post(name: .restoreFocusToPreviousApp, object: nil)
                     
                     // Reset success state
                     showSuccess = false
@@ -205,7 +229,7 @@ struct ContentView: View {
             
             // Listen for Return key to paste when in success state
             returnKeyObserver = NotificationCenter.default.addObserver(
-                forName: NSNotification.Name("ReturnKeyPressed"),
+                forName: .returnKeyPressed,
                 object: nil,
                 queue: .main
             ) { _ in
@@ -220,7 +244,7 @@ struct ContentView: View {
             
             // Listen for target app storage from WindowController
             targetAppObserver = NotificationCenter.default.addObserver(
-                forName: NSNotification.Name("TargetAppStored"),
+                forName: .targetAppStored,
                 object: nil,
                 queue: .main
             ) { notification in
@@ -231,7 +255,7 @@ struct ContentView: View {
             
             // Listen for recording start failures from hotkey handler
             recordingFailedObserver = NotificationCenter.default.addObserver(
-                forName: NSNotification.Name("RecordingStartFailed"),
+                forName: .recordingStartFailed,
                 object: nil,
                 queue: .main
             ) { _ in
@@ -254,6 +278,24 @@ struct ContentView: View {
                 }
                 
                 // Immediate recording is now handled by the hotkey handler in AudioWhisperApp
+            }
+            
+            // Listen for retry transcription requests
+            retryObserver = NotificationCenter.default.addObserver(
+                forName: .retryTranscriptionRequested,
+                object: nil,
+                queue: .main
+            ) { _ in
+                retryLastTranscription()
+            }
+            
+            // Listen for show audio file requests
+            showAudioFileObserver = NotificationCenter.default.addObserver(
+                forName: .showAudioFileRequested,
+                object: nil,
+                queue: .main
+            ) { _ in
+                showLastAudioFile()
             }
         }
         .onDisappear {
@@ -293,9 +335,22 @@ struct ContentView: View {
                 windowFocusObserver = nil
             }
             
+            if let observer = retryObserver {
+                NotificationCenter.default.removeObserver(observer)
+                retryObserver = nil
+            }
+            
+            if let observer = showAudioFileObserver {
+                NotificationCenter.default.removeObserver(observer)
+                showAudioFileObserver = nil
+            }
+            
             // Cancel any running processing task
             processingTask?.cancel()
             processingTask = nil
+            
+            // Clear audio URL to prevent memory retention
+            lastAudioURL = nil
         }
         .onChange(of: audioRecorder.isRecording) { oldValue, recording in
             updateStatus()
@@ -414,33 +469,88 @@ struct ContentView: View {
     }
     
     private func activateTargetAppAndPaste(_ target: NSRunningApplication) {
-        // Try activation with fallback handling
-        let success = target.activate(options: [])
-        
-        // If activation fails, try alternative approach
-        if !success {
-            attemptFallbackActivation(target)
-        }
-        
-        // Wait for focus restoration, then paste and cleanup
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            Task { @MainActor in
-                self.pasteManager.pasteWithUserInteraction()
+        Task { @MainActor in
+            do {
+                // Activate the target app and wait for it to become active
+                try await activateApplication(target)
                 
-                // Reset success state after brief delay for paste completion
-                try? await Task.sleep(nanoseconds: 200_000_000) // 0.2 seconds
+                // Perform paste operation with completion handling
+                await pasteManager.pasteWithCompletionHandler()
+                
+                // Reset success state after paste completes
+                self.showSuccess = false
+            } catch {
+                // Failed to activate app and paste - error already handled above
                 self.showSuccess = false
             }
         }
     }
     
-    private func attemptFallbackActivation(_ target: NSRunningApplication) {
-        if let bundleURL = target.bundleURL {
-            let configuration = NSWorkspace.OpenConfiguration()
-            configuration.activates = true
-            NSWorkspace.shared.openApplication(at: bundleURL, configuration: configuration, completionHandler: nil)
+    private func activateApplication(_ target: NSRunningApplication) async throws {
+        // Try direct activation first
+        let success = target.activate(options: [])
+        
+        if !success {
+            // Try fallback activation through NSWorkspace
+            if let bundleURL = target.bundleURL {
+                let configuration = NSWorkspace.OpenConfiguration()
+                configuration.activates = true
+                
+                return try await withCheckedThrowingContinuation { continuation in
+                    NSWorkspace.shared.openApplication(at: bundleURL, configuration: configuration) { _, error in
+                        if let error = error {
+                            continuation.resume(throwing: error)
+                        } else {
+                            continuation.resume()
+                        }
+                    }
+                }
+            } else {
+                throw NSError(domain: "AudioWhisper", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to activate target application"])
+            }
+        }
+        
+        // Wait for the app to become active using notification observer
+        await waitForApplicationActivation(target)
+    }
+    
+    private func waitForApplicationActivation(_ target: NSRunningApplication) async {
+        // If already active, return immediately
+        if target.isActive {
+            return
+        }
+        
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            let observerBox = ObserverBox()
+            
+            // Set up timeout  
+            let timeoutTask = Task {
+                try? await Task.sleep(nanoseconds: 500_000_000) // 500ms
+                if let observer = observerBox.observer {
+                    NotificationCenter.default.removeObserver(observer)
+                }
+                continuation.resume()
+            }
+            
+            // Observe app activation
+            observerBox.observer = NotificationCenter.default.addObserver(
+                forName: NSWorkspace.didActivateApplicationNotification,
+                object: nil,
+                queue: .main
+            ) { notification in
+                if let activatedApp = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
+                   activatedApp.processIdentifier == target.processIdentifier {
+                    timeoutTask.cancel()
+                    if let observer = observerBox.observer {
+                        NotificationCenter.default.removeObserver(observer)
+                    }
+                    continuation.resume()
+                }
+            }
         }
     }
+    
+    // Removed attemptFallbackActivation - integrated into activateApplication method
     
     // MARK: - Recording Management
     
@@ -449,6 +559,9 @@ struct ContentView: View {
             permissionManager.requestPermissionWithEducation()
             return
         }
+        
+        // Clear previous audio URL when starting new recording
+        lastAudioURL = nil
         
         // Note: Target app is already stored by WindowController.storePreviousApp() when window is shown
         // We don't need to store it again here since AudioWhisper may already be frontmost
@@ -463,6 +576,9 @@ struct ContentView: View {
     private func stopAndProcess() {
         // Cancel any existing processing task
         processingTask?.cancel()
+        
+        // Notify that recording has stopped (for menu bar icon update in hotkey mode)
+        NotificationCenter.default.post(name: .recordingStopped, object: nil)
         
         processingTask = Task {
             isProcessing = true
@@ -481,6 +597,9 @@ struct ContentView: View {
                     throw NSError(domain: "AudioRecorder", code: 2, userInfo: [NSLocalizedDescriptionKey: LocalizedStrings.Errors.recordingURLEmpty])
                 }
                 
+                // Store the audio URL for potential retry
+                lastAudioURL = audioURL
+                
                 // Check for cancellation before transcription
                 try Task.checkCancellation()
                 
@@ -494,6 +613,22 @@ struct ContentView: View {
                 
                 // Check for cancellation after transcription
                 try Task.checkCancellation()
+                
+                // Save transcription to history if enabled
+                if DataManager.shared.isHistoryEnabled {
+                    let duration = transcriptionStartTime.map { Date().timeIntervalSince($0) }
+                    let modelUsed = transcriptionProvider == .local ? selectedWhisperModel.rawValue : nil
+                    
+                    let record = TranscriptionRecord(
+                        text: text,
+                        provider: transcriptionProvider,
+                        duration: duration,
+                        modelUsed: modelUsed
+                    )
+                    
+                    // Save quietly to avoid disrupting the transcription flow
+                    await DataManager.shared.saveTranscriptionQuietly(record)
+                }
                 
                 // Copy to clipboard
                 NSPasteboard.general.clearContents()
@@ -540,7 +675,7 @@ struct ContentView: View {
             }
         } else {
             // Restore focus to previous app when SmartPaste is disabled
-            NotificationCenter.default.post(name: NSNotification.Name("RestoreFocusToPreviousApp"), object: nil)
+            NotificationCenter.default.post(name: .restoreFocusToPreviousApp, object: nil)
             
             // Auto-dismiss after 2 seconds when SmartPaste is disabled
             DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
@@ -556,12 +691,120 @@ struct ContentView: View {
                 }
                 
                 // Notify app delegate to restore focus to previous app
-                NotificationCenter.default.post(name: NSNotification.Name("RestoreFocusToPreviousApp"), object: nil)
+                NotificationCenter.default.post(name: .restoreFocusToPreviousApp, object: nil)
                 
                 // Reset success state
                 showSuccess = false
             }
         }
+    }
+    
+    // MARK: - Retry and Audio File Management
+    
+    private func retryLastTranscription() {
+        // Prevent multiple concurrent retry attempts
+        guard !isProcessing else {
+            return
+        }
+        
+        guard let audioURL = lastAudioURL else {
+            errorMessage = "No audio file available to retry. Please record again."
+            showError = true
+            return
+        }
+        
+        // Check if the audio file still exists
+        guard FileManager.default.fileExists(atPath: audioURL.path) else {
+            errorMessage = "Audio file no longer exists. Please record again."
+            showError = true
+            // Clear the invalid URL
+            lastAudioURL = nil
+            return
+        }
+        
+        // Cancel any existing processing task
+        processingTask?.cancel()
+        
+        // Retry transcription with the stored audio URL
+        processingTask = Task {
+            isProcessing = true
+            transcriptionStartTime = Date()
+            progressMessage = "Retrying transcription..."
+            
+            do {
+                try Task.checkCancellation()
+                
+                // Convert to text using selected provider and model
+                let text: String
+                if transcriptionProvider == .local {
+                    text = try await speechService.transcribe(audioURL: audioURL, provider: transcriptionProvider, model: selectedWhisperModel)
+                } else {
+                    text = try await speechService.transcribe(audioURL: audioURL, provider: transcriptionProvider)
+                }
+                
+                // Check for cancellation after transcription
+                try Task.checkCancellation()
+                
+                // Save transcription to history if enabled
+                if DataManager.shared.isHistoryEnabled {
+                    let duration = transcriptionStartTime.map { Date().timeIntervalSince($0) }
+                    let modelUsed = transcriptionProvider == .local ? selectedWhisperModel.rawValue : nil
+                    
+                    let record = TranscriptionRecord(
+                        text: text,
+                        provider: transcriptionProvider,
+                        duration: duration,
+                        modelUsed: modelUsed
+                    )
+                    
+                    // Save quietly to avoid disrupting the transcription flow
+                    await DataManager.shared.saveTranscriptionQuietly(record)
+                }
+                
+                // Copy to clipboard
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(text, forType: .string)
+                
+                // Show confirmation and close
+                await MainActor.run {
+                    transcriptionStartTime = nil
+                    showConfirmationAndPaste(text: text)
+                }
+            } catch is CancellationError {
+                // Handle cancellation gracefully
+                await MainActor.run {
+                    isProcessing = false
+                    transcriptionStartTime = nil
+                }
+            } catch {
+                await MainActor.run {
+                    errorMessage = error.localizedDescription
+                    showError = true
+                    isProcessing = false
+                    transcriptionStartTime = nil
+                }
+            }
+        }
+    }
+    
+    private func showLastAudioFile() {
+        guard let audioURL = lastAudioURL else {
+            errorMessage = "No audio file available to show."
+            showError = true
+            return
+        }
+        
+        // Check if the audio file still exists
+        guard FileManager.default.fileExists(atPath: audioURL.path) else {
+            errorMessage = "Audio file no longer exists."
+            showError = true
+            // Clear the invalid URL to prevent memory retention
+            lastAudioURL = nil
+            return
+        }
+        
+        // Reveal the audio file in Finder
+        NSWorkspace.shared.selectFile(audioURL.path, inFileViewerRootedAtPath: audioURL.deletingLastPathComponent().path)
     }
     
 }

@@ -43,9 +43,9 @@ class LocalWhisperServiceTests: XCTestCase {
         XCTAssertEqual(WhisperModel.largeTurbo.estimatedSize, 1536 * 1024 * 1024)
     }
     
-    func testCacheClearing() {
+    func testCacheClearing() async {
         // Test that cache can be cleared without errors
-        service.clearCache()
+        await service.clearCache()
         // If no exception is thrown, the test passes
     }
     
@@ -83,7 +83,9 @@ class LocalWhisperServicePerformanceTests: XCTestCase {
     func testServiceCreationPerformance() {
         measure {
             let service = LocalWhisperService()
-            service.clearCache()
+            Task {
+                await service.clearCache()
+            }
         }
     }
 }

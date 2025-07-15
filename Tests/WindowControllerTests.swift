@@ -80,11 +80,13 @@ final class WindowControllerTests: XCTestCase {
     
     // MARK: - Settings Window Tests
     
+    @MainActor
     func testOpenSettingsCreatesNewWindow() {
         // Should not crash when opening settings
         XCTAssertNoThrow(windowController.openSettings())
     }
     
+    @MainActor
     func testOpenSettingsHidesRecordingWindow() {
         UserDefaults.standard.set(true, forKey: "hasCompletedWelcome")
         
@@ -92,6 +94,7 @@ final class WindowControllerTests: XCTestCase {
         XCTAssertNoThrow(windowController.openSettings())
     }
     
+    @MainActor
     func testOpenSettingsWithExistingSettingsWindow() {
         // In test environment, openSettings() returns early
         // Just verify it doesn't crash
@@ -176,6 +179,7 @@ final class WindowControllerTests: XCTestCase {
         }
     }
     
+    @MainActor
     func testMultipleSettingsOpenCalls() {
         // Multiple rapid settings calls should not crash
         for _ in 0..<5 {
@@ -183,27 +187,21 @@ final class WindowControllerTests: XCTestCase {
         }
     }
     
-    func testConcurrentWindowOperations() {
+    @MainActor
+    func testConcurrentWindowOperations() async {
         UserDefaults.standard.set(true, forKey: "hasCompletedWelcome")
         
-        let queue = DispatchQueue.global(qos: .background)
-        let expectation = XCTestExpectation(description: "Concurrent operations completed")
-        expectation.expectedFulfillmentCount = 10
-        
-        for i in 0..<10 {
-            queue.async {
-                DispatchQueue.main.async {
+        await withTaskGroup(of: Void.self) { group in
+            for i in 0..<10 {
+                group.addTask { @MainActor in
                     if i % 2 == 0 {
                         self.windowController.toggleRecordWindow()
                     } else {
                         self.windowController.openSettings()
                     }
-                    expectation.fulfill()
                 }
             }
         }
-        
-        wait(for: [expectation], timeout: 2.0)
     }
     
     // MARK: - Memory Management Tests
@@ -230,6 +228,7 @@ final class WindowControllerTests: XCTestCase {
         }
     }
     
+    @MainActor
     func testOpenSettingsPerformance() {
         measure {
             for _ in 0..<50 {
@@ -240,6 +239,7 @@ final class WindowControllerTests: XCTestCase {
     
     // MARK: - Error Handling Tests
     
+    @MainActor
     func testWindowOperationsWithInvalidWindows() {
         // Test with nil window references
         XCTAssertNoThrow(windowController.toggleRecordWindow())
@@ -247,6 +247,7 @@ final class WindowControllerTests: XCTestCase {
         XCTAssertNoThrow(windowController.restoreFocusToPreviousApp())
     }
     
+    @MainActor
     func testWindowOperationsAfterWindowClosed() {
         testWindow.close()
         

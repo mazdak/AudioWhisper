@@ -48,7 +48,7 @@ final class HotKeyManagerTests: XCTestCase {
         UserDefaults.standard.set("⌘A", forKey: "globalHotkey")
         
         NotificationCenter.default.post(
-            name: NSNotification.Name("UpdateGlobalHotkey"),
+            name: .updateGlobalHotkey,
             object: "⌘A"
         )
         
@@ -60,7 +60,7 @@ final class HotKeyManagerTests: XCTestCase {
         UserDefaults.standard.set("⌘⇧⌥⌃A", forKey: "globalHotkey")
         
         NotificationCenter.default.post(
-            name: NSNotification.Name("UpdateGlobalHotkey"),
+            name: .updateGlobalHotkey,
             object: "⌘⇧⌥⌃A"
         )
         
@@ -69,7 +69,7 @@ final class HotKeyManagerTests: XCTestCase {
     
     func testParseInvalidHotkey() {
         NotificationCenter.default.post(
-            name: NSNotification.Name("UpdateGlobalHotkey"),
+            name: .updateGlobalHotkey,
             object: "InvalidKey"
         )
         
@@ -79,7 +79,7 @@ final class HotKeyManagerTests: XCTestCase {
     
     func testParseSpaceHotkey() {
         NotificationCenter.default.post(
-            name: NSNotification.Name("UpdateGlobalHotkey"),
+            name: .updateGlobalHotkey,
             object: "⌘SPACE"
         )
         
@@ -94,7 +94,7 @@ final class HotKeyManagerTests: XCTestCase {
         // Post notification to update hotkey
         DispatchQueue.main.async {
             NotificationCenter.default.post(
-                name: NSNotification.Name("UpdateGlobalHotkey"),
+                name: .updateGlobalHotkey,
                 object: "⌘B"
             )
             expectation.fulfill()
@@ -111,7 +111,7 @@ final class HotKeyManagerTests: XCTestCase {
         
         for hotkeyString in hotkeyStrings {
             NotificationCenter.default.post(
-                name: NSNotification.Name("UpdateGlobalHotkey"),
+                name: .updateGlobalHotkey,
                 object: hotkeyString
             )
             
@@ -129,7 +129,7 @@ final class HotKeyManagerTests: XCTestCase {
         
         for letter in letterKeys {
             NotificationCenter.default.post(
-                name: NSNotification.Name("UpdateGlobalHotkey"),
+                name: .updateGlobalHotkey,
                 object: "⌘\(letter)"
             )
             
@@ -142,7 +142,7 @@ final class HotKeyManagerTests: XCTestCase {
         
         for number in numberKeys {
             NotificationCenter.default.post(
-                name: NSNotification.Name("UpdateGlobalHotkey"),
+                name: .updateGlobalHotkey,
                 object: "⌘\(number)"
             )
             
@@ -155,7 +155,7 @@ final class HotKeyManagerTests: XCTestCase {
         
         for key in specialKeys {
             NotificationCenter.default.post(
-                name: NSNotification.Name("UpdateGlobalHotkey"),
+                name: .updateGlobalHotkey,
                 object: "⌘\(key)"
             )
             
@@ -168,7 +168,7 @@ final class HotKeyManagerTests: XCTestCase {
         
         for key in punctuationKeys {
             NotificationCenter.default.post(
-                name: NSNotification.Name("UpdateGlobalHotkey"),
+                name: .updateGlobalHotkey,
                 object: "⌘\(key)"
             )
             
@@ -183,7 +183,7 @@ final class HotKeyManagerTests: XCTestCase {
         
         for modifier in modifiers {
             NotificationCenter.default.post(
-                name: NSNotification.Name("UpdateGlobalHotkey"),
+                name: .updateGlobalHotkey,
                 object: "\(modifier)A"
             )
             
@@ -208,7 +208,7 @@ final class HotKeyManagerTests: XCTestCase {
         
         for combination in combinations {
             NotificationCenter.default.post(
-                name: NSNotification.Name("UpdateGlobalHotkey"),
+                name: .updateGlobalHotkey,
                 object: combination
             )
             
@@ -220,7 +220,7 @@ final class HotKeyManagerTests: XCTestCase {
     
     func testEmptyHotkeyString() {
         NotificationCenter.default.post(
-            name: NSNotification.Name("UpdateGlobalHotkey"),
+            name: .updateGlobalHotkey,
             object: ""
         )
         
@@ -229,7 +229,7 @@ final class HotKeyManagerTests: XCTestCase {
     
     func testNilHotkeyObject() {
         NotificationCenter.default.post(
-            name: NSNotification.Name("UpdateGlobalHotkey"),
+            name: .updateGlobalHotkey,
             object: nil
         )
         
@@ -238,7 +238,7 @@ final class HotKeyManagerTests: XCTestCase {
     
     func testNonStringHotkeyObject() {
         NotificationCenter.default.post(
-            name: NSNotification.Name("UpdateGlobalHotkey"),
+            name: .updateGlobalHotkey,
             object: 123
         )
         
@@ -247,7 +247,7 @@ final class HotKeyManagerTests: XCTestCase {
     
     func testModifiersWithoutKey() {
         NotificationCenter.default.post(
-            name: NSNotification.Name("UpdateGlobalHotkey"),
+            name: .updateGlobalHotkey,
             object: "⌘⇧⌥⌃"
         )
         
@@ -289,7 +289,7 @@ final class HotKeyManagerTests: XCTestCase {
             for i in 0..<1000 {
                 let hotkeyString = i % 2 == 0 ? "⌘A" : "⌘⇧B"
                 NotificationCenter.default.post(
-                    name: NSNotification.Name("UpdateGlobalHotkey"),
+                    name: .updateGlobalHotkey,
                     object: hotkeyString
                 )
             }

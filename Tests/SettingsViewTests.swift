@@ -17,6 +17,8 @@ class SettingsViewTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: "useOpenAI")
         UserDefaults.standard.removeObject(forKey: "startAtLogin")
         UserDefaults.standard.removeObject(forKey: "immediateRecording")
+        UserDefaults.standard.removeObject(forKey: "transcriptionHistoryEnabled")
+        UserDefaults.standard.removeObject(forKey: "transcriptionRetentionPeriod")
     }
     
     override func tearDown() {
@@ -28,6 +30,8 @@ class SettingsViewTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: "useOpenAI")
         UserDefaults.standard.removeObject(forKey: "startAtLogin")
         UserDefaults.standard.removeObject(forKey: "immediateRecording")
+        UserDefaults.standard.removeObject(forKey: "transcriptionHistoryEnabled")
+        UserDefaults.standard.removeObject(forKey: "transcriptionRetentionPeriod")
         
         super.tearDown()
     }
@@ -250,6 +254,49 @@ class SettingsViewTests: XCTestCase {
         XCTAssertNil(retrievedKey)
     }
     
+    // MARK: - History Settings Tests
+    
+    func testHistorySettingsDefaults() {
+        // Test default values for history settings
+        XCTAssertFalse(UserDefaults.standard.bool(forKey: "transcriptionHistoryEnabled"))
+        XCTAssertEqual(
+            UserDefaults.standard.string(forKey: "transcriptionRetentionPeriod") ?? RetentionPeriod.oneMonth.rawValue,
+            RetentionPeriod.oneMonth.rawValue
+        )
+    }
+    
+    func testHistoryTogglePersistence() {
+        // Enable history
+        UserDefaults.standard.set(true, forKey: "transcriptionHistoryEnabled")
+        XCTAssertTrue(UserDefaults.standard.bool(forKey: "transcriptionHistoryEnabled"))
+        
+        // Disable history
+        UserDefaults.standard.set(false, forKey: "transcriptionHistoryEnabled")
+        XCTAssertFalse(UserDefaults.standard.bool(forKey: "transcriptionHistoryEnabled"))
+    }
+    
+    func testRetentionPeriodPersistence() {
+        // Test each retention period option
+        for period in RetentionPeriod.allCases {
+            UserDefaults.standard.set(period.rawValue, forKey: "transcriptionRetentionPeriod")
+            let savedPeriod = UserDefaults.standard.string(forKey: "transcriptionRetentionPeriod")
+            XCTAssertEqual(savedPeriod, period.rawValue)
+        }
+    }
+    
+    func testRetentionPeriodDisplayNames() {
+        // Test that all retention periods have display names
+        for period in RetentionPeriod.allCases {
+            XCTAssertFalse(period.displayName.isEmpty)
+        }
+        
+        // Test specific display names
+        XCTAssertEqual(RetentionPeriod.oneWeek.displayName, "1 Week")
+        XCTAssertEqual(RetentionPeriod.oneMonth.displayName, "1 Month")
+        XCTAssertEqual(RetentionPeriod.threeMonths.displayName, "3 Months")
+        XCTAssertEqual(RetentionPeriod.forever.displayName, "Forever")
+    }
+    
     // MARK: - Performance Tests
     
     func testMicrophoneDiscoveryPerformance() {
@@ -310,7 +357,14 @@ class SettingsViewTests: XCTestCase {
 
 extension SettingsViewTests {
     private func clearUserDefaults() {
-        let keys = ["selectedMicrophone", "globalHotkey", "useOpenAI", "startAtLogin"]
+        let keys = [
+            "selectedMicrophone", 
+            "globalHotkey", 
+            "useOpenAI", 
+            "startAtLogin",
+            "transcriptionHistoryEnabled",
+            "transcriptionRetentionPeriod"
+        ]
         for key in keys {
             UserDefaults.standard.removeObject(forKey: key)
         }

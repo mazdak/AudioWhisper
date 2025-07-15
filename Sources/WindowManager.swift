@@ -1,13 +1,28 @@
 import AppKit
 import SwiftUI
 
+@MainActor
 class WindowManager: ObservableObject {
     weak var recordWindow: NSWindow?
     private var windowObserver: NSObjectProtocol?
     
-    func setupRecordingWindow() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            self.findAndConfigureWindow()
+    func setupRecordingWindow(completion: (() -> Void)? = nil) {
+        // Ensure we're on the main thread for UI operations
+        if Thread.isMainThread {
+            findAndConfigureWindow()
+            completion?()
+        } else {
+            DispatchQueue.main.async { [weak self] in
+                self?.findAndConfigureWindow()
+                completion?()
+            }
+        }
+    }
+    
+    // Async version for modern Swift concurrency
+    func setupRecordingWindow() async {
+        await MainActor.run {
+            findAndConfigureWindow()
         }
     }
     
@@ -92,11 +107,10 @@ class WindowManager: ObservableObject {
             forName: NSWindow.didResignKeyNotification,
             object: window,
             queue: .main
-        ) { _ in
+        ) { [weak window] _ in
             // Dismiss recording window when it loses focus
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                window.orderOut(nil)
-            }
+            // Use weak reference to avoid retain cycle
+            window?.orderOut(nil)
         }
     }
     

@@ -217,7 +217,7 @@ class ModelManager: ObservableObject {
                 try FileManager.default.removeItem(at: modelPath)
                 
                 // Clear the model from LocalWhisperService cache
-                LocalWhisperService.shared.clearCache()
+                await LocalWhisperService.shared.clearCache()
                 
                 // Update our tracking immediately
                 await MainActor.run {

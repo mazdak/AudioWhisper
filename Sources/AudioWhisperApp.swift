@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 import AppKit
 import HotKey
 import ServiceManagement
@@ -9,10 +10,18 @@ struct AudioWhisperApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     
     var body: some Scene {
-        // Settings window - normal chrome
-        Settings {
-            SettingsView()
+        // This is a menu bar app, so we just need to define menu commands
+        // All windows are created programmatically
+        WindowGroup {
+            EmptyView()
+                .frame(width: 0, height: 0)
+                .onAppear {
+                    // Hide the empty window immediately
+                    NSApplication.shared.windows.first?.orderOut(nil)
+                }
         }
+        .windowStyle(.hiddenTitleBar)
+        .windowResizability(.contentSize)
         .commands {
             CommandGroup(replacing: .appSettings) {
                 Button(LocalizedStrings.Menu.settings) {
@@ -29,18 +38,46 @@ struct AudioWhisperApp: App {
         }
     }
     
+    /// Creates a fallback container if DataManager initialization fails
+    private func createFallbackContainer() -> ModelContainer {
+        do {
+            let schema = Schema([TranscriptionRecord.self])
+            let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+            return try ModelContainer(for: schema, configurations: [config])
+        } catch {
+            fatalError("Failed to create fallback ModelContainer: \(error)")
+        }
+    }
 }
 
+@MainActor
 class AppDelegate: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem?
     private var hotKeyManager: HotKeyManager?
     private var keyboardEventHandler: KeyboardEventHandler?
     private var windowController = WindowController()
-    private var recordingWindow: NSWindow?
+    private weak var recordingWindow: NSWindow?
+    private var recordingWindowDelegate: RecordingWindowDelegate?
     private var audioRecorder: AudioRecorder?
-    private var recordingAnimationTimer: Timer?
+    private var recordingAnimationTimer: DispatchSourceTimer?
     
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Skip UI initialization in test environment
+        let isTestEnvironment = NSClassFromString("XCTestCase") != nil
+        if isTestEnvironment {
+            Logger.app.info("Test environment detected - skipping UI initialization")
+            return
+        }
+        
+        // Initialize DataManager first
+        do {
+            try DataManager.shared.initialize()
+            Logger.app.info("DataManager initialized successfully")
+        } catch {
+            Logger.app.error("Failed to initialize DataManager: \(error.localizedDescription)")
+            // App continues with in-memory fallback
+        }
+        
         // Setup app configuration
         AppSetupHelper.setupApp()
         
@@ -60,6 +97,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let menu = NSMenu()
         menu.addItem(NSMenuItem(title: LocalizedStrings.Menu.record, action: #selector(toggleRecordWindow), keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
+        menu.addItem(NSMenuItem(title: LocalizedStrings.Menu.history, action: #selector(showHistory), keyEquivalent: "h"))
         menu.addItem(NSMenuItem(title: LocalizedStrings.Menu.settings, action: #selector(openSettings), keyEquivalent: ","))
         menu.addItem(NSMenuItem(title: "Help", action: #selector(showHelp), keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
@@ -72,6 +110,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self?.handleHotkey()
         }
         keyboardEventHandler = KeyboardEventHandler()
+        
+        // Listen for screen configuration changes
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(screenConfigurationChanged),
+            name: NSApplication.didChangeScreenParametersNotification,
+            object: nil
+        )
         
         // Setup additional notification observers
         setupNotificationObservers()
@@ -89,7 +135,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(openSettings),
-            name: NSNotification.Name("OpenSettingsRequested"),
+            name: .openSettingsRequested,
             object: nil
         )
         
@@ -97,7 +143,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(onWelcomeCompleted),
-            name: NSNotification.Name("WelcomeCompleted"),
+            name: .welcomeCompleted,
             object: nil
         )
         
@@ -105,7 +151,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(restoreFocusToPreviousApp),
-            name: NSNotification.Name("RestoreFocusToPreviousApp"),
+            name: .restoreFocusToPreviousApp,
+            object: nil
+        )
+        
+        // Listen for recording stopped notifications
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(onRecordingStopped),
+            name: .recordingStopped,
             object: nil
         )
     }
@@ -116,6 +170,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if immediateRecording {
             // Mode 2: Hotkey Start & Stop
             guard let recorder = audioRecorder else {
+                Logger.app.error("AudioRecorder not available for immediate recording")
                 // Fallback to showing window if recorder not available
                 toggleRecordWindow()
                 return
@@ -124,11 +179,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             if recorder.isRecording {
                 // Stop recording and process - show window for processing UI
                 updateMenuBarIcon(isRecording: false)
-                toggleRecordWindow()
+                // Only show window if it's not already visible
+                if recordingWindow == nil || !recordingWindow!.isVisible {
+                    toggleRecordWindow()
+                }
                 
                 // Tiny delay to ensure onAppear runs first
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                    NotificationCenter.default.post(name: NSNotification.Name("SpaceKeyPressed"), object: nil)
+                    NotificationCenter.default.post(name: .spaceKeyPressed, object: nil)
                 }
             } else {
                 // Check permission first
@@ -147,7 +205,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     toggleRecordWindow()
                     // Notify ContentView to show error
                     NotificationCenter.default.post(
-                        name: NSNotification.Name("RecordingStartFailed"),
+                        name: .recordingStartFailed,
                         object: nil
                     )
                 }
@@ -176,29 +234,51 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         guard let button = statusItem?.button else { return }
         
         // Stop any existing animation
-        recordingAnimationTimer?.invalidate()
+        stopRecordingAnimation()
         
-        let config = NSImage.SymbolConfiguration(pointSize: 20, weight: .medium)
-        let normalImage = NSImage(systemSymbolName: "microphone.circle", accessibilityDescription: "Recording")?.withSymbolConfiguration(config)
-        let filledImage = NSImage(systemSymbolName: "microphone.circle.fill", accessibilityDescription: "Recording in progress")?.withSymbolConfiguration(config)
+        // Use the same adaptive sizing as the normal icon
+        let iconSize = AppSetupHelper.getAdaptiveMenuBarIconSize()
+        let config = NSImage.SymbolConfiguration(pointSize: iconSize, weight: .medium)
         
-        normalImage?.isTemplate = true
-        filledImage?.isTemplate = true
+        // Create red version: red circle outline with red microphone
+        let redImage = NSImage(systemSymbolName: "microphone.circle", accessibilityDescription: "Recording")?.withSymbolConfiguration(config)
+        redImage?.isTemplate = false
+        let redOutlineImage = redImage?.tinted(with: .systemRed)
         
-        // Start with filled state immediately
-        button.image = filledImage
+        // Create black version: use template image so it follows system appearance
+        let blackImage = NSImage(systemSymbolName: "microphone.circle", accessibilityDescription: "Recording")?.withSymbolConfiguration(config)
+        blackImage?.isTemplate = true  // Template images automatically adapt to menu bar appearance
         
-        var isFilledState = true // Start as filled since we just set it
+        // Start with red state
+        button.image = redOutlineImage
         
-        // Schedule animation with shorter interval and immediate first change
-        recordingAnimationTimer = Timer.scheduledTimer(withTimeInterval: 0.6, repeats: true) { _ in
-            button.image = isFilledState ? normalImage : filledImage
-            isFilledState.toggle()
+        var isRedState = true // Start as red since we just set red image
+        
+        // Create DispatchSourceTimer on background queue for efficiency
+        let queue = DispatchQueue(label: "com.audiowhisper.animation", qos: .background)
+        let timer = DispatchSource.makeTimerSource(queue: queue)
+        
+        // Schedule timer to start immediately and repeat every 0.5 seconds
+        timer.schedule(deadline: .now(), repeating: 0.5)
+        
+        timer.setEventHandler { [weak button] in
+            guard let button = button else { return }
+            
+            // Toggle the state
+            isRedState.toggle()
+            
+            // Update UI on main thread
+            DispatchQueue.main.async {
+                button.image = isRedState ? redOutlineImage : blackImage
+            }
         }
+        
+        recordingAnimationTimer = timer
+        timer.resume()
     }
     
     private func stopRecordingAnimation() {
-        recordingAnimationTimer?.invalidate()
+        recordingAnimationTimer?.cancel()
         recordingAnimationTimer = nil
     }
     
@@ -211,6 +291,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     private func createRecordingWindow() {
+        // Ensure audioRecorder is available
+        guard let recorder = audioRecorder else {
+            Logger.app.error("Cannot create recording window: AudioRecorder not initialized")
+            return
+        }
+        
         // Create the recording window programmatically
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 280, height: 160),
@@ -231,10 +317,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.isOpaque = false
         
         // Create ContentView and set it as content
-        let contentView = ContentView(audioRecorder: audioRecorder!)
+        let contentView = ContentView(audioRecorder: recorder)
             .frame(width: 280, height: 160)
             .fixedSize()
             .background(VisualEffectView())
+            .modelContainer(DataManager.shared.sharedModelContainer ?? createFallbackModelContainer())
         
         window.contentView = NSHostingView(rootView: contentView)
         window.center()
@@ -244,11 +331,41 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.standardWindowButton(.miniaturizeButton)?.isHidden = true
         window.standardWindowButton(.zoomButton)?.isHidden = true
         
+        // Set up delegate to handle window lifecycle
+        recordingWindowDelegate = RecordingWindowDelegate { [weak self] in
+            self?.onRecordingWindowClosed()
+        }
+        window.delegate = recordingWindowDelegate
+        
         recordingWindow = window
+    }
+    
+    /// Called when the recording window is closing
+    private func onRecordingWindowClosed() {
+        // Clean up references
+        recordingWindow = nil
+        recordingWindowDelegate = nil
+        Logger.app.info("Recording window closed and references cleaned up")
+    }
+    
+    /// Creates a fallback container if DataManager initialization fails
+    private func createFallbackModelContainer() -> ModelContainer {
+        do {
+            let schema = Schema([TranscriptionRecord.self])
+            let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+            return try ModelContainer(for: schema, configurations: [config])
+        } catch {
+            fatalError("Failed to create fallback ModelContainer: \(error)")
+        }
     }
     
     @objc private func restoreFocusToPreviousApp() {
         windowController.restoreFocusToPreviousApp()
+    }
+    
+    @objc private func onRecordingStopped() {
+        // Stop the red flashing animation when recording stops (entering processing phase)
+        updateMenuBarIcon(isRecording: false)
     }
     
     @objc func openSettings() {
@@ -261,12 +378,27 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     
+    @MainActor @objc func showHistory() {
+        Logger.app.info("History menu item selected")
+        HistoryWindowManager.shared.showHistoryWindow()
+    }
+    
     @objc func showHelp() {
         // Show the welcome dialog as help
         let shouldOpenSettings = WelcomeWindow.showWelcomeDialog()
         
         if shouldOpenSettings {
             openSettings()
+        }
+    }
+    
+    @objc private func screenConfigurationChanged() {
+        // Reset the cached icon size when screen configuration changes
+        AppSetupHelper.resetIconSizeCache()
+        
+        // Update the menu bar icon with the new size
+        if let button = statusItem?.button {
+            button.image = AppSetupHelper.createMenuBarIcon()
         }
     }
     
@@ -289,8 +421,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     func applicationWillTerminate(_ notification: Notification) {
         // Clean up resources
-        recordingAnimationTimer?.invalidate()
+        recordingAnimationTimer?.cancel()
         recordingAnimationTimer = nil
+        
+        // Clean up window references
+        recordingWindow = nil
+        recordingWindowDelegate = nil
         
         // Cleanup is handled by the deinitializers of the helper classes
         AppSetupHelper.cleanupOldTemporaryFiles()
@@ -315,4 +451,18 @@ struct VisualEffectView: NSViewRepresentable {
     }
     
     func updateNSView(_ nsView: NSVisualEffectView, context: Context) {}
+}
+
+/// Window delegate that handles the recording window lifecycle
+private class RecordingWindowDelegate: NSObject, NSWindowDelegate {
+    private let onClose: () -> Void
+    
+    init(onClose: @escaping () -> Void) {
+        self.onClose = onClose
+        super.init()
+    }
+    
+    func windowWillClose(_ notification: Notification) {
+        onClose()
+    }
 }

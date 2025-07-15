@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 import AVFoundation
 import ServiceManagement
 import HotKey
@@ -16,6 +17,8 @@ struct SettingsView: View {
     @AppStorage("playCompletionSound") private var playCompletionSound = true
     @AppStorage("maxModelStorageGB") private var maxModelStorageGB = 5.0
     @AppStorage("parakeetPythonPath") private var parakeetPythonPath = "/usr/bin/python3"
+    @AppStorage("transcriptionHistoryEnabled") private var transcriptionHistoryEnabled = false
+    @AppStorage("transcriptionRetentionPeriod") private var transcriptionRetentionPeriodRaw = RetentionPeriod.oneMonth.rawValue
     @StateObject private var modelManager = ModelManager.shared
     @State private var availableMicrophones: [AVCaptureDevice] = []
     @State private var openAIKey = ""
@@ -97,7 +100,7 @@ struct SettingsView: View {
                         updateLoginItem(enabled: newValue)
                     }
                 
-                Toggle("Hotkey Start & Stop Mode", isOn: $immediateRecording)
+                Toggle("Express Mode: Hotkey Start & Stop", isOn: $immediateRecording)
                     .toggleStyle(.switch)
                     .accessibilityLabel("Hotkey start and stop mode")
                     .accessibilityHint("When enabled, the hotkey starts recording immediately and pressing it again stops recording and pastes the text")
@@ -107,15 +110,40 @@ struct SettingsView: View {
                     .accessibilityLabel("Automatically boost microphone volume")
                     .accessibilityHint("When enabled, microphone volume is temporarily increased to 100% during recording and restored afterward")
                 
-                Toggle("Smart Paste (Auto Cmd+V)", isOn: $enableSmartPaste)
+                Toggle("Smart Paste (Auto ⌘V)", isOn: $enableSmartPaste)
                     .toggleStyle(.switch)
                     .accessibilityLabel("Automatically paste transcribed text")
-                    .accessibilityHint("When enabled, automatically simulates Cmd+V to paste transcribed text. Requires Input Monitoring permission.")
+                    .accessibilityHint("When enabled, automatically simulates ⌘V to paste transcribed text. Requires Input Monitoring permission.")
                 
                 Toggle("Play Completion Sound", isOn: $playCompletionSound)
                     .toggleStyle(.switch)
                     .accessibilityLabel("Play sound when transcription completes")
                     .accessibilityHint("When enabled, plays a gentle sound when transcription is finished and text is pasted")
+            }
+            
+            Section(header: Text("History")) {
+                Toggle("Save Transcription History", isOn: $transcriptionHistoryEnabled)
+                    .toggleStyle(.switch)
+                    .accessibilityLabel("Save transcription history")
+                    .accessibilityHint("When enabled, transcriptions are saved locally for review and search")
+                
+                if transcriptionHistoryEnabled {
+                    Picker("Keep History For", selection: $transcriptionRetentionPeriodRaw) {
+                        ForEach(RetentionPeriod.allCases, id: \.self) { period in
+                            Text(period.displayName).tag(period.rawValue)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .accessibilityLabel("History retention period")
+                    .accessibilityHint("Choose how long to keep transcription history")
+                    
+                    Button("View History...") {
+                        showHistoryWindow()
+                    }
+                    .buttonStyle(.bordered)
+                    .accessibilityLabel("View transcription history")
+                    .accessibilityHint("Opens a window to view and manage saved transcriptions")
+                }
             }
             
             Section(header: Text("Speech-to-Text Provider")) {
@@ -415,6 +443,35 @@ struct SettingsView: View {
                     }
                 }
             }
+            
+            // Version Info Section
+            Section {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(VersionInfo.fullVersionInfo)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        if VersionInfo.gitHash != "dev-build" && VersionInfo.gitHash != "unknown" {
+                            Text("Git: \(VersionInfo.gitHash)")
+                                .font(.caption2)
+                                .foregroundColor(Color(NSColor.tertiaryLabelColor))
+                                .textSelection(.enabled)
+                        }
+                        
+                        if !VersionInfo.buildDate.isEmpty {
+                            Text("Built: \(VersionInfo.buildDate)")
+                                .font(.caption2)
+                                .foregroundColor(Color(NSColor.tertiaryLabelColor))
+                        }
+                    }
+                    
+                    Spacer()
+                }
+                .padding(.vertical, 4)
+            } header: {
+                Text("About")
+            }
         }
         .formStyle(.grouped)
         .frame(width: 500, height: 600)
@@ -490,7 +547,7 @@ struct SettingsView: View {
     
     private func updateGlobalHotkey(_ newHotkey: String) {
         NotificationCenter.default.post(
-            name: NSNotification.Name("UpdateGlobalHotkey"),
+            name: .updateGlobalHotkey,
             object: newHotkey
         )
     }
@@ -670,6 +727,10 @@ struct SettingsView: View {
             try? FileManager.default.createDirectory(at: huggingFacePath, withIntermediateDirectories: true)
             NSWorkspace.shared.open(huggingFacePath)
         }
+    }
+    
+    private func showHistoryWindow() {
+        HistoryWindowManager.shared.showHistoryWindow()
     }
 }
 

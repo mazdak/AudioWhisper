@@ -246,7 +246,7 @@ class SpeechToTextService: ObservableObject {
     private func transcribeWithLocal(audioURL: URL, model: WhisperModel) async throws -> String {
         do {
             let text = try await localWhisperService.transcribe(audioFileURL: audioURL, model: model) { progress in
-                NotificationCenter.default.post(name: NSNotification.Name("TranscriptionProgress"), object: progress)
+                NotificationCenter.default.post(name: .transcriptionProgress, object: progress)
             }
             return Self.cleanTranscriptionText(text)
         } catch {
