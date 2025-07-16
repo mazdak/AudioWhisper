@@ -16,9 +16,13 @@ struct SettingsView: View {
     @AppStorage("enableSmartPaste") private var enableSmartPaste = false
     @AppStorage("playCompletionSound") private var playCompletionSound = true
     @AppStorage("maxModelStorageGB") private var maxModelStorageGB = 5.0
-    @AppStorage("parakeetPythonPath") private var parakeetPythonPath = "/usr/bin/python3"
     @AppStorage("transcriptionHistoryEnabled") private var transcriptionHistoryEnabled = false
     @AppStorage("transcriptionRetentionPeriod") private var transcriptionRetentionPeriodRaw = RetentionPeriod.oneMonth.rawValue
+    // Semantic correction settings
+    @AppStorage("semanticCorrectionMode") private var semanticCorrectionModeRaw = SemanticCorrectionMode.off.rawValue
+    @AppStorage("semanticCorrectionModelRepo") private var semanticCorrectionModelRepo = "mlx-community/gemma-2-2b-it-4bit"
+    @AppStorage("hasSetupParakeet") private var hasSetupParakeet = false
+    @AppStorage("hasSetupLocalLLM") private var hasSetupLocalLLM = false
     @StateObject private var modelManager = ModelManager.shared
     @State private var availableMicrophones: [AVCaptureDevice] = []
     @State private var openAIKey = ""
@@ -36,6 +40,17 @@ struct SettingsView: View {
     private let keychainService: KeychainServiceProtocol
     private let skipOnAppear: Bool
     @State private var downloadStartTime: [WhisperModel: Date] = [:]
+    @State private var isTestingMLX = false
+    @State private var mlxTestResult: String?
+    @State private var setupStatus: String?
+    @State private var showParakeetConfirm = false
+    @State private var showLocalLLMConfirm = false
+    @State private var showArchUnsupportedAlert = false
+    @State private var showSetupSheet = false
+    @State private var isSettingUp = false
+    @State private var setupLogs = ""
+    @State private var envReady = false
+    @State private var isCheckingEnv = false
     
     init(keychainService: KeychainServiceProtocol = KeychainService.shared, skipOnAppear: Bool = false) {
         self.keychainService = keychainService
@@ -231,69 +246,73 @@ struct SettingsView: View {
                                     .font(.headline)
                                     .fontWeight(.semibold)
                                 
-                                Text("Requires Python with parakeet-mlx. First use downloads ~600MB model.")
+                                Text("Requires Apple Silicon and Python dependencies. First use may download ~2.5 GB model.")
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
                                     .fixedSize(horizontal: false, vertical: true)
                             }
                         }
                         
-                        // Python Configuration Card
-                        VStack(alignment: .leading, spacing: 12) {
-                            HStack {
-                                Image(systemName: "terminal")
-                                    .foregroundColor(.blue)
-                                Text("Python Path")
-                                    .font(.headline)
-                                    .fontWeight(.medium)
-                                Spacer()
-                            }
-                            
-                            TextField("Python executable path", text: $parakeetPythonPath)
-                                .textFieldStyle(.roundedBorder)
-                                .font(.system(.body, design: .monospaced))
-                            
-                            HStack(spacing: 8) {
-                                Button("Browse...") {
-                                    selectPythonPath()
+                        if Arch.isAppleSilicon {
+                            HStack(spacing: 6) {
+                                if isCheckingEnv { ProgressView().controlSize(.small) }
+                                Text(envReady ? "✅ Environment ready" : "Environment not installed")
+                                    .font(.subheadline)
+                                    .foregroundColor(envReady ? .green : .secondary)
+                                if envReady {
+                                    Button(action: { revealEnvInFinder() }) {
+                                        Image(systemName: "folder")
+                                    }
+                                    .buttonStyle(.plain)
+                                    .help("Reveal Python environment in Finder")
+                                    Button(action: { revealPromptsInFinder() }) {
+                                        Image(systemName: "doc.text")
+                                    }
+                                    .buttonStyle(.plain)
+                                    .help("Open Prompts Folder")
                                 }
-                                .buttonStyle(.bordered)
-                                .controlSize(.regular)
-                                
-                                Button("Test Setup") {
-                                    testParakeetSetup()
+                            }
+                            if !envReady {
+                                Button("Install Dependencies") {
+                                runUvSetupSheet(title: "Setting up Parakeet dependencies…")
                                 }
                                 .buttonStyle(.borderedProminent)
-                                .controlSize(.regular)
-                                
-                                Spacer()
                             }
-                        }
-                        .padding(16)
-                        .background(Color(NSColor.controlBackgroundColor))
-                        .cornerRadius(8)
-                        
-                        // Installation help
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack(spacing: 4) {
-                                Text("Install:")
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
-                                Text("uv add parakeet-mlx -U")
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
-                                    .monospaced()
-                            }
-                            
-                            Link("Learn more about Parakeet", 
-                                 destination: URL(string: "https://github.com/senstella/parakeet-mlx")!)
+                        } else {
+                            Text("Parakeet is only available on Apple Silicon Macs.")
                                 .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        Link("Learn more about Parakeet",
+                             destination: URL(string: "https://github.com/senstella/parakeet-mlx")!)
+                            .font(.caption)
+
+                        // Info text with clickable path (models cache)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Models are stored in:")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                            HStack {
+                                Text("~/.cache/huggingface/hub/")
+                                    .font(.caption2)
+                                    .foregroundColor(.blue)
+                                    .textSelection(.enabled)
+                                Button(action: {
+                                    let path = FileManager.default.homeDirectoryForCurrentUser
+                                        .appendingPathComponent(".cache/huggingface/hub")
+                                    NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: path.path)
+                                }) {
+                                    Image(systemName: "folder").font(.caption2)
+                                }
+                                .buttonStyle(.plain)
+                                .help("Open in Finder")
+                            }
                         }
                     }
                 }
             }
-            
-            // Enhanced Local Whisper Model Management
+
+            // Local Whisper Model Management (moved above Semantic Correction)
             if transcriptionProvider == .local {
                 Section("Local Whisper Models") {
                     VStack(alignment: .leading, spacing: 0) {
@@ -302,9 +321,9 @@ struct SettingsView: View {
                             Text("Choose a model for offline transcription")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
-                            
+
                             Spacer()
-                            
+
                             HStack(spacing: 8) {
                                 Button(action: {
                                     Task {
@@ -320,13 +339,13 @@ struct SettingsView: View {
                                 }
                                 .buttonStyle(.bordered)
                                 .controlSize(.mini)
-                                
+
                                 Button("Show in Finder") {
                                     showModelsInFinder()
                                 }
                                 .buttonStyle(.bordered)
                                 .controlSize(.mini)
-                                
+
                                 if !modelManager.downloadedModels.isEmpty {
                                     Button(action: {
                                         deleteAllModels()
@@ -345,7 +364,7 @@ struct SettingsView: View {
                             }
                         }
                         .padding(.bottom, 12)
-                        
+
                         // Model cards
                         VStack(spacing: 12) {
                             ForEach(WhisperModel.allCases, id: \.self) { model in
@@ -367,7 +386,7 @@ struct SettingsView: View {
                                 )
                             }
                         }
-                        
+
                         // Download background info
                         if !modelManager.downloadingModels.isEmpty {
                             HStack {
@@ -380,7 +399,7 @@ struct SettingsView: View {
                             }
                             .padding(.top, 8)
                         }
-                        
+
                         // Storage controls and summary
                         VStack(alignment: .leading, spacing: 8) {
                             // Storage limit setting
@@ -388,9 +407,9 @@ struct SettingsView: View {
                                 Text("Max Storage for Models:")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
-                                
+
                                 Spacer()
-                                
+
                                 Picker(selection: $maxModelStorageGB, label: EmptyView()) {
                                     Text("1 GB").tag(1.0)
                                     Text("2 GB").tag(2.0)
@@ -402,7 +421,7 @@ struct SettingsView: View {
                                 .controlSize(.small)
                                 .accessibilityLabel("Storage limit for downloaded models")
                             }
-                            
+
                             // Storage summary
                             if !modelManager.downloadedModels.isEmpty {
                                 HStack {
@@ -427,7 +446,7 @@ struct SettingsView: View {
                             }
                         }
                         .padding(.top, 12)
-                        
+
                         // Error Display
                         if let error = downloadError {
                             HStack {
@@ -443,6 +462,99 @@ struct SettingsView: View {
                     }
                 }
             }
+
+            // Semantic Correction Layer
+            Section(header: Text("Semantic Correction")) {
+                Picker("Mode", selection: $semanticCorrectionModeRaw) {
+                    ForEach(SemanticCorrectionMode.allCases, id: \.self) { mode in
+                        Text(mode.displayName).tag(mode.rawValue)
+                    }
+                }
+                .pickerStyle(.menu)
+                .accessibilityLabel("Semantic correction mode")
+
+                let mode = SemanticCorrectionMode(rawValue: semanticCorrectionModeRaw) ?? .off
+                if mode == .localMLX {
+                    VStack(alignment: .leading, spacing: 16) {
+                        // Info banner with icon
+                        HStack(alignment: .top, spacing: 12) {
+                            Image(systemName: "cpu")
+                                .font(.system(size: 20))
+                                .foregroundColor(.blue)
+                                .frame(width: 32, height: 32)
+                                .background(Color.blue.opacity(0.1))
+                                .clipShape(Circle())
+                            
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Local LLM (MLX)")
+                                    .font(.headline)
+                                    .fontWeight(.semibold)
+                                
+                                Text("Applies only to Local Whisper and Parakeet. Requires Apple Silicon and Python dependencies. Downloads a small instruct model for correction.")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                        
+                        // Quick setup with uv
+                        if Arch.isAppleSilicon {
+                            HStack(spacing: 6) {
+                                if isCheckingEnv { ProgressView().controlSize(.small) }
+                                Text(envReady ? "✅ Environment ready" : "Environment not installed")
+                                    .font(.subheadline)
+                                    .foregroundColor(envReady ? .green : .secondary)
+                                if envReady {
+                                    Button(action: { revealEnvInFinder() }) {
+                                        Image(systemName: "folder")
+                                    }
+                                    .buttonStyle(.plain)
+                                    .help("Reveal Python environment in Finder")
+                                    Button(action: { revealPromptsInFinder() }) {
+                                        Image(systemName: "doc.text")
+                                    }
+                                    .buttonStyle(.plain)
+                                    .help("Open Prompts Folder")
+                                }
+                            }
+                            if !envReady {
+                                Button("Install Dependencies") {
+                                runUvSetupSheet(title: "Setting up Local LLM dependencies…")
+                                }
+                                .buttonStyle(.borderedProminent)
+                            }
+                        } else {
+                            Text("Local LLM (MLX) correction is only available on Apple Silicon Macs.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+
+                        // Model Management
+                        MLXModelManagementView(
+                            selectedModelRepo: $semanticCorrectionModelRepo
+                        )
+                        .padding(16)
+                        .background(Color(NSColor.controlBackgroundColor))
+                        .cornerRadius(8)
+                        
+                        // Learn more about MLX
+                        Link("Learn more about MLX", 
+                             destination: URL(string: "https://github.com/ml-explore/mlx-examples/tree/main/llms")!)
+                            .font(.caption)
+                    }
+                } else if mode == .cloud {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Uses the same cloud provider as selected for transcription (OpenAI or Gemini).")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text("Correction runs only when a cloud provider is used.")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+            
+            // (moved Local Whisper section above)
             
             // Version Info Section
             Section {
@@ -488,11 +600,92 @@ struct SettingsView: View {
                 loadAvailableMicrophones()
                 loadAPIKeys()
                 loadModelStates()
+                checkEnvReady()
+                
+                // Ensure transcription provider is loaded correctly on app launch
+                // This helps prevent settings from being reset during app updates
+                if let storedProvider = UserDefaults.standard.string(forKey: "transcriptionProvider"),
+                   let provider = TranscriptionProvider(rawValue: storedProvider) {
+                    transcriptionProvider = provider
+                }
+                
                 // Make sure the view can receive key events
                 DispatchQueue.main.async {
                     NSApplication.shared.keyWindow?.makeFirstResponder(nil)
                 }
             }
+        }
+        .onChange(of: transcriptionProvider) { oldValue, newValue in
+            if newValue == .parakeet {
+                if !Arch.isAppleSilicon {
+                    showArchUnsupportedAlert = true
+                } else {
+                    // Refresh env status quickly
+                    checkEnvReady()
+                    if !envReady { showParakeetConfirm = true }
+                    else { hasSetupParakeet = true }
+                }
+            }
+        }
+        .onChange(of: semanticCorrectionModeRaw) { oldValue, newValue in
+            if SemanticCorrectionMode(rawValue: newValue) == .localMLX {
+                if !Arch.isAppleSilicon {
+                    showArchUnsupportedAlert = true
+                } else {
+                    // Refresh env status quickly
+                    checkEnvReady()
+                    if !envReady { showLocalLLMConfirm = true }
+                    else { hasSetupLocalLLM = true }
+                }
+            }
+        }
+        .alert("Prepare Python environment?", isPresented: $showParakeetConfirm) {
+            Button("Cancel", role: .cancel) {
+                // Revert selection to previous stored provider
+                if let stored = UserDefaults.standard.string(forKey: "transcriptionProvider"),
+                   let prov = TranscriptionProvider(rawValue: stored) {
+                    transcriptionProvider = prov
+                } else {
+                    transcriptionProvider = .openai
+                }
+            }
+            Button("Install") {
+                runUvSetupSheet(title: "Setting up Parakeet dependencies…") { hasSetupParakeet = true }
+            }
+        } message: {
+            Text("Parakeet requires Python deps managed by uv. Install now?")
+        }
+        .alert("Prepare Python environment?", isPresented: $showLocalLLMConfirm) {
+            Button("Cancel", role: .cancel) {
+                semanticCorrectionModeRaw = SemanticCorrectionMode.off.rawValue
+            }
+            Button("Install") {
+                runUvSetupSheet(title: "Setting up Local LLM dependencies…") { hasSetupLocalLLM = true }
+            }
+        } message: {
+            Text("Local LLM correction requires Python deps via uv. Install now?")
+        }
+        .alert("Not Supported on Intel", isPresented: $showArchUnsupportedAlert) {
+            Button("OK", role: .cancel) {
+                // Revert selections that triggered this
+                if transcriptionProvider == .parakeet {
+                    transcriptionProvider = .openai
+                }
+                if SemanticCorrectionMode(rawValue: semanticCorrectionModeRaw) == .localMLX {
+                    semanticCorrectionModeRaw = SemanticCorrectionMode.off.rawValue
+                }
+            }
+        } message: {
+            Text("Parakeet and Local LLM require an Apple Silicon Mac.")
+        }
+        .sheet(isPresented: $showSetupSheet) {
+            SetupEnvironmentSheet(
+                isPresented: $showSetupSheet,
+                isRunning: $isSettingUp,
+                logs: $setupLogs,
+                title: setupStatus ?? "Setting up environment…",
+                onStart: { }
+            )
         }
     }
     
@@ -552,97 +745,99 @@ struct SettingsView: View {
         )
     }
     
-    private func selectPythonPath() {
-        let panel = NSOpenPanel()
-        panel.title = "Select Python Executable"
-        panel.message = "Choose the Python executable with parakeet-mlx installed"
-        panel.prompt = "Select"
-        panel.allowsMultipleSelection = false
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = false
-        panel.allowedContentTypes = []
-        panel.directoryURL = URL(fileURLWithPath: "/usr/local/bin")
-        
-        if panel.runModal() == .OK {
-            if let url = panel.url {
-                parakeetPythonPath = url.path
-            }
-        }
-    }
-    
-    private func testParakeetSetup() {
+    // Note: Python path configuration has been removed; uv bootstrap manages the environment.
+
+    private func runUvSetupSheet(title: String, onComplete: (() -> Void)? = nil) {
+        setupStatus = title
+        setupLogs = ""
+        isSettingUp = true
+        showSetupSheet = true
         Task {
             do {
-                let process = Process()
-                process.executableURL = URL(fileURLWithPath: parakeetPythonPath)
-                process.arguments = ["-c", "import parakeet_mlx; print('OK')"]
-                
-                let outputPipe = Pipe()
-                let errorPipe = Pipe()
-                process.standardOutput = outputPipe
-                process.standardError = errorPipe
-                
-                try process.run()
-                process.waitUntilExit()
-                
-                let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
-                let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
-                let output = String(data: outputData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                let errorOutput = String(data: errorData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                
-                if process.terminationStatus == 0 && output == "OK" {
-                    await MainActor.run {
-                        let alert = NSAlert()
-                        alert.messageText = "Parakeet Setup Valid"
-                        alert.informativeText = "Python path is valid and parakeet-mlx is installed.\n\nPython: \(parakeetPythonPath)\n\nThe Parakeet model will be downloaded on first use."
-                        alert.alertStyle = .informational
-                        alert.addButton(withTitle: "OK")
-                        alert.runModal()
+                _ = try UvBootstrap.ensureVenv(userPython: nil) { msg in
+                    DispatchQueue.main.async {
+                        setupLogs += (setupLogs.isEmpty ? "" : "\n") + msg
                     }
-                } else {
-                    await MainActor.run {
-                        let alert = NSAlert()
-                        alert.messageText = "Parakeet Setup Failed"
-                        alert.informativeText = """
-                        parakeet-mlx is not installed in this Python environment.
-                        
-                        Python path: \(parakeetPythonPath)
-                        
-                        Error: \(errorOutput.isEmpty ? "Module not found" : errorOutput)
-                        
-                        To fix:
-                        1. Use the Python where you installed parakeet-mlx
-                        2. Or install it: pip install parakeet-mlx
-                        
-                        If using a virtual environment, make sure to use the Python binary from that environment.
-                        """
-                        alert.alertStyle = .critical
-                        alert.addButton(withTitle: "OK")
-                        alert.runModal()
-                    }
+                }
+                await MainActor.run {
+                    isSettingUp = false
+                    setupStatus = "✓ Environment ready"
+                    envReady = true
+                }
+                try? await Task.sleep(nanoseconds: 600_000_000)
+                await MainActor.run {
+                    showSetupSheet = false
+                    onComplete?()
                 }
             } catch {
                 await MainActor.run {
-                    let alert = NSAlert()
-                    alert.messageText = "Test Failed"
-                    alert.informativeText = """
-                    Could not run Python at: \(parakeetPythonPath)
-                    
-                    Error: \(error.localizedDescription)
-                    
-                    Make sure the path points to a valid Python executable.
-                    
-                    Common Python locations:
-                    • /usr/bin/python3
-                    • /usr/local/bin/python3
-                    • /opt/homebrew/bin/python3
-                    • Virtual environment: venv/bin/python3
-                    """
-                    alert.alertStyle = .critical
-                    alert.addButton(withTitle: "OK")
-                    alert.runModal()
+                    isSettingUp = false
+                    setupStatus = "✗ Setup failed: \(error.localizedDescription)"
+                    envReady = false
                 }
             }
+        }
+    }
+
+    private func checkEnvReady() {
+        isCheckingEnv = true
+        Task {
+            let fm = FileManager.default
+            let py = venvPythonPath()
+            var ready = false
+            if fm.isExecutableFile(atPath: py) {
+                // Quick import check for mlx_lm
+                let process = Process()
+                process.executableURL = URL(fileURLWithPath: py)
+                process.arguments = ["-c", "import mlx_lm; print('OK')"]
+                let pipe = Pipe()
+                process.standardOutput = pipe
+                process.standardError = Pipe()
+                do {
+                    try process.run()
+                    process.waitUntilExit()
+                    if process.terminationStatus == 0 {
+                        ready = true
+                    }
+                } catch {
+                    ready = false
+                }
+            }
+            await MainActor.run {
+                self.envReady = ready
+                self.isCheckingEnv = false
+                if ready {
+                    // Mark both gates as completed to avoid future prompts
+                    self.hasSetupParakeet = true
+                    self.hasSetupLocalLLM = true
+                }
+            }
+        }
+    }
+
+    private func venvPythonPath() -> String {
+        let appSupport = (try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true))
+        let base = appSupport?.appendingPathComponent("AudioWhisper/python_project/.venv/bin/python3").path
+        return base ?? ""
+    }
+
+    private func revealEnvInFinder() {
+        let appSupport = (try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true))
+        let dir = appSupport?.appendingPathComponent("AudioWhisper/python_project/.venv/")
+        if let dir = dir {
+            NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: dir.path)
+        }
+    }
+
+    private func revealPromptsInFinder() {
+        let appSupport = (try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true))
+        let dir = appSupport?.appendingPathComponent("AudioWhisper/prompts/")
+        if let dir = dir {
+            // Ensure directory exists (created on startup), still guard here
+            if !FileManager.default.fileExists(atPath: dir.path) {
+                try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            }
+            NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: dir.path)
         }
     }
     

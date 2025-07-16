@@ -91,8 +91,8 @@ struct WelcomeView: View {
         
         return LazyVGrid(columns: columns, spacing: 16) {
             FeatureRow(icon: "command", title: "Global Hotkey", description: "Press ⌘⇧Space anywhere (configurable) to record")
-            FeatureRow(icon: "waveform", title: "Transcription History", description: "Keep track of your previous chats. Easily clear or disable it")
-            FeatureRow(icon: "text.cursor", title: "Smart Paste", description: "Transcribed text automatically pastes to your active app")
+            FeatureRow(icon: "waveform", title: "Powerful Transcription", description: "With semantic correction to fix transcription errors intelligently")
+            FeatureRow(icon: "clock.arrow.circlepath", title: "Transcription History", description: "Keep track of all your transcriptions with searchable history")
             FeatureRow(icon: "brain", title: "Multiple AI Models", description: "Choose from offline and online models based on your needs")
         }
         .padding(.horizontal, 20) // Add padding to move it right

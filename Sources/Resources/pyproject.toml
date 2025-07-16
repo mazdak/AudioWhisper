@@ -1,0 +1,23 @@
+[project]
+name = "audio-whisper-runtime"
+version = "0.0.0"
+description = "Runtime dependencies for AudioWhisper"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+  # MLX correction
+  "mlx-lm>=0.26.3, <0.27.0",
+
+  # Parakeet and audio toolchain; pin transitive deps to Py3.11-compatible wheels
+  "parakeet-mlx>=0.3.5, <0.4.0",
+  "librosa>=0.11.0, <0.12.0",
+  "numba>=0.60.0",
+  "llvmlite>=0.43.0",
+
+  # Common scientific stack (allow uv to resolve suitable wheels)
+  "numpy>=1.26, <3",
+  "scipy>=1.11, <2",
+  "scikit-learn>=1.3, <2",
+]
+
+[tool.uv]
+dev-dependencies = []

@@ -13,15 +13,15 @@ enum ParakeetError: Error, LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .pythonNotFound(let path):
-            return "Python executable not found at: \(path)\n\nTry:\n• Use system Python: /usr/bin/python3\n• Install via Homebrew: brew install python3\n• Check if path exists and is executable"
+            return "Python runtime not available at: \(path)\n\nFix:\n• Open Settings ▸ Parakeet ▸ Install/Update Dependencies with uv"
         case .scriptNotFound:
             return "Parakeet transcription script not found in app bundle"
         case .transcriptionFailed(let message):
             return "Parakeet transcription failed: \(message)"
         case .invalidResponse(let message):
             return "Invalid response from Parakeet: \(message)"
-        case .dependencyMissing(let dependency, let installCommand):
-            return "\(dependency) is not installed\n\nInstall with: \(installCommand)"
+        case .dependencyMissing(let dependency, _):
+            return "\(dependency) is not installed\n\nFix: Open Settings ▸ Parakeet ▸ Install/Update Dependencies with uv"
         case .processTimedOut(let timeout):
             return "Transcription timed out after \(timeout) seconds\n\nTry with a shorter audio file or check system resources"
         }
@@ -278,7 +278,7 @@ class ParakeetService {
                 logger.error("Termination status: \(terminationStatus)")
                 
                 if errorString.contains("parakeet_mlx") || errorString.contains("ModuleNotFoundError") {
-                    throw ParakeetError.dependencyMissing("parakeet-mlx", installCommand: "pip install parakeet-mlx")
+                    throw ParakeetError.dependencyMissing("parakeet-mlx", installCommand: "uv add parakeet-mlx")
                 } else {
                     throw ParakeetError.transcriptionFailed(errorString.isEmpty ? "Process exited with status \(terminationStatus)" : errorString)
                 }
@@ -345,7 +345,7 @@ class ParakeetService {
         }
         
         if terminationStatus != 0 {
-            throw ParakeetError.dependencyMissing("parakeet-mlx", installCommand: "pip install parakeet-mlx")
+            throw ParakeetError.dependencyMissing("parakeet-mlx", installCommand: "uv add parakeet-mlx")
         }
     }
 }

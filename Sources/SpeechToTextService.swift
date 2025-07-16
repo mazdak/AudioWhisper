@@ -29,17 +29,44 @@ class SpeechToTextService: ObservableObject {
     private let localWhisperService = LocalWhisperService()
     private let parakeetService = ParakeetService()
     private let keychainService: KeychainServiceProtocol
+    private let correctionService = SemanticCorrectionService()
     
     init(keychainService: KeychainServiceProtocol = KeychainService.shared) {
         self.keychainService = keychainService
     }
     
+    // Raw transcription without semantic correction
+    func transcribeRaw(audioURL: URL, provider: TranscriptionProvider, model: WhisperModel? = nil) async throws -> String {
+        // Validate audio file before processing
+        let validationResult = await AudioValidator.validateAudioFile(at: audioURL)
+        switch validationResult {
+        case .valid(_): break
+        case .invalid(let error):
+            throw SpeechToTextError.transcriptionFailed(error.localizedDescription)
+        }
+        switch provider {
+        case .openai:
+            return try await transcribeWithOpenAI(audioURL: audioURL)
+        case .gemini:
+            return try await transcribeWithGemini(audioURL: audioURL)
+        case .local:
+            guard let model = model else {
+                throw SpeechToTextError.transcriptionFailed("Whisper model required for local transcription")
+            }
+            return try await transcribeWithLocal(audioURL: audioURL, model: model)
+        case .parakeet:
+            return try await transcribeWithParakeet(audioURL: audioURL)
+        }
+    }
+
     func transcribe(audioURL: URL) async throws -> String {
         let useOpenAI = UserDefaults.standard.bool(forKey: "useOpenAI")
         if useOpenAI != false { // Default to OpenAI if not set
-            return try await transcribeWithOpenAI(audioURL: audioURL)
+            let text = try await transcribeWithOpenAI(audioURL: audioURL)
+            return await correctionService.correct(text: text, providerUsed: .openai)
         } else {
-            return try await transcribeWithGemini(audioURL: audioURL)
+            let text = try await transcribeWithGemini(audioURL: audioURL)
+            return await correctionService.correct(text: text, providerUsed: .gemini)
         }
     }
     
@@ -55,16 +82,20 @@ class SpeechToTextService: ObservableObject {
         
         switch provider {
         case .openai:
-            return try await transcribeWithOpenAI(audioURL: audioURL)
+            let text = try await transcribeWithOpenAI(audioURL: audioURL)
+            return await correctionService.correct(text: text, providerUsed: .openai)
         case .gemini:
-            return try await transcribeWithGemini(audioURL: audioURL)
+            let text = try await transcribeWithGemini(audioURL: audioURL)
+            return await correctionService.correct(text: text, providerUsed: .gemini)
         case .local:
             guard let model = model else {
                 throw SpeechToTextError.transcriptionFailed("Whisper model required for local transcription")
             }
-            return try await transcribeWithLocal(audioURL: audioURL, model: model)
+            let text = try await transcribeWithLocal(audioURL: audioURL, model: model)
+            return await correctionService.correct(text: text, providerUsed: .local)
         case .parakeet:
-            return try await transcribeWithParakeet(audioURL: audioURL)
+            let text = try await transcribeWithParakeet(audioURL: audioURL)
+            return await correctionService.correct(text: text, providerUsed: .parakeet)
         }
     }
     
@@ -149,7 +180,7 @@ class SpeechToTextService: ObservableObject {
         }
         
         // Now use the uploaded file for transcription
-        let transcriptionURL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+        let transcriptionURL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent"
         
         let headers: HTTPHeaders = [
             "X-Goog-Api-Key": apiKey,
@@ -205,7 +236,7 @@ class SpeechToTextService: ObservableObject {
             return audioData.base64EncodedString()
         }
         
-        let url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+        let url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent"
         
         let headers: HTTPHeaders = [
             "X-Goog-Api-Key": apiKey,
@@ -255,8 +286,12 @@ class SpeechToTextService: ObservableObject {
     }
     
     private func transcribeWithParakeet(audioURL: URL) async throws -> String {
-        let pythonPath = UserDefaults.standard.string(forKey: "parakeetPythonPath") ?? "/usr/bin/python3"
-        
+        guard Arch.isAppleSilicon else {
+            throw SpeechToTextError.transcriptionFailed("Parakeet requires an Apple Silicon Mac.")
+        }
+        // Ensure managed Python environment with uv
+        let pyURL = try UvBootstrap.ensureVenv(userPython: nil)
+        let pythonPath = pyURL.path
         do {
             let text = try await parakeetService.transcribe(audioFileURL: audioURL, pythonPath: pythonPath)
             return Self.cleanTranscriptionText(text)

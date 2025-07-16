@@ -41,6 +41,12 @@ class WindowController {
             return
         }
         
+        // In test environment, exit early
+        if isTestEnvironment {
+            completion?()
+            return
+        }
+        
         // Use provided window or find the recording window by title
         let recordWindow = window ?? NSApp.windows.first { window in
             window.title == "AudioWhisper Recording"

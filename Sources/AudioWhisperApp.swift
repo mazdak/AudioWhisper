@@ -321,6 +321,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             .frame(width: 280, height: 160)
             .fixedSize()
             .background(VisualEffectView())
+            .clipShape(RoundedRectangle(cornerRadius: 12))
             .modelContainer(DataManager.shared.sharedModelContainer ?? createFallbackModelContainer())
         
         window.contentView = NSHostingView(rootView: contentView)
@@ -447,6 +448,9 @@ struct VisualEffectView: NSViewRepresentable {
         let effectView = NSVisualEffectView()
         effectView.state = .active
         effectView.material = .hudWindow
+        effectView.wantsLayer = true
+        effectView.layer?.cornerRadius = 12
+        effectView.layer?.masksToBounds = true
         return effectView
     }
     

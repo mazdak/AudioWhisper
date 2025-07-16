@@ -5,7 +5,6 @@ import SwiftData
 @MainActor
 final class DataManagerIntegrationTests: XCTestCase {
     var dataManager: MockDataManager!
-    var realDataManager: DataManager!
     
     override func setUp() async throws {
         try await super.setUp()
@@ -13,9 +12,6 @@ final class DataManagerIntegrationTests: XCTestCase {
         // Set up mock data manager for controlled testing
         dataManager = MockDataManager()
         try dataManager.initialize()
-        
-        // Also test with real DataManager in some cases
-        realDataManager = DataManager.shared as? DataManager
         
         // Ensure history is enabled for tests
         UserDefaults.standard.set(true, forKey: "transcriptionHistoryEnabled")
@@ -28,7 +24,6 @@ final class DataManagerIntegrationTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: "transcriptionRetentionPeriod")
         
         dataManager = nil
-        realDataManager = nil
         
         try await super.tearDown()
     }

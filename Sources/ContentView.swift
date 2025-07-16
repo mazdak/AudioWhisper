@@ -33,6 +33,7 @@ struct ContentView: View {
     @StateObject private var statusViewModel = StatusViewModel()
     @StateObject private var permissionManager = PermissionManager()
     @StateObject private var soundManager = SoundManager()
+    private let semanticCorrectionService = SemanticCorrectionService()
     @State private var isProcessing = false
     @State private var progressMessage = "Processing..."
     @State private var transcriptionStartTime: Date?
@@ -53,6 +54,7 @@ struct ContentView: View {
     @State private var retryObserver: NSObjectProtocol?
     @State private var showAudioFileObserver: NSObjectProtocol?
     @State private var lastAudioURL: URL?
+    @State private var awaitingSemanticPaste = false
     
     init(speechService: SpeechToTextService = SpeechToTextService(), audioRecorder: AudioRecorder) {
         self._speechService = StateObject(wrappedValue: speechService)
@@ -74,6 +76,7 @@ struct ContentView: View {
                     permissionManager.requestPermissionWithEducation()
                 }
             )
+            // Debug pipeline lines removed
             
             // Record/Stop button
             RecordingButton(
@@ -381,6 +384,14 @@ struct ContentView: View {
         .onAppear {
             // Initialize permission state
             permissionManager.checkPermissionState()
+            
+            // Ensure transcription provider is loaded correctly on app launch
+            // This helps prevent settings from being reset during app updates
+            if let storedProvider = UserDefaults.standard.string(forKey: "transcriptionProvider"),
+               let provider = TranscriptionProvider(rawValue: storedProvider) {
+                transcriptionProvider = provider
+            }
+            
             updateStatus()
         }
     }
@@ -404,6 +415,9 @@ struct ContentView: View {
             errorMessage: showError ? errorMessage : nil
         )
     }
+
+    // MARK: - Pipeline description
+    // Debug pipeline helpers removed
     
     // MARK: - Paste Management
     
@@ -456,7 +470,7 @@ struct ContentView: View {
             !app.isTerminated
         }
     }
-    
+
     private func hideRecordingWindow() {
         let recordWindow = NSApp.windows.first { window in
             window.title == "AudioWhisper Recording"
@@ -485,6 +499,8 @@ struct ContentView: View {
             }
         }
     }
+
+    // Debug helpers removed
     
     private func activateApplication(_ target: NSRunningApplication) async throws {
         // Try direct activation first
@@ -603,41 +619,40 @@ struct ContentView: View {
                 // Check for cancellation before transcription
                 try Task.checkCancellation()
                 
-                // Convert to text using selected provider and model
+                // Raw transcription first (no semantic correction)
                 let text: String
                 if transcriptionProvider == .local {
-                    text = try await speechService.transcribe(audioURL: audioURL, provider: transcriptionProvider, model: selectedWhisperModel)
+                    text = try await speechService.transcribeRaw(audioURL: audioURL, provider: transcriptionProvider, model: selectedWhisperModel)
                 } else {
-                    text = try await speechService.transcribe(audioURL: audioURL, provider: transcriptionProvider)
+                    text = try await speechService.transcribeRaw(audioURL: audioURL, provider: transcriptionProvider)
                 }
                 
                 // Check for cancellation after transcription
                 try Task.checkCancellation()
                 
-                // Save transcription to history if enabled
-                if DataManager.shared.isHistoryEnabled {
-                    let duration = transcriptionStartTime.map { Date().timeIntervalSince($0) }
-                    let modelUsed = transcriptionProvider == .local ? selectedWhisperModel.rawValue : nil
-                    
-                    let record = TranscriptionRecord(
-                        text: text,
-                        provider: transcriptionProvider,
-                        duration: duration,
-                        modelUsed: modelUsed
-                    )
-                    
-                    // Save quietly to avoid disrupting the transcription flow
+                // Single-paste policy: compute correction if enabled, paste exactly one string
+                let modeRaw = UserDefaults.standard.string(forKey: "semanticCorrectionMode") ?? SemanticCorrectionMode.off.rawValue
+                let mode = SemanticCorrectionMode(rawValue: modeRaw) ?? .off
+                var finalText = text
+                if mode != .off {
+                    await MainActor.run { progressMessage = "Semantic correction..." }
+                    let corrected = await semanticCorrectionService.correct(text: text, providerUsed: transcriptionProvider)
+                    let trimmed = corrected.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !trimmed.isEmpty {
+                        finalText = corrected
+                    }
+                }
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(finalText, forType: .string)
+                let shouldSave: Bool = await MainActor.run { DataManager.shared.isHistoryEnabled }
+                if shouldSave {
+                    let modelUsed: String? = await MainActor.run { (transcriptionProvider == .local) ? self.selectedWhisperModel.rawValue : nil }
+                    let record = TranscriptionRecord(text: finalText, provider: transcriptionProvider, duration: nil, modelUsed: modelUsed)
                     await DataManager.shared.saveTranscriptionQuietly(record)
                 }
-                
-                // Copy to clipboard
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(text, forType: .string)
-                
-                // Show confirmation and close
                 await MainActor.run {
                     transcriptionStartTime = nil
-                    showConfirmationAndPaste(text: text)
+                    showConfirmationAndPaste(text: finalText)
                 }
             } catch is CancellationError {
                 // Handle cancellation gracefully
@@ -668,10 +683,11 @@ struct ContentView: View {
         // Handle auto-dismiss based on SmartPaste setting
         let enableSmartPaste = UserDefaults.standard.bool(forKey: "enableSmartPaste")
         if enableSmartPaste {
-            // Automatically trigger paste after minimal delay
-            // This associates the paste with the user's stop recording action
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                performUserTriggeredPaste()
+            if !awaitingSemanticPaste {
+                // Automatically trigger paste after minimal delay only if not awaiting semantic
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    performUserTriggeredPaste()
+                }
             }
         } else {
             // Restore focus to previous app when SmartPaste is disabled
@@ -734,41 +750,77 @@ struct ContentView: View {
             do {
                 try Task.checkCancellation()
                 
-                // Convert to text using selected provider and model
+                // Raw transcription first (no semantic correction)
                 let text: String
                 if transcriptionProvider == .local {
-                    text = try await speechService.transcribe(audioURL: audioURL, provider: transcriptionProvider, model: selectedWhisperModel)
+                    text = try await speechService.transcribeRaw(audioURL: audioURL, provider: transcriptionProvider, model: selectedWhisperModel)
                 } else {
-                    text = try await speechService.transcribe(audioURL: audioURL, provider: transcriptionProvider)
+                    text = try await speechService.transcribeRaw(audioURL: audioURL, provider: transcriptionProvider)
                 }
                 
                 // Check for cancellation after transcription
                 try Task.checkCancellation()
                 
-                // Save transcription to history if enabled
-                if DataManager.shared.isHistoryEnabled {
-                    let duration = transcriptionStartTime.map { Date().timeIntervalSince($0) }
-                    let modelUsed = transcriptionProvider == .local ? selectedWhisperModel.rawValue : nil
-                    
-                    let record = TranscriptionRecord(
-                        text: text,
-                        provider: transcriptionProvider,
-                        duration: duration,
-                        modelUsed: modelUsed
-                    )
-                    
-                    // Save quietly to avoid disrupting the transcription flow
-                    await DataManager.shared.saveTranscriptionQuietly(record)
-                }
+                // Defer history save until after semantic correction so we store the final text
                 
-                // Copy to clipboard
+                // Copy raw text to clipboard immediately
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(text, forType: .string)
-                
-                // Show confirmation and close
-                await MainActor.run {
-                    transcriptionStartTime = nil
-                    showConfirmationAndPaste(text: text)
+
+                // Determine if we should wait for semantic before SmartPaste
+                let enableSmartPaste = UserDefaults.standard.bool(forKey: "enableSmartPaste")
+                let modeRaw = UserDefaults.standard.string(forKey: "semanticCorrectionMode") ?? SemanticCorrectionMode.off.rawValue
+                let mode = SemanticCorrectionMode(rawValue: modeRaw) ?? .off
+                let shouldAwaitSemanticForPaste = enableSmartPaste && ((mode == .localMLX) || (mode == .cloud && (transcriptionProvider == .openai || transcriptionProvider == .gemini)))
+
+                if shouldAwaitSemanticForPaste {
+                    // Keep processing state and update status to semantic correction
+                    await MainActor.run {
+                        awaitingSemanticPaste = true
+                        progressMessage = "Semantic correction..."
+                        // keep isProcessing = true until semantic completes
+                    }
+                    // Start semantic correction in background; on completion, update clipboard and paste corrected text
+                    Task.detached { [text, transcriptionProvider] in
+                        let corrected = await semanticCorrectionService.correct(text: text, providerUsed: transcriptionProvider)
+                        let shouldSave2: Bool = await MainActor.run { DataManager.shared.isHistoryEnabled }
+                        if shouldSave2 {
+                            let modelUsed: String? = await MainActor.run { (transcriptionProvider == .local) ? self.selectedWhisperModel.rawValue : nil }
+                            let record = TranscriptionRecord(text: corrected, provider: transcriptionProvider, duration: nil, modelUsed: modelUsed)
+                            await DataManager.shared.saveTranscriptionQuietly(record)
+                        }
+                        await MainActor.run {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(corrected, forType: .string)
+                            transcriptionStartTime = nil
+                            isProcessing = false
+                            showConfirmationAndPaste(text: corrected)
+                            if awaitingSemanticPaste {
+                                performUserTriggeredPaste()
+                                awaitingSemanticPaste = false
+                            }
+                        }
+                    }
+                } else {
+                    // Not awaiting semantic: show success now, then correct silently
+                    await MainActor.run {
+                        transcriptionStartTime = nil
+                        showConfirmationAndPaste(text: text)
+                    }
+                    // If not awaiting, still run correction to update clipboard and save history with corrected
+                    Task.detached { [text, transcriptionProvider] in
+                        let corrected = await semanticCorrectionService.correct(text: text, providerUsed: transcriptionProvider)
+                        // Update clipboard even if identical; clipboard manager may dedupe
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(corrected, forType: .string)
+                        // Save corrected text to history if enabled
+                        let shouldSave3: Bool = await MainActor.run { DataManager.shared.isHistoryEnabled }
+                        if shouldSave3 {
+                            let modelUsed: String? = await MainActor.run { (transcriptionProvider == .local) ? self.selectedWhisperModel.rawValue : nil }
+                            let record = TranscriptionRecord(text: corrected, provider: transcriptionProvider, duration: nil, modelUsed: modelUsed)
+                            await DataManager.shared.saveTranscriptionQuietly(record)
+                        }
+                    }
                 }
             } catch is CancellationError {
                 // Handle cancellation gracefully

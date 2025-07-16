@@ -24,10 +24,24 @@ done
 GIT_HASH=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
 BUILD_DATE=$(date '+%Y-%m-%d')
 
-# Version can be overridden with AUDIO_WHISPER_VERSION environment variable
-VERSION="${AUDIO_WHISPER_VERSION:-1.1.0}"
+# Read version from VERSION file or use environment variable
+DEFAULT_VERSION=$(cat VERSION | tr -d '[:space:]')
+VERSION="${AUDIO_WHISPER_VERSION:-$DEFAULT_VERSION}"
 
 echo "🎙️ Building AudioWhisper version $VERSION..."
+
+# Update Info.plist with current version
+if [ -f "Info.plist" ]; then
+  echo "Updating Info.plist version to $VERSION..."
+  # Update CFBundleShortVersionString
+  /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" Info.plist 2>/dev/null ||
+    sed -i '' "s|<key>CFBundleShortVersionString</key>[[:space:]]*<string>[^<]*</string>|<key>CFBundleShortVersionString</key><string>$VERSION</string>|" Info.plist
+
+  # Update CFBundleVersion (remove dots for build number)
+  BUILD_NUMBER="${VERSION//./}"
+  /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" Info.plist 2>/dev/null ||
+    sed -i '' "s|<key>CFBundleVersion</key>[[:space:]]*<string>[^<]*</string>|<key>CFBundleVersion</key><string>$BUILD_NUMBER</string>|" Info.plist
+fi
 
 # Clean previous builds
 rm -rf .build/release
@@ -36,14 +50,14 @@ rm -f Sources/AudioProcessorCLI
 
 # Create version file from template
 if [ -f "Sources/VersionInfo.swift.template" ]; then
-    sed -e "s/VERSION_PLACEHOLDER/$VERSION/g" \
-        -e "s/GIT_HASH_PLACEHOLDER/$GIT_HASH/g" \
-        -e "s/BUILD_DATE_PLACEHOLDER/$BUILD_DATE/g" \
-        Sources/VersionInfo.swift.template > Sources/VersionInfo.swift
-    echo "Generated VersionInfo.swift from template"
+  sed -e "s/VERSION_PLACEHOLDER/$VERSION/g" \
+    -e "s/GIT_HASH_PLACEHOLDER/$GIT_HASH/g" \
+    -e "s/BUILD_DATE_PLACEHOLDER/$BUILD_DATE/g" \
+    Sources/VersionInfo.swift.template >Sources/VersionInfo.swift
+  echo "Generated VersionInfo.swift from template"
 else
-    echo "Warning: VersionInfo.swift.template not found, using fallback"
-    cat >Sources/VersionInfo.swift <<EOF
+  echo "Warning: VersionInfo.swift.template not found, using fallback"
+  cat >Sources/VersionInfo.swift <<EOF
 import Foundation
 
 struct VersionInfo {
@@ -87,11 +101,15 @@ fi
 echo "Creating app bundle..."
 mkdir -p AudioWhisper.app/Contents/MacOS
 mkdir -p AudioWhisper.app/Contents/Resources
+mkdir -p AudioWhisper.app/Contents/Resources/bin
+
+# Set build number for Info.plist
+BUILD_NUMBER="${VERSION//./}"
 
 # Copy executable (universal binary)
 cp .build/apple/Products/Release/AudioWhisper AudioWhisper.app/Contents/MacOS/
 
-# Copy Python script for Parakeet support
+# Copy Python scripts for Parakeet and MLX support
 if [ -f "Sources/parakeet_transcribe_pcm.py" ]; then
   cp Sources/parakeet_transcribe_pcm.py AudioWhisper.app/Contents/Resources/
   echo "Copied Parakeet PCM Python script"
@@ -99,11 +117,42 @@ else
   echo "⚠️ parakeet_transcribe_pcm.py not found, Parakeet functionality will not work"
 fi
 
+if [ -f "Sources/mlx_semantic_correct.py" ]; then
+  cp Sources/mlx_semantic_correct.py AudioWhisper.app/Contents/Resources/
+  echo "Copied MLX semantic correction Python script"
+else
+  echo "⚠️ mlx_semantic_correct.py not found, MLX semantic correction will not work"
+fi
+
+# Bundle uv (Apple Silicon). Prefer repo copy; else fall back to system uv if available
+if [ -f "Sources/Resources/bin/uv" ]; then
+  cp Sources/Resources/bin/uv AudioWhisper.app/Contents/Resources/bin/uv
+  chmod +x AudioWhisper.app/Contents/Resources/bin/uv
+  echo "Bundled uv binary (from repo)"
+else
+  if command -v uv >/dev/null 2>&1; then
+    UV_PATH=$(command -v uv)
+    cp "$UV_PATH" AudioWhisper.app/Contents/Resources/bin/uv
+    chmod +x AudioWhisper.app/Contents/Resources/bin/uv
+    echo "Bundled uv binary (from system: $UV_PATH)"
+  else
+    echo "ℹ️ No bundled uv found and no system uv available; runtime will try PATH"
+  fi
+fi
+
+# Bundle pyproject.toml and uv.lock if present
+if [ -f "Sources/Resources/pyproject.toml" ]; then
+  cp Sources/Resources/pyproject.toml AudioWhisper.app/Contents/Resources/pyproject.toml
+  echo "Bundled pyproject.toml"
+else
+  echo "ℹ️ No pyproject.toml found in Sources/Resources"
+fi
+
 # Note: AudioProcessorCLI binary no longer needed - using direct Swift audio processing
 
 # Create proper Info.plist
 echo "Creating Info.plist..."
-cat >AudioWhisper.app/Contents/Info.plist <<'EOF'
+cat >AudioWhisper.app/Contents/Info.plist <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -121,9 +170,9 @@ cat >AudioWhisper.app/Contents/Info.plist <<'EOF'
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0</string>
+    <string>$VERSION</string>
     <key>CFBundleVersion</key>
-    <string>1</string>
+    <string>$BUILD_NUMBER</string>
     <key>LSMinimumSystemVersion</key>
     <string>14.0</string>
     <key>NSMicrophoneUsageDescription</key>
@@ -200,6 +249,11 @@ sign_app() {
     echo "🔏 Code signing app with: $identity_name ($identity)"
   else
     echo "🔏 Code signing app with: $identity"
+  fi
+
+  # Sign uv binary if present (nested executable)
+  if [ -f "AudioWhisper.app/Contents/Resources/bin/uv" ]; then
+    codesign --force --sign "$identity" --options runtime --entitlements AudioWhisper.entitlements AudioWhisper.app/Contents/Resources/bin/uv
   fi
 
   codesign --force --deep --sign "$identity" --options runtime --entitlements AudioWhisper.entitlements AudioWhisper.app

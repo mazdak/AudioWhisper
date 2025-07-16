@@ -12,13 +12,20 @@ final class HistoryWindowManager: NSObject {
     
     private weak var historyWindow: NSWindow?
     private var windowDelegate: HistoryWindowDelegate?
+    private let isTestEnvironment: Bool
     
     private override init() {
+        isTestEnvironment = NSClassFromString("XCTestCase") != nil
         super.init()
     }
     
     /// Shows the history window, creating it if necessary or bringing existing one to front
     func showHistoryWindow() {
+        // Skip actual window operations in test environment
+        if isTestEnvironment {
+            return
+        }
+        
         if let existingWindow = historyWindow, existingWindow.isVisible {
             // Window already exists and is visible, just bring it to front
             existingWindow.makeKeyAndOrderFront(nil)

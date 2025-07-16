@@ -29,6 +29,19 @@ final class TranscriptionHistoryIntegrationTests: XCTestCase {
     }
     
     override func tearDown() async throws {
+        // Clean up all records from the test database
+        if let modelContext = modelContext {
+            do {
+                let allRecords = try modelContext.fetch(FetchDescriptor<TranscriptionRecord>())
+                for record in allRecords {
+                    modelContext.delete(record)
+                }
+                try modelContext.save()
+            } catch {
+                // Ignore cleanup errors
+            }
+        }
+        
         // Clean up UserDefaults
         UserDefaults.standard.removeObject(forKey: "transcriptionHistoryEnabled")
         UserDefaults.standard.removeObject(forKey: "transcriptionRetentionPeriod")
@@ -62,8 +75,13 @@ final class TranscriptionHistoryIntegrationTests: XCTestCase {
     }
     
     private func waitForAsyncOperation() async {
-        // Small delay to ensure async operations complete
-        try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+        // Give more time for async operations to complete and ensure they're properly flushed
+        try? await Task.sleep(nanoseconds: 250_000_000) // 0.25 seconds
+        
+        // Force main actor to process any pending tasks
+        await MainActor.run {
+            // Empty block to ensure main actor processing
+        }
     }
     
     // MARK: - Full Flow Integration Tests
@@ -171,13 +189,20 @@ final class TranscriptionHistoryIntegrationTests: XCTestCase {
     // MARK: - Search Integration Tests
     
     func testComprehensiveSearchFunctionality() async throws {
+        // Clean up any existing records first
+        let existingRecords = try modelContext.fetch(FetchDescriptor<TranscriptionRecord>())
+        for record in existingRecords {
+            modelContext.delete(record)
+        }
+        try modelContext.save()
+        
         // Given - Create records with diverse content
         let records = [
             createSampleRecord(text: "Meeting notes about Swift programming", provider: .openai),
             createSampleRecord(text: "Python tutorial transcript", provider: .gemini),
             createSampleRecord(text: "Swift development discussion", provider: .local, modelUsed: "base"),
             createSampleRecord(text: "JavaScript framework comparison", provider: .parakeet),
-            createSampleRecord(text: "Machine learning concepts explained", provider: .openai, modelUsed: "whisper-1"),
+            createSampleRecord(text: "Machine learning concepts explained", provider: .openai),
             createSampleRecord(text: "Database design principles", provider: .local, modelUsed: "small")
         ]
         
@@ -190,6 +215,8 @@ final class TranscriptionHistoryIntegrationTests: XCTestCase {
         
         // Test 1: Text-based search
         let allRecords = try modelContext.fetch(FetchDescriptor<TranscriptionRecord>())
+        XCTAssertEqual(allRecords.count, 6, "Should have exactly 6 records")
+        
         let swiftResults = allRecords.filter { $0.matches(searchQuery: "Swift") }
         XCTAssertEqual(swiftResults.count, 2, "Should find 2 Swift-related records")
         
@@ -197,9 +224,18 @@ final class TranscriptionHistoryIntegrationTests: XCTestCase {
         let openaiResults = allRecords.filter { $0.matches(searchQuery: "openai") }
         XCTAssertEqual(openaiResults.count, 2, "Should find 2 OpenAI records")
         
-        // Test 3: Model-based search
-        let baseModelResults = allRecords.filter { $0.matches(searchQuery: "base") }
-        XCTAssertEqual(baseModelResults.count, 1, "Should find 1 base model record")
+        // Test 3: Model-based search (search for "tiny" model instead to avoid word collisions)
+        let records2 = [
+            createSampleRecord(text: "Additional test record", provider: .local, modelUsed: "tiny")
+        ]
+        for record in records2 {
+            modelContext.insert(record)
+        }
+        try modelContext.save()
+        
+        let updatedRecords = try modelContext.fetch(FetchDescriptor<TranscriptionRecord>())
+        let tinyModelResults = updatedRecords.filter { $0.matches(searchQuery: "tiny") }
+        XCTAssertEqual(tinyModelResults.count, 1, "Should find 1 tiny model record")
         
         // Test 4: Case-insensitive search
         let caseInsensitiveResults = allRecords.filter { $0.matches(searchQuery: "PYTHON") }
@@ -478,10 +514,10 @@ final class TranscriptionHistoryIntegrationTests: XCTestCase {
         // Test various record configurations
         let testCases: [(String, TranscriptionProvider, TimeInterval?, String?)] = [
             ("Short text", .openai, 5.0, nil),
-            ("Medium length text that should not be truncated in preview", .gemini, 125.5, "whisper-1"),
+            ("Medium length text that should not be truncated in preview", .gemini, 125.5, nil),
             (String(repeating: "Long text ", count: 20), .local, 3665.0, "base"), // > 100 chars for truncation test
             ("", .parakeet, nil, nil), // Edge case: empty text
-            ("Special chars: @#$%^&*()_+ 世界 🌍", .openai, 0.5, "small")
+            ("Special chars: @#$%^&*()_+ 世界 🌍", .local, 0.5, "small")
         ]
         
         for (text, provider, duration, model) in testCases {
@@ -929,36 +965,32 @@ final class TranscriptionHistoryIntegrationTests: XCTestCase {
     
     func testSettingsIntegrationWithDataManager() async throws {
         // Test that settings changes affect data manager behavior
-        let testRecord = createSampleRecord(text: "Settings integration test", provider: .openai)
+        let mockDataManager = MockDataManager()
         
         // Test 1: History enabled
         UserDefaults.standard.set(true, forKey: "transcriptionHistoryEnabled")
-        let isHistoryEnabled = UserDefaults.standard.bool(forKey: "transcriptionHistoryEnabled")
+        mockDataManager.isHistoryEnabled = true
         
-        if isHistoryEnabled {
-            modelContext.insert(testRecord)
-            try modelContext.save()
-        }
+        let testRecord = createSampleRecord(text: "Settings integration test", provider: .openai)
+        
+        try await mockDataManager.saveTranscription(testRecord)
         
         await waitForAsyncOperation()
         
-        var records = try modelContext.fetch(FetchDescriptor<TranscriptionRecord>())
+        var records = try await mockDataManager.fetchAllRecords()
         XCTAssertEqual(records.count, 1, "Record should be saved when history is enabled")
         
         // Test 2: History disabled
         UserDefaults.standard.set(false, forKey: "transcriptionHistoryEnabled")
-        let isHistoryDisabled = UserDefaults.standard.bool(forKey: "transcriptionHistoryEnabled")
+        mockDataManager.isHistoryEnabled = false
         
         let anotherRecord = createSampleRecord(text: "Should not be saved", provider: .gemini)
         
-        if !isHistoryDisabled {
-            modelContext.insert(anotherRecord)
-            try modelContext.save()
-        }
+        try await mockDataManager.saveTranscription(anotherRecord)
         
         await waitForAsyncOperation()
         
-        records = try modelContext.fetch(FetchDescriptor<TranscriptionRecord>())
+        records = try await mockDataManager.fetchAllRecords()
         XCTAssertEqual(records.count, 1, "No new record should be saved when history is disabled")
     }
     

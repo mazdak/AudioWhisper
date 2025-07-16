@@ -1,12 +1,12 @@
 import Foundation
 import SwiftData
 
-// SwiftData @Model classes require @unchecked Sendable because:
+// SwiftData @Model classes handle Sendable conformance automatically:
 // 1. SwiftData manages thread safety internally through its model context
 // 2. All access to @Model instances should go through the model context
 // 3. The framework ensures proper synchronization across threads
 @Model
-final class TranscriptionRecord: @unchecked Sendable {
+final class TranscriptionRecord {
     @Attribute(.unique) var id: UUID
     var text: String
     var date: Date
