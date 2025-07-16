@@ -488,6 +488,14 @@ struct SettingsView: View {
                 loadAvailableMicrophones()
                 loadAPIKeys()
                 loadModelStates()
+                
+                // Ensure transcription provider is loaded correctly on app launch
+                // This helps prevent settings from being reset during app updates
+                if let storedProvider = UserDefaults.standard.string(forKey: "transcriptionProvider"),
+                   let provider = TranscriptionProvider(rawValue: storedProvider) {
+                    transcriptionProvider = provider
+                }
+                
                 // Make sure the view can receive key events
                 DispatchQueue.main.async {
                     NSApplication.shared.keyWindow?.makeFirstResponder(nil)

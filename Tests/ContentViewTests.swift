@@ -2,6 +2,29 @@ import XCTest
 import SwiftUI
 @testable import AudioWhisper
 
+// MARK: - Thread-Safe Atomic Wrapper
+
+final class Atomic<T>: @unchecked Sendable {
+    private var _value: T
+    private let lock = NSLock()
+    
+    init(_ value: T) {
+        _value = value
+    }
+    
+    func load() -> T {
+        lock.lock()
+        defer { lock.unlock() }
+        return _value
+    }
+    
+    func store(_ value: T) {
+        lock.lock()
+        defer { lock.unlock() }
+        _value = value
+    }
+}
+
 final class ContentViewTests: XCTestCase {
     
     var mockAudioRecorder: MockAudioRecorder!
@@ -50,10 +73,25 @@ final class ContentViewTests: XCTestCase {
 
 // MARK: - Mock Classes
 
-class MockAudioRecorder: AudioRecorder, @unchecked Sendable {
-    var mockHasPermission = true
-    var mockIsRecording = false
-    var mockAudioLevel: Float = 0.0
+final class MockAudioRecorder: AudioRecorder, @unchecked Sendable {
+    private let _mockHasPermission = Atomic(true)
+    private let _mockIsRecording = Atomic(false)
+    private let _mockAudioLevel = Atomic<Float>(0.0)
+    
+    var mockHasPermission: Bool {
+        get { _mockHasPermission.load() }
+        set { _mockHasPermission.store(newValue) }
+    }
+    
+    var mockIsRecording: Bool {
+        get { _mockIsRecording.load() }
+        set { _mockIsRecording.store(newValue) }
+    }
+    
+    var mockAudioLevel: Float {
+        get { _mockAudioLevel.load() }
+        set { _mockAudioLevel.store(newValue) }
+    }
     
     override var hasPermission: Bool {
         get { mockHasPermission }
