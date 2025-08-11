@@ -27,13 +27,13 @@ struct AudioWhisperApp: App {
                 Button(LocalizedStrings.Menu.settings) {
                     appDelegate.openSettings()
                 }
-                .keyboardShortcut(",", modifiers: .command)
+                // Remove keyboard shortcut hint for menu bar app
             }
             CommandGroup(replacing: .windowArrangement) {
                 Button(LocalizedStrings.Menu.closeWindow) {
                     NSApplication.shared.keyWindow?.orderOut(nil)
                 }
-                .keyboardShortcut("w", modifiers: .command)
+                // No keyboard shortcut hints
             }
         }
     }
@@ -97,11 +97,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let menu = NSMenu()
         menu.addItem(NSMenuItem(title: LocalizedStrings.Menu.record, action: #selector(toggleRecordWindow), keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
-        menu.addItem(NSMenuItem(title: LocalizedStrings.Menu.history, action: #selector(showHistory), keyEquivalent: "h"))
-        menu.addItem(NSMenuItem(title: LocalizedStrings.Menu.settings, action: #selector(openSettings), keyEquivalent: ","))
+        menu.addItem(NSMenuItem(title: LocalizedStrings.Menu.history, action: #selector(showHistory), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: LocalizedStrings.Menu.settings, action: #selector(openSettings), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: "Help", action: #selector(showHelp), keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
-        menu.addItem(NSMenuItem(title: LocalizedStrings.Menu.quit, action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+        menu.addItem(NSMenuItem(title: LocalizedStrings.Menu.quit, action: #selector(NSApplication.terminate(_:)), keyEquivalent: ""))
         
         statusItem?.menu = menu
         

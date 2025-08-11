@@ -55,6 +55,8 @@ struct ContentView: View {
     @State private var showAudioFileObserver: NSObjectProtocol?
     @State private var lastAudioURL: URL?
     @State private var awaitingSemanticPaste = false
+    @AppStorage("hasShownFirstModelUseHint") private var hasShownFirstModelUseHint = false
+    @State private var showFirstModelUseHint = false
     
     init(speechService: SpeechToTextService = SpeechToTextService(), audioRecorder: AudioRecorder) {
         self._speechService = StateObject(wrappedValue: speechService)
@@ -76,6 +78,12 @@ struct ContentView: View {
                     permissionManager.requestPermissionWithEducation()
                 }
             )
+            // First-use hint: local models may take longer to initialize
+            if showFirstModelUseHint {
+                Text("First-time model setup may take a little longer")
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary.opacity(0.7))
+            }
             // Debug pipeline lines removed
             
             // Record/Stop button
@@ -596,6 +604,10 @@ struct ContentView: View {
         // Notify that recording has stopped (for menu bar icon update in hotkey mode)
         NotificationCenter.default.post(name: .recordingStopped, object: nil)
         
+        // Decide if we should show the first-use hint for this run
+        let shouldHintThisRun = !hasShownFirstModelUseHint && isLocalModelInvocationPlanned()
+        if shouldHintThisRun { showFirstModelUseHint = true }
+
         processingTask = Task {
             isProcessing = true
             transcriptionStartTime = Date()
@@ -653,12 +665,14 @@ struct ContentView: View {
                 await MainActor.run {
                     transcriptionStartTime = nil
                     showConfirmationAndPaste(text: finalText)
+                    if shouldHintThisRun { hasShownFirstModelUseHint = true; showFirstModelUseHint = false }
                 }
             } catch is CancellationError {
                 // Handle cancellation gracefully
                 await MainActor.run {
                     isProcessing = false
                     transcriptionStartTime = nil
+                    if shouldHintThisRun { hasShownFirstModelUseHint = true; showFirstModelUseHint = false }
                     // Don't show error for intentional cancellation
                 }
             } catch {
@@ -667,9 +681,18 @@ struct ContentView: View {
                     showError = true
                     isProcessing = false
                     transcriptionStartTime = nil
+                    if shouldHintThisRun { hasShownFirstModelUseHint = true; showFirstModelUseHint = false }
                 }
             }
         }
+    }
+
+    private func isLocalModelInvocationPlanned() -> Bool {
+        if transcriptionProvider == .local || transcriptionProvider == .parakeet { return true }
+        let modeRaw = UserDefaults.standard.string(forKey: "semanticCorrectionMode") ?? SemanticCorrectionMode.off.rawValue
+        let mode = SemanticCorrectionMode(rawValue: modeRaw) ?? .off
+        if mode == .localMLX { return true }
+        return false
     }
     
     private func showConfirmationAndPaste(text: String) {

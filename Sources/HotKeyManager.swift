@@ -77,6 +77,27 @@ class HotKeyManager {
     
     private func stringToKey(_ keyString: String) -> Key? {
         switch keyString.uppercased() {
+        // Function keys
+        case "F1": return .f1
+        case "F2": return .f2
+        case "F3": return .f3
+        case "F4": return .f4
+        case "F5": return .f5
+        case "F6": return .f6
+        case "F7": return .f7
+        case "F8": return .f8
+        case "F9": return .f9
+        case "F10": return .f10
+        case "F11": return .f11
+        case "F12": return .f12
+        case "F13": return .f13
+        case "F14": return .f14
+        case "F15": return .f15
+        case "F16": return .f16
+        case "F17": return .f17
+        case "F18": return .f18
+        case "F19": return .f19
+        case "F20": return .f20
         case "A": return .a
         case "S": return .s
         case "D": return .d

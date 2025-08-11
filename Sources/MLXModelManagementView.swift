@@ -52,37 +52,48 @@ struct MLXModelManagementView: View {
                 .help("Refresh model list to check downloaded models")
             }
             
-            // Model List
+            // Model List (shared row UI using adapters)
             VStack(spacing: 8) {
-                ForEach(MLXModelManager.recommendedModels) { model in
-                    MLXModelCard(
-                        model: model,
-                        isDownloaded: modelManager.downloadedModels.contains(model.repo),
-                        isDownloading: modelManager.isDownloading[model.repo] ?? false,
-                        downloadProgress: modelManager.downloadProgress[model.repo],
-                        actualSize: modelManager.modelSizes[model.repo],
-                        isSelected: selectedModelRepo == model.repo,
-                        onSelect: {
-                            selectedModelRepo = model.repo
-                        },
+                let entries: [ModelEntry] = MLXModelManager.recommendedModels.map { m in
+                    MLXEntry(
+                        model: m,
+                        isDownloaded: modelManager.downloadedModels.contains(m.repo),
+                        isDownloading: modelManager.isDownloading[m.repo] ?? false,
+                        statusText: modelManager.downloadProgress[m.repo],
+                        sizeText: (modelManager.modelSizes[m.repo]).map(MLXModelManager.shared.formatBytes) ?? m.estimatedSize,
+                        isSelected: selectedModelRepo == m.repo,
+                        badgeText: isRecommended(m.repo) ? "RECOMMENDED" : nil,
+                        onSelect: { selectedModelRepo = m.repo },
                         onDownload: {
-                            // Immediately show downloading state
                             Task { @MainActor in
-                                modelManager.isDownloading[model.repo] = true
-                                modelManager.downloadProgress[model.repo] = "Starting download..."
+                                modelManager.isDownloading[m.repo] = true
+                                modelManager.downloadProgress[m.repo] = "Starting download..."
                             }
-                            Task {
-                                await modelManager.downloadModel(model.repo)
-                            }
+                            Task { await modelManager.downloadModel(m.repo) }
                         },
                         onDelete: {
                             Task {
-                                await modelManager.deleteModel(model.repo)
-                                if selectedModelRepo == model.repo {
-                                    selectedModelRepo = "mlx-community/gemma-2-2b-it-4bit"
-                                }
+                                await modelManager.deleteModel(m.repo)
+                                if selectedModelRepo == m.repo { selectedModelRepo = "mlx-community/Llama-3.2-3B-Instruct-4bit" }
                             }
                         }
+                    )
+                }
+                ForEach(entries.indices, id: \.self) { i in
+                    let e = entries[i]
+                    UnifiedModelRow(
+                        title: e.title,
+                        subtitle: e.subtitle,
+                        sizeText: e.sizeText,
+                        statusText: e.statusText,
+                        statusColor: e.statusColor,
+                        isDownloaded: e.isDownloaded,
+                        isDownloading: e.isDownloading,
+                        isSelected: e.isSelected,
+                        badgeText: e.badgeText,
+                        onSelect: e.onSelect,
+                        onDownload: e.onDownload,
+                        onDelete: e.onDelete
                     )
                 }
             }
@@ -113,150 +124,8 @@ struct MLXModelManagementView: View {
             }
         }
     }
-}
-
-struct MLXModelCard: View {
-    let model: MLXModel
-    let isDownloaded: Bool
-    let isDownloading: Bool
-    let downloadProgress: String?
-    let actualSize: Int64?
-    let isSelected: Bool
-    
-    let onSelect: () -> Void
-    let onDownload: () -> Void
-    let onDelete: () -> Void
-    @State private var isDeleting = false
-    
-    var body: some View {
-        HStack(spacing: 12) {
-            // Selection radio button (only for downloaded models)
-            if isDownloaded {
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .foregroundColor(isSelected ? .accentColor : .secondary)
-                    .font(.system(size: 16))
-                    .onTapGesture {
-                        onSelect()
-                    }
-            } else {
-                Image(systemName: "circle.dashed")
-                    .foregroundColor(.secondary.opacity(0.5))
-                    .font(.system(size: 16))
-            }
-            
-            // Model Info
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 6) {
-                    Text(model.displayName)
-                        .font(.system(.body, design: .monospaced))
-                        .lineLimit(1)
-                    if isRecommended(model.repo) {
-                        Text("RECOMMENDED")
-                            .font(.caption2)
-                            .fontWeight(.bold)
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.accentColor)
-                            .cornerRadius(4)
-                    }
-                }
-                
-                Text(model.description)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                
-                if let progress = downloadProgress {
-                    Text(progress)
-                        .font(.caption2)
-                        .foregroundColor(progress.contains("Error") || progress.contains("Please") ? .red : .blue)
-                        .lineLimit(2)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            }
-            
-            Spacer()
-            
-            // Size info
-            VStack(alignment: .trailing, spacing: 2) {
-                if let actualSize = actualSize {
-                    Text(MLXModelManager.shared.formatBytes(actualSize))
-                        .font(.caption)
-                        .foregroundColor(.primary)
-                } else {
-                    Text(model.estimatedSize)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                
-                if isDownloaded {
-                    Text("Installed")
-                        .font(.caption2)
-                        .foregroundColor(.green)
-                }
-            }
-            
-            // Action button
-            if isDownloading {
-                VStack(spacing: 2) {
-                    ProgressView()
-                        .controlSize(.small)
-                    Text("Loading...")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                }
-                .frame(width: 60)
-            } else if isDeleting {
-                VStack(spacing: 2) {
-                    ProgressView()
-                        .controlSize(.small)
-                    Text("Deleting...")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                }
-                .frame(width: 60)
-            } else if isDownloaded {
-                Button("Delete") {
-                    isDeleting = true
-                    Task {
-                        onDelete()
-                        try? await Task.sleep(nanoseconds: 500_000_000)
-                        await MainActor.run {
-                            isDeleting = false
-                        }
-                    }
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .frame(width: 60)
-                .disabled(isDeleting)
-            } else {
-                Button("Get") {
-                    onDownload()
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-                .frame(width: 60)
-            }
-        }
-        .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(isSelected ? Color.accentColor.opacity(0.1) : Color(NSColor.controlBackgroundColor))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(isSelected ? Color.accentColor.opacity(0.3) : Color.clear, lineWidth: 1)
-        )
-        .contentShape(Rectangle())
-        .onTapGesture {
-            if isDownloaded {
-                onSelect()
-            }
-        }
-    }
 
     private func isRecommended(_ repo: String) -> Bool {
-        return repo == "mlx-community/gemma-2-2b-it-4bit"
+        return repo == "mlx-community/Llama-3.2-3B-Instruct-4bit"
     }
 }

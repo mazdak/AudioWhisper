@@ -6,11 +6,18 @@ struct SetupEnvironmentSheet: View {
     @Binding var logs: String
     let title: String
     let onStart: () -> Void
+    
+    private var isSuccess: Bool {
+        !isRunning && title.lowercased().contains("ready")
+    }
+    
+    private var isError: Bool {
+        (!isRunning && title.lowercased().contains("failed")) || logs.lowercased().contains("error")
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                let isSuccess = !isRunning && title.lowercased().contains("ready")
                 Text(title)
                     .font(isSuccess ? .title3 : .headline)
                     .foregroundColor(isSuccess ? .green : .primary)
@@ -22,6 +29,7 @@ struct SetupEnvironmentSheet: View {
             ScrollView {
                 Text(logs.isEmpty ? "Starting…" : logs)
                     .font(.system(.caption, design: .monospaced))
+                    .foregroundColor(isError ? .red : .primary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .textSelection(.enabled)
             }

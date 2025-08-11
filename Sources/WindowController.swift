@@ -185,7 +185,6 @@ class WindowController {
             // Bring existing window to front and focus
             NSApp.activate(ignoringOtherApps: true)
             existingWindow.makeKeyAndOrderFront(nil)
-            existingWindow.orderFrontRegardless()
         } else {
             // Create new settings window (SwiftUI Settings scene can have focus issues)
             let window = NSWindow(
@@ -195,7 +194,8 @@ class WindowController {
                 defer: false
             )
             window.title = LocalizedStrings.Settings.title
-            window.level = .floating
+            // Use normal window level so it doesn't float above other apps
+            window.level = .normal
             
             // Ensure window doesn't cause app to quit when closed
             window.isReleasedWhenClosed = false
@@ -219,7 +219,6 @@ class WindowController {
             
             NSApp.activate(ignoringOtherApps: true)
             window.makeKeyAndOrderFront(nil)
-            window.orderFrontRegardless()
         }
     }
     

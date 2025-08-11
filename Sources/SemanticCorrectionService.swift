@@ -45,7 +45,7 @@ final class SemanticCorrectionService {
     // MARK: - Local (MLX)
     private func correctLocallyWithMLX(text: String) async -> String {
         guard Arch.isAppleSilicon else { return text }
-        let modelRepo = UserDefaults.standard.string(forKey: "semanticCorrectionModelRepo") ?? "mlx-community/gemma-2-2b-it-4bit"
+        let modelRepo = UserDefaults.standard.string(forKey: "semanticCorrectionModelRepo") ?? "mlx-community/Llama-3.2-3B-Instruct-4bit"
         do {
             let pyURL = try UvBootstrap.ensureVenv(userPython: nil)
             let output = try await mlxService.correct(text: text, modelRepo: modelRepo, pythonPath: pyURL.path)

@@ -20,7 +20,7 @@ struct SettingsView: View {
     @AppStorage("transcriptionRetentionPeriod") private var transcriptionRetentionPeriodRaw = RetentionPeriod.oneMonth.rawValue
     // Semantic correction settings
     @AppStorage("semanticCorrectionMode") private var semanticCorrectionModeRaw = SemanticCorrectionMode.off.rawValue
-    @AppStorage("semanticCorrectionModelRepo") private var semanticCorrectionModelRepo = "mlx-community/gemma-2-2b-it-4bit"
+    @AppStorage("semanticCorrectionModelRepo") private var semanticCorrectionModelRepo = "mlx-community/Llama-3.2-3B-Instruct-4bit"
     @AppStorage("hasSetupParakeet") private var hasSetupParakeet = false
     @AppStorage("hasSetupLocalLLM") private var hasSetupLocalLLM = false
     @StateObject private var modelManager = ModelManager.shared
@@ -346,43 +346,41 @@ struct SettingsView: View {
                                 .buttonStyle(.bordered)
                                 .controlSize(.mini)
 
-                                if !modelManager.downloadedModels.isEmpty {
-                                    Button(action: {
-                                        deleteAllModels()
-                                    }) {
-                                        HStack(spacing: 4) {
-                                            Image(systemName: "trash")
-                                                .font(.caption)
-                                            Text("Clear All")
-                                                .font(.caption)
-                                        }
-                                    }
-                                    .buttonStyle(.bordered)
-                                    .foregroundColor(.red)
-                                    .controlSize(.mini)
-                                }
+                                // "Clear All" removed; individual deletes are supported per model
                             }
                         }
                         .padding(.bottom, 12)
 
-                        // Model cards
-                        VStack(spacing: 12) {
-                            ForEach(WhisperModel.allCases, id: \.self) { model in
-                                ModelCardView(
-                                    model: model,
-                                    isSelected: selectedWhisperModel == model,
-                                    isDownloaded: modelManager.downloadedModels.contains(model),
-                                    downloadStage: modelManager.getDownloadStage(for: model),
-                                    estimatedTimeRemaining: modelManager.getEstimatedTimeRemaining(for: model),
-                                    onDownload: {
-                                        downloadModel(model)
-                                    },
-                                    onDelete: {
-                                        deleteModel(model)
-                                    },
-                                    onSelect: {
-                                        selectedWhisperModel = model
-                                    }
+                        // Model list (shared row using LocalWhisperEntry)
+                        VStack(spacing: 8) {
+                            let entries: [ModelEntry] = WhisperModel.allCases.map { m in
+                                LocalWhisperEntry(
+                                    model: m,
+                                    stage: modelManager.getDownloadStage(for: m),
+                                    estimatedTimeRemaining: modelManager.getEstimatedTimeRemaining(for: m),
+                                    isDownloaded: modelManager.downloadedModels.contains(m),
+                                    isDownloading: modelManager.getDownloadStage(for: m)?.isActive ?? false,
+                                    isSelected: selectedWhisperModel == m,
+                                    onSelect: { selectedWhisperModel = m },
+                                    onDownload: { downloadModel(m) },
+                                    onDelete: { deleteModel(m) }
+                                )
+                            }
+                            ForEach(entries.indices, id: \.self) { i in
+                                let e = entries[i]
+                                UnifiedModelRow(
+                                    title: e.title,
+                                    subtitle: e.subtitle,
+                                    sizeText: e.sizeText,
+                                    statusText: e.statusText,
+                                    statusColor: e.statusColor,
+                                    isDownloaded: e.isDownloaded,
+                                    isDownloading: e.isDownloading,
+                                    isSelected: e.isSelected,
+                                    badgeText: e.badgeText,
+                                    onSelect: e.onSelect,
+                                    onDownload: e.onDownload,
+                                    onDelete: e.onDelete
                                 )
                             }
                         }
@@ -608,6 +606,10 @@ struct SettingsView: View {
                    let provider = TranscriptionProvider(rawValue: storedProvider) {
                     transcriptionProvider = provider
                 }
+                // Normalize MLX selection: remove Gemma 2 from choices
+                if semanticCorrectionModelRepo.contains("gemma-2-2b") {
+                    semanticCorrectionModelRepo = "mlx-community/Llama-3.2-3B-Instruct-4bit"
+                }
                 
                 // Make sure the view can receive key events
                 DispatchQueue.main.async {
@@ -772,7 +774,10 @@ struct SettingsView: View {
             } catch {
                 await MainActor.run {
                     isSettingUp = false
-                    setupStatus = "✗ Setup failed: \(error.localizedDescription)"
+                    setupStatus = "✗ Setup failed"
+                    // Show detailed error in the logs area instead of the title
+                    let msg = error.localizedDescription.isEmpty ? String(describing: error) : error.localizedDescription
+                    setupLogs += (setupLogs.isEmpty ? "" : "\n") + "Error: \(msg)"
                     envReady = false
                 }
             }
@@ -881,21 +886,7 @@ struct SettingsView: View {
         return formatter.string(fromByteCount: bytes)
     }
     
-    private func deleteAllModels() {
-        Task {
-            for model in Array(modelManager.downloadedModels) {
-                do {
-                    try await modelManager.deleteModel(model)
-                } catch {
-                    await MainActor.run {
-                        downloadError = "Failed to delete \(model.displayName): \(error.localizedDescription)"
-                    }
-                }
-            }
-            // Refresh the UI
-            await modelManager.refreshModelStates()
-        }
-    }
+    // Removed bulk delete; users can delete individual models
     
     private func showModelsInFinder() {
         // WhisperKit stores models in ~/Documents/huggingface/models/argmaxinc/whisperkit-coreml/
@@ -1015,7 +1006,8 @@ struct HotKeyRecorderView: View {
                 recordedKey = key
                 
                 // Complete the recording if we have both modifiers and a key
-                if !recordedModifiers.isEmpty && recordedKey != nil {
+                if (recordedKey != nil && !recordedModifiers.isEmpty) ||
+                   (recordedKey != nil && isFunctionKey(key) && recordedModifiers.isEmpty) {
                     if isValidHotkey(modifiers: recordedModifiers, key: key) {
                         let hotkeyString = formatHotkey(modifiers: recordedModifiers, key: key)
                         stopRecording()
@@ -1064,9 +1056,9 @@ struct HotKeyRecorderView: View {
     }
     
     private func isValidHotkey(modifiers: NSEvent.ModifierFlags, key: Key) -> Bool {
-        // Must have at least one modifier
+        // Allow function keys with no modifiers
         if modifiers.isEmpty {
-            return false
+            return isFunctionKey(key)
         }
         
         // Some keys should not be used as hotkeys (like escape, which is used to cancel)
@@ -1081,6 +1073,16 @@ struct HotKeyRecorderView: View {
         }
         
         return true
+    }
+
+    private func isFunctionKey(_ key: Key) -> Bool {
+        switch key {
+        case .f1, .f2, .f3, .f4, .f5, .f6, .f7, .f8, .f9, .f10,
+             .f11, .f12, .f13, .f14, .f15, .f16, .f17, .f18, .f19, .f20:
+            return true
+        default:
+            return false
+        }
     }
     
     private func keyFromKeyCode(_ keyCode: UInt16) -> Key? {
@@ -1137,6 +1139,26 @@ struct HotKeyRecorderView: View {
         case 50: return .grave
         case 51: return .delete
         case 53: return .escape
+        case 122: return .f1
+        case 120: return .f2
+        case 99: return .f3
+        case 118: return .f4
+        case 96: return .f5
+        case 97: return .f6
+        case 98: return .f7
+        case 100: return .f8
+        case 101: return .f9
+        case 109: return .f10
+        case 103: return .f11
+        case 111: return .f12
+        case 105: return .f13
+        case 107: return .f14
+        case 113: return .f15
+        case 106: return .f16
+        case 64: return .f17
+        case 79: return .f18
+        case 80: return .f19
+        case 90: return .f20
         case 126: return .upArrow
         case 125: return .downArrow
         case 123: return .leftArrow
@@ -1147,6 +1169,26 @@ struct HotKeyRecorderView: View {
     
     private func keyToString(_ key: Key) -> String {
         switch key {
+        case .f1: return "F1"
+        case .f2: return "F2"
+        case .f3: return "F3"
+        case .f4: return "F4"
+        case .f5: return "F5"
+        case .f6: return "F6"
+        case .f7: return "F7"
+        case .f8: return "F8"
+        case .f9: return "F9"
+        case .f10: return "F10"
+        case .f11: return "F11"
+        case .f12: return "F12"
+        case .f13: return "F13"
+        case .f14: return "F14"
+        case .f15: return "F15"
+        case .f16: return "F16"
+        case .f17: return "F17"
+        case .f18: return "F18"
+        case .f19: return "F19"
+        case .f20: return "F20"
         case .a: return "A"
         case .s: return "S"
         case .d: return "D"

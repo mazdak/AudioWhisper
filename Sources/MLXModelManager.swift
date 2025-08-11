@@ -38,11 +38,6 @@ final class MLXModelManager: ObservableObject {
             estimatedSize: "2.8 GB",
             description: "High quality correction"
         ),
-        MLXModel(
-            repo: "mlx-community/gemma-2-2b-it-4bit",
-            estimatedSize: "1.5 GB",
-            description: "Google's lightweight model"
-        ),
         // (Gemma-3n removed per current support decision)
     ]
     
