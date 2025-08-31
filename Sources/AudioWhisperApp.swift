@@ -200,6 +200,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 if recorder.startRecording() {
                     // Success - recording started in background
                     updateMenuBarIcon(isRecording: true)
+
+                    // Play recording start sound if enabled
+                    SoundManager().playRecordingStartSound()
                 } else {
                     // Failed - show window with error
                     toggleRecordWindow()

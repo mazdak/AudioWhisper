@@ -8,12 +8,24 @@ class SoundManager: ObservableObject {
     func playCompletionSound() {
         // Check user preference before playing sound
         let playSound = UserDefaults.standard.object(forKey: "playCompletionSound") as? Bool ?? true
-        
+
         guard playSound else { return }
-        
+
         // Use a gentle system sound that's pleasant and not jarring
         // This is the same sound used for successful operations in many Mac apps
         NSSound(named: "Glass")?.play()
+    }
+
+    /// Plays a quick sound when recording starts in express mode
+    func playRecordingStartSound() {
+        // Check user preference before playing sound (reuse completion sound setting)
+        let playSound = UserDefaults.standard.object(forKey: "playCompletionSound") as? Bool ?? true
+
+        guard playSound else { return }
+
+        // Use a quick, subtle sound for recording start indication
+        // "Tink" is a gentle metallic sound that's quick and distinct from completion
+        NSSound(named: "Tink")?.play()
     }
     
     /// Alternative completion sounds that can be used
