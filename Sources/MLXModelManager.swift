@@ -25,6 +25,8 @@ final class MLXModelManager: ObservableObject {
     
     private let logger = Logger(subsystem: "com.audiowhisper.app", category: "MLXModelManager")
     private let cacheDirectory: URL
+
+    static let parakeetRepo = "mlx-community/parakeet-tdt-0.6b-v2"
     
     // Popular models for semantic correction (real model names from Hugging Face)
     static let recommendedModels = [
@@ -78,7 +80,7 @@ final class MLXModelManager: ObservableObject {
                     .replacingOccurrences(of: "--", with: "/")
                 
                 // Check if this looks like an MLX model
-                let mlxKeywords = ["mlx", "qwen", "llama", "phi", "mistral", "gemma", "starcoder"]
+                let mlxKeywords = ["mlx", "qwen", "llama", "phi", "mistral", "gemma", "starcoder", "parakeet"]
                 let isLikelyMLX = mlxKeywords.contains { modelName.lowercased().contains($0) }
                 
                 if isLikelyMLX {
@@ -286,7 +288,95 @@ except Exception as e:
             }
         }
     }
-    
+
+    func ensureParakeetModel() async {
+        await refreshModelList()
+        if downloadedModels.contains(Self.parakeetRepo) { return }
+        await downloadParakeetModel()
+    }
+
+    func downloadParakeetModel() async {
+        let repo = Self.parakeetRepo
+        logger.info("Starting Parakeet model download for: \(repo)")
+
+        let pythonPath: String
+        do {
+            let py = try UvBootstrap.ensureVenv(userPython: nil) { msg in
+                self.logger.info("uv: \(msg)")
+            }
+            pythonPath = py.path
+        } catch {
+            logger.error("Failed to prepare Python environment: \(error.localizedDescription)")
+            await MainActor.run {
+                downloadProgress[repo] = "Error: Could not prepare Python environment"
+                isDownloading[repo] = false
+            }
+            return
+        }
+
+        await MainActor.run {
+            isDownloading[repo] = true
+            downloadProgress[repo] = "Downloading Parakeet model..."
+        }
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: pythonPath)
+        let pythonScript = """
+import json, sys, traceback
+try:
+    from parakeet_mlx import from_pretrained
+    from_pretrained(\"\(repo)\")
+    print(json.dumps({"status": "complete", "message": "Model downloaded"}), flush=True)
+except Exception as e:
+    print(json.dumps({"status": "error", "message": str(e)}), flush=True)
+    sys.exit(1)
+"""
+        process.arguments = ["-c", pythonScript]
+
+        let outputPipe = Pipe()
+        let errorPipe = Pipe()
+        process.standardOutput = outputPipe
+        process.standardError = errorPipe
+
+        outputPipe.fileHandleForReading.readabilityHandler = { handle in
+            let data = handle.availableData
+            guard !data.isEmpty else { return }
+            if let line = String(data: data, encoding: .utf8),
+               let jsonData = line.trimmingCharacters(in: .whitespacesAndNewlines).data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: String],
+               let message = json["message"],
+               let status = json["status"] {
+                Task { @MainActor in
+                    self.downloadProgress[repo] = message
+                    if status == "complete" {
+                        self.downloadedModels.insert(repo)
+                    }
+                }
+            }
+        }
+
+        errorPipe.fileHandleForReading.readabilityHandler = { handle in
+            let data = handle.availableData
+            guard !data.isEmpty else { return }
+            if let err = String(data: data, encoding: .utf8) {
+                self.logger.error("Parakeet download stderr: \(err)")
+            }
+        }
+
+        do {
+            try process.run()
+            process.waitUntilExit()
+        } catch {
+            await MainActor.run {
+                self.downloadProgress[repo] = "Error: \(error.localizedDescription)"
+            }
+        }
+
+        await MainActor.run {
+            self.isDownloading[repo] = false
+        }
+    }
+
     func deleteModel(_ repo: String) async {
         let escapedRepo = repo.replacingOccurrences(of: "/", with: "--")
         let modelPath = cacheDirectory.appendingPathComponent("models--\(escapedRepo)")
