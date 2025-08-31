@@ -55,7 +55,15 @@ struct MLXModelManagementView: View {
             // Model List (shared row UI using adapters)
             VStack(spacing: 8) {
                 let entries: [ModelEntry] = MLXModelManager.recommendedModels.map { m in
-                    MLXEntry(
+                    let startDownload = {
+                        Task { @MainActor in
+                            modelManager.isDownloading[m.repo] = true
+                            modelManager.downloadProgress[m.repo] = "Starting download..."
+                        }
+                        Task { await modelManager.downloadModel(m.repo) }
+                    }
+
+                    return MLXEntry(
                         model: m,
                         isDownloaded: modelManager.downloadedModels.contains(m.repo),
                         isDownloading: modelManager.isDownloading[m.repo] ?? false,
@@ -63,14 +71,13 @@ struct MLXModelManagementView: View {
                         sizeText: (modelManager.modelSizes[m.repo]).map(MLXModelManager.shared.formatBytes) ?? m.estimatedSize,
                         isSelected: selectedModelRepo == m.repo,
                         badgeText: isRecommended(m.repo) ? "RECOMMENDED" : nil,
-                        onSelect: { selectedModelRepo = m.repo },
-                        onDownload: {
-                            Task { @MainActor in
-                                modelManager.isDownloading[m.repo] = true
-                                modelManager.downloadProgress[m.repo] = "Starting download..."
+                        onSelect: {
+                            selectedModelRepo = m.repo
+                            if !modelManager.downloadedModels.contains(m.repo) {
+                                startDownload()
                             }
-                            Task { await modelManager.downloadModel(m.repo) }
                         },
+                        onDownload: startDownload,
                         onDelete: {
                             Task {
                                 await modelManager.deleteModel(m.repo)

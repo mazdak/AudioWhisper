@@ -361,7 +361,12 @@ struct SettingsView: View {
                                     isDownloaded: modelManager.downloadedModels.contains(m),
                                     isDownloading: modelManager.getDownloadStage(for: m)?.isActive ?? false,
                                     isSelected: selectedWhisperModel == m,
-                                    onSelect: { selectedWhisperModel = m },
+                                    onSelect: {
+                                        selectedWhisperModel = m
+                                        if !modelManager.downloadedModels.contains(m) {
+                                            downloadModel(m)
+                                        }
+                                    },
                                     onDownload: { downloadModel(m) },
                                     onDelete: { deleteModel(m) }
                                 )
@@ -605,6 +610,9 @@ struct SettingsView: View {
                 if let storedProvider = UserDefaults.standard.string(forKey: "transcriptionProvider"),
                    let provider = TranscriptionProvider(rawValue: storedProvider) {
                     transcriptionProvider = provider
+                    if provider == .parakeet {
+                        Task { await MLXModelManager.shared.ensureParakeetModel() }
+                    }
                 }
                 // Normalize MLX selection: remove Gemma 2 from choices
                 if semanticCorrectionModelRepo.contains("gemma-2-2b") {
@@ -625,7 +633,10 @@ struct SettingsView: View {
                     // Refresh env status quickly
                     checkEnvReady()
                     if !envReady { showParakeetConfirm = true }
-                    else { hasSetupParakeet = true }
+                    else {
+                        hasSetupParakeet = true
+                        Task { await MLXModelManager.shared.ensureParakeetModel() }
+                    }
                 }
             }
         }

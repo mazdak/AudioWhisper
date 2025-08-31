@@ -56,7 +56,7 @@ def main():
             prompt = f"{system_prompt}\n\n{user_text}"
 
         # Constrain output to be short relative to input to reduce risk of hallucination
-        max_tokens = max(32, min(256, int(len(user_text.split()) * 2)))
+        max_tokens = max(32, min(4096, int(len(user_text.split()) * 2)))
         try:
             text = generate(
                 model,
