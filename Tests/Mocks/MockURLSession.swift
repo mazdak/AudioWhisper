@@ -1,11 +1,11 @@
 import Foundation
 
-class MockURLSession: URLSessionProtocol {
+class MockURLSession: URLSessionProtocol, @unchecked Sendable {
     var mockData: Data?
     var mockResponse: URLResponse?
     var mockError: Error?
     
-    func dataTask(with request: URLRequest, completionHandler: @escaping (Data?, URLResponse?, Error?) -> Void) -> URLSessionDataTask {
+    func dataTask(with request: URLRequest, completionHandler: @escaping @Sendable (Data?, URLResponse?, Error?) -> Void) -> MockURLSessionDataTask {
         return MockURLSessionDataTask {
             completionHandler(self.mockData, self.mockResponse, self.mockError)
         }
@@ -19,20 +19,17 @@ class MockURLSession: URLSessionProtocol {
 }
 
 protocol URLSessionProtocol {
-    func dataTask(with request: URLRequest, completionHandler: @escaping @Sendable (Data?, URLResponse?, Error?) -> Void) -> URLSessionDataTask
+    func dataTask(with request: URLRequest, completionHandler: @escaping @Sendable (Data?, URLResponse?, Error?) -> Void) -> MockURLSessionDataTask
 }
 
-extension URLSession: URLSessionProtocol {}
-
-class MockURLSessionDataTask: URLSessionDataTask, @unchecked Sendable {
+class MockURLSessionDataTask: @unchecked Sendable {
     private let closure: () -> Void
-    
+
     init(closure: @escaping () -> Void) {
         self.closure = closure
-        super.init()
     }
-    
-    override func resume() {
+
+    func resume() {
         closure()
     }
 }

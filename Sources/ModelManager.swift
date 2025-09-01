@@ -355,18 +355,29 @@ class ModelManager: ObservableObject {
     }
     
     private nonisolated func sendDownloadCompletionNotification(for model: WhisperModel) async {
+        // Check if notifications are available (only works in proper app bundles)
+        guard Bundle.main.bundleIdentifier != nil else {
+            // Running in development/debug mode, skip notifications
+            return
+        }
+
         let content = UNMutableNotificationContent()
         content.title = "Model Download Complete"
         content.body = "\(model.displayName) is ready for offline transcription"
         content.sound = .default
-        
+
         let request = UNNotificationRequest(
             identifier: "model-download-\(model.rawValue)",
             content: content,
             trigger: nil
         )
-        
-        try? await UNUserNotificationCenter.current().add(request)
+
+        do {
+            try await UNUserNotificationCenter.current().add(request)
+        } catch {
+            // Silently fail if notifications aren't available (e.g., when running with swift run)
+            print("Failed to send notification: \(error.localizedDescription)")
+        }
     }
     
     @MainActor

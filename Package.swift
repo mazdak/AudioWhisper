@@ -8,9 +8,9 @@ let package = Package(
         .macOS(.v14)
     ],
     dependencies: [
-        .package(url: "https://github.com/Alamofire/Alamofire.git", from: "5.8.0"),
-        .package(url: "https://github.com/soffes/HotKey", from: "0.2.0"),
-        .package(url: "https://github.com/argmaxinc/WhisperKit.git", from: "0.13.0")
+        .package(url: "https://github.com/Alamofire/Alamofire.git", from: "5.10.2"),
+        .package(url: "https://github.com/soffes/HotKey", from: "0.2.1"),
+        .package(url: "https://github.com/argmaxinc/WhisperKit.git", from: "0.13.1")
     ],
     targets: [
         .executableTarget(

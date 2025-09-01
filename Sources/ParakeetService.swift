@@ -38,7 +38,10 @@ class ParakeetService {
     private let logger = Logger(subsystem: "com.audiowhisper.app", category: "ParakeetService")
     
     func transcribe(audioFileURL: URL, pythonPath: String) async throws -> String {
-        
+
+        // Step 0: Ensure Parakeet model is downloaded before transcription
+        await MLXModelManager.shared.ensureParakeetModel()
+
         // Step 1: Process audio with Swift AudioProcessor to create raw PCM data
         let pcmDataURL = try await processAudioToRawPCM(audioFileURL: audioFileURL)
         defer {
@@ -230,42 +233,60 @@ class ParakeetService {
             let (outputString, errorString, terminationStatus) = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<(String, String, Int32), Error>) in
                 let process = Process()
                 process.executableURL = URL(fileURLWithPath: pythonPath)
-                
+
                 process.arguments = [tempScriptURL.path, pcmDataURL.path]
-                
+
                 let outputPipe = Pipe()
                 let errorPipe = Pipe()
                 process.standardOutput = outputPipe
                 process.standardError = errorPipe
-                
+
+                // Use a serial queue to synchronize continuation resumption
+                let continuationQueue = DispatchQueue(label: "com.audiowhisper.parakeet.continuation")
+                var continuationResumed = false
+
                 // Set up timeout handling (30 seconds for transcription)
                 let timeoutTask = Task {
                     try await Task.sleep(nanoseconds: 30_000_000_000) // 30 seconds
-                    if process.isRunning {
-                        process.terminate()
-                        continuation.resume(throwing: ParakeetError.processTimedOut(30))
+                    continuationQueue.async {
+                        if process.isRunning && !continuationResumed {
+                            continuationResumed = true
+                            process.terminate()
+                            continuation.resume(throwing: ParakeetError.processTimedOut(30))
+                        }
                     }
                 }
-                
+
                 // Set up process completion handler
                 process.terminationHandler = { process in
                     timeoutTask.cancel()
-                    
-                    // Read output after process completes
-                    let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
-                    let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
-                    
-                    let outputString = String(data: outputData, encoding: .utf8) ?? ""
-                    let errorString = String(data: errorData, encoding: .utf8) ?? ""
-                    
-                    continuation.resume(returning: (outputString, errorString, process.terminationStatus))
+
+                    continuationQueue.async {
+                        // Only resume if not already resumed by timeout
+                        guard !continuationResumed else { return }
+                        continuationResumed = true
+
+                        // Read output after process completes
+                        let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
+                        let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+
+                        let outputString = String(data: outputData, encoding: .utf8) ?? ""
+                        let errorString = String(data: errorData, encoding: .utf8) ?? ""
+
+                        continuation.resume(returning: (outputString, errorString, process.terminationStatus))
+                    }
                 }
-                
+
                 do {
                     try process.run()
                 } catch {
                     timeoutTask.cancel()
-                    continuation.resume(throwing: error)
+                    continuationQueue.async {
+                        // Only resume if not already resumed
+                        guard !continuationResumed else { return }
+                        continuationResumed = true
+                        continuation.resume(throwing: error)
+                    }
                 }
             }
             
@@ -315,32 +336,49 @@ class ParakeetService {
             let process = Process()
             process.executableURL = URL(fileURLWithPath: pythonPath)
             process.arguments = ["-c", "import parakeet_mlx; print('OK')"]
-            
+
             let pipe = Pipe()
             process.standardOutput = pipe
             process.standardError = pipe
-            
+
+            // Use a serial queue to synchronize continuation resumption
+            let continuationQueue = DispatchQueue(label: "com.audiowhisper.parakeet.validation.continuation")
+            var continuationResumed = false
+
             // Set up timeout for validation (10 seconds)
             let timeoutTask = Task {
                 try await Task.sleep(nanoseconds: 10_000_000_000) // 10 seconds
-                if process.isRunning {
-                    process.terminate()
-                    continuation.resume(throwing: ParakeetError.processTimedOut(10))
+                continuationQueue.async {
+                    if process.isRunning && !continuationResumed {
+                        continuationResumed = true
+                        process.terminate()
+                        continuation.resume(throwing: ParakeetError.processTimedOut(10))
+                    }
                 }
             }
-            
+
             process.terminationHandler = { process in
                 timeoutTask.cancel()
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                let output = String(data: data, encoding: .utf8) ?? ""
-                continuation.resume(returning: (output, process.terminationStatus))
+                continuationQueue.async {
+                    // Only resume if not already resumed by timeout
+                    guard !continuationResumed else { return }
+                    continuationResumed = true
+                    let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                    let output = String(data: data, encoding: .utf8) ?? ""
+                    continuation.resume(returning: (output, process.terminationStatus))
+                }
             }
-            
+
             do {
                 try process.run()
             } catch {
                 timeoutTask.cancel()
-                continuation.resume(throwing: error)
+                continuationQueue.async {
+                    // Only resume if not already resumed
+                    guard !continuationResumed else { return }
+                    continuationResumed = true
+                    continuation.resume(throwing: error)
+                }
             }
         }
         

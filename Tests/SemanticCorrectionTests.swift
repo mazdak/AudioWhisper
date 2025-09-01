@@ -140,11 +140,13 @@ final class SemanticCorrectionTests: XCTestCase {
     
     // MARK: - Recommended Models Tests
     
+    @MainActor
     func testRecommendedModelsCount() {
         let models = MLXModelManager.recommendedModels
         XCTAssertEqual(models.count, 3, "Should have 3 recommended models")
     }
-    
+
+    @MainActor
     func testRecommendedModelsContent() {
         let models = MLXModelManager.recommendedModels
         
@@ -161,6 +163,7 @@ final class SemanticCorrectionTests: XCTestCase {
         XCTAssertFalse(modelRepos.contains { $0.lowercased().contains("phi") })
     }
     
+    @MainActor
     func testRecommendedModelsHaveDescriptions() {
         for model in MLXModelManager.recommendedModels {
             XCTAssertFalse(model.description.isEmpty)

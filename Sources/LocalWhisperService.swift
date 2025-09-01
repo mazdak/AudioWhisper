@@ -14,11 +14,41 @@ private actor WhisperKitCache {
             accessTimes[modelName] = Date()
             return existingInstance
         }
-        
+
+        // Check if model is downloaded locally before attempting to create WhisperKit instance
+        if !(await isModelDownloadedLocally(model)) {
+            throw LocalWhisperError.modelNotDownloaded
+        }
+
         // Create new instance
         progressCallback?("Preparing \(model.displayName) model...")
-        let config = WhisperKitConfig(model: modelName)
-        let newInstance = try await WhisperKit(config)
+
+        // Set environment variables to ensure offline operation
+        setenv("HF_HUB_OFFLINE", "1", 1)
+        setenv("TRANSFORMERS_OFFLINE", "1", 1)
+        setenv("HF_HUB_DISABLE_IMPLICIT_TOKEN", "1", 1)
+
+        // Try to use local model path if available
+        let newInstance: WhisperKit
+        do {
+            if let localModelPath = getLocalModelPath(for: model) {
+                let config = WhisperKitConfig(modelFolder: localModelPath)
+                newInstance = try await WhisperKit(config)
+            } else {
+                // Fallback to model name (should work if environment variables are respected)
+                let config = WhisperKitConfig(model: modelName)
+                newInstance = try await WhisperKit(config)
+            }
+        } catch {
+            // If WhisperKit fails due to network issues, provide a more helpful error
+            if error.localizedDescription.contains("offline") ||
+               error.localizedDescription.contains("network") ||
+               error.localizedDescription.contains("connection") {
+                throw LocalWhisperError.modelNotDownloaded
+            } else {
+                throw error
+            }
+        }
         
         // Remove least recently used models if cache is full
         evictLeastRecentlyUsedIfNeeded(maxCached: maxCached)
@@ -49,15 +79,67 @@ private actor WhisperKitCache {
     
     private func evictLeastRecentlyUsedIfNeeded(maxCached: Int) {
         guard instances.count >= maxCached else { return }
-        
+
         // Find the least recently used model
         let sortedByAccess = accessTimes.sorted { $0.value < $1.value }
-        
+
         // Remove the oldest accessed model
         if let oldestModel = sortedByAccess.first {
             instances.removeValue(forKey: oldestModel.key)
             accessTimes.removeValue(forKey: oldestModel.key)
         }
+    }
+
+    private func isModelDownloadedLocally(_ model: WhisperModel) async -> Bool {
+        guard let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            return false
+        }
+
+        let modelPath = documentsPath
+            .appendingPathComponent("huggingface")
+            .appendingPathComponent("models")
+            .appendingPathComponent("argmaxinc")
+            .appendingPathComponent("whisperkit-coreml")
+            .appendingPathComponent(model.whisperKitModelName)
+
+        // Check if the model directory exists and contains model files
+        var isDirectory: ObjCBool = false
+        let exists = FileManager.default.fileExists(atPath: modelPath.path, isDirectory: &isDirectory)
+
+        if exists && isDirectory.boolValue {
+            // Check for typical model files (config.json, pytorch_model.bin, etc.)
+            let contents = try? FileManager.default.contentsOfDirectory(atPath: modelPath.path)
+            let hasModelFiles = contents?.contains { $0.hasSuffix(".json") || $0.hasSuffix(".bin") || $0.hasSuffix(".mlmodelc") } ?? false
+            return hasModelFiles
+        }
+
+        return false
+    }
+
+    private func getLocalModelPath(for model: WhisperModel) -> String? {
+        guard let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            return nil
+        }
+
+        let modelPath = documentsPath
+            .appendingPathComponent("huggingface")
+            .appendingPathComponent("models")
+            .appendingPathComponent("argmaxinc")
+            .appendingPathComponent("whisperkit-coreml")
+            .appendingPathComponent(model.whisperKitModelName)
+
+        // Check if the model directory exists and contains model files
+        var isDirectory: ObjCBool = false
+        let exists = FileManager.default.fileExists(atPath: modelPath.path, isDirectory: &isDirectory)
+
+        if exists && isDirectory.boolValue {
+            // Check for typical model files (config.json, pytorch_model.bin, etc.)
+            let contents = try? FileManager.default.contentsOfDirectory(atPath: modelPath.path)
+            let hasModelFiles = contents?.contains { $0.hasSuffix(".json") || $0.hasSuffix(".bin") || $0.hasSuffix(".mlmodelc") } ?? false
+            return hasModelFiles ? modelPath.path : nil
+        }
+
+        return nil
     }
 }
 
@@ -162,11 +244,11 @@ enum LocalWhisperError: LocalizedError {
     case noChannelData
     case resamplingFailed
     case transcriptionFailed
-    
+
     var errorDescription: String? {
         switch self {
         case .modelNotDownloaded:
-            return "Whisper model not downloaded. Please download the model first."
+            return "Whisper model not downloaded. Please download the model in Settings before using offline transcription."
         case .invalidAudioFile:
             return "Invalid audio file format"
         case .bufferAllocationFailed:

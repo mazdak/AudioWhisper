@@ -6,6 +6,12 @@ This eliminates the need for FFmpeg or audio processing in Python.
 
 import sys
 import json
+import os
+
+# Set environment to force offline operation
+os.environ['HF_HUB_OFFLINE'] = '1'
+os.environ['TRANSFORMERS_OFFLINE'] = '1'
+os.environ['HF_HUB_DISABLE_IMPLICIT_TOKEN'] = '1'
 
 try:
     import numpy as np
@@ -48,8 +54,14 @@ def main():
     pcm_file_path = sys.argv[1]
 
     try:
-        # Load Parakeet model
-        model = from_pretrained("mlx-community/parakeet-tdt-0.6b-v2")
+        # Load Parakeet model (should be cached locally after ensureParakeetModel)
+        # Try offline loading first to avoid network timeouts
+        try:
+            model = from_pretrained("mlx-community/parakeet-tdt-0.6b-v2", local_files_only=True)
+        except Exception as offline_error:
+            print(f"Offline loading failed: {offline_error}", file=sys.stderr)
+            print("Falling back to online loading (this may take time)...", file=sys.stderr)
+            model = from_pretrained("mlx-community/parakeet-tdt-0.6b-v2")
 
         # Check if PCM file exists
         import os

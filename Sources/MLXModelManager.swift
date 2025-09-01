@@ -137,20 +137,23 @@ import json
 import os
 import traceback
 
-# Set environment to show download progress
+# Set environment to show download progress and force offline operation
 os.environ['HF_HUB_DISABLE_PROGRESS_BARS'] = '0'
+os.environ['HF_HUB_OFFLINE'] = '1'
+os.environ['TRANSFORMERS_OFFLINE'] = '1'
+os.environ['HF_HUB_DISABLE_IMPLICIT_TOKEN'] = '1'
 
 try:
     print(json.dumps({"status": "checking", "message": "Checking mlx-lm..."}), flush=True)
-    
+
     from mlx_lm import load
-    
-    print(json.dumps({"status": "downloading", "message": "Downloading model (this may take a few minutes)..."}), flush=True)
-    
-    model, tokenizer = load("\(repo)")
-    
-    print(json.dumps({"status": "complete", "message": "Model downloaded successfully"}), flush=True)
-    
+
+    print(json.dumps({"status": "downloading", "message": "Loading model (offline mode)..."}), flush=True)
+
+    model, tokenizer = load("\(repo)", local_files_only=True)
+
+    print(json.dumps({"status": "complete", "message": "Model loaded successfully"}), flush=True)
+
 except ImportError as e:
     error_msg = f"mlx-lm not installed. Run: uv add mlx-lm. Error: {str(e)}"
     print(json.dumps({"status": "error", "message": error_msg}), flush=True)
@@ -322,11 +325,17 @@ except Exception as e:
         let process = Process()
         process.executableURL = URL(fileURLWithPath: pythonPath)
         let pythonScript = """
-import json, sys, traceback
+import json, sys, traceback, os
+
+# Set environment to force offline operation
+os.environ['HF_HUB_OFFLINE'] = '1'
+os.environ['TRANSFORMERS_OFFLINE'] = '1'
+os.environ['HF_HUB_DISABLE_IMPLICIT_TOKEN'] = '1'
+
 try:
     from parakeet_mlx import from_pretrained
-    from_pretrained(\"\(repo)\")
-    print(json.dumps({"status": "complete", "message": "Model downloaded"}), flush=True)
+    from_pretrained(\"\(repo)\", local_files_only=True)
+    print(json.dumps({"status": "complete", "message": "Model loaded"}), flush=True)
 except Exception as e:
     print(json.dumps({"status": "error", "message": str(e)}), flush=True)
     sys.exit(1)

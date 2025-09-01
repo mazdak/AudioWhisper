@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 import sys
 import json
+import os
+
+# Set environment to force offline operation
+os.environ['HF_HUB_OFFLINE'] = '1'
+os.environ['TRANSFORMERS_OFFLINE'] = '1'
+os.environ['HF_HUB_DISABLE_IMPLICIT_TOKEN'] = '1'
 
 def main():
     try:
@@ -24,7 +30,7 @@ def main():
         return 3
 
     try:
-        model, tokenizer = load(model_repo)
+        model, tokenizer = load(model_repo, local_files_only=True)
         # Load prompt from file if provided, else use default
         default_prompt = (
             "You are a transcription corrector. Fix grammar, casing, punctuation, and obvious mis-hearings "

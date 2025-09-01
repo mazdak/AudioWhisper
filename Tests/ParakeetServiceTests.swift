@@ -36,7 +36,7 @@ class ParakeetServiceTests: XCTestCase {
         XCTAssertEqual(scriptNotFoundError.errorDescription, "Parakeet transcription script not found in app bundle")
         XCTAssertEqual(transcriptionFailedError.errorDescription, "Parakeet transcription failed: Test error")
         XCTAssertEqual(invalidResponseError.errorDescription, "Invalid response from Parakeet: Invalid JSON")
-        XCTAssertTrue(dependencyMissingError.errorDescription!.contains("pip install parakeet-mlx"))
+        XCTAssertTrue(dependencyMissingError.errorDescription!.contains("uv"))
         XCTAssertTrue(timeoutError.errorDescription!.contains("30.0 seconds"))
     }
     

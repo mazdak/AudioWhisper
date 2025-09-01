@@ -24,8 +24,7 @@ class SoundManager: ObservableObject {
         guard playSound else { return }
 
         // Use a quick, subtle sound for recording start indication
-        // "Tink" is a gentle metallic sound that's quick and distinct from completion
-        NSSound(named: "Tink")?.play()
+        NSSound(named: "Ping")?.play()
     }
     
     /// Alternative completion sounds that can be used

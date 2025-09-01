@@ -274,6 +274,7 @@ final class HotKeyManagerTests: XCTestCase {
         // Create a reference and then nil it
         var strongManager: HotKeyManager? = manager
         strongManager = nil
+        _ = strongManager // Explicitly ignore to avoid unused variable warning
         
         RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.1))
         

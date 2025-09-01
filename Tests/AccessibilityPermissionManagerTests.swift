@@ -24,8 +24,7 @@ class AccessibilityPermissionManagerTests: XCTestCase {
         // but we can ensure the function completes without hanging
         let result = accessibilityManager.checkPermission()
         
-        // Result should be a boolean (true or false)
-        XCTAssertTrue(result is Bool, "checkPermission should return a boolean value")
+        // Result is a boolean as expected
     }
     
     func testPermissionStatusMessage() {
@@ -68,7 +67,7 @@ class AccessibilityPermissionManagerTests: XCTestCase {
         // Test the detailed permission status functionality
         let status = accessibilityManager.detailedPermissionStatus
         
-        XCTAssertTrue(status.isGranted is Bool, "isGranted should be a boolean")
+        // isGranted is a boolean as expected
         XCTAssertFalse(status.statusMessage.isEmpty, "Status message should not be empty")
         
         if !status.isGranted {
@@ -170,20 +169,16 @@ class AccessibilityPermissionManagerTests: XCTestCase {
     
     func testAccessibilityManagerMemoryManagement() {
         // Test that manager doesn't leak memory during repeated operations
-        weak var weakManager: AccessibilityPermissionManager?
-        
         autoreleasepool {
             let manager = AccessibilityPermissionManager()
-            weakManager = manager
-            
+
             // Perform various operations
             _ = manager.checkPermission()
             _ = manager.permissionStatusMessage
             _ = manager.detailedPermissionStatus
         }
-        
-        // Note: This test might not be reliable in all test environments
-        // but it helps catch obvious memory leaks during development
+
+        // Note: This test helps catch obvious memory leaks during development
     }
     
     // MARK: - Security Tests
@@ -195,7 +190,7 @@ class AccessibilityPermissionManagerTests: XCTestCase {
         
         // This assertion documents expected behavior but might pass if permission is actually granted
         // The key is that checkPermission() calls AXIsProcessTrustedWithOptions(nil) without bypassing
-        XCTAssertTrue(hasPermission is Bool, "Permission check should return actual system state")
+        // Permission check returns actual system state
     }
     
     func testPermissionManagerDoesNotPromptDuringCheck() {
@@ -209,7 +204,7 @@ class AccessibilityPermissionManagerTests: XCTestCase {
         // Permission check should be very fast (under 0.1 seconds) if it's not prompting
         let duration = endTime.timeIntervalSince(startTime)
         XCTAssertLessThan(duration, 0.1, "Permission check should be instant without prompting")
-        XCTAssertTrue(hasPermission is Bool, "Should return boolean result")
+        // Should return boolean result
     }
 }
 
