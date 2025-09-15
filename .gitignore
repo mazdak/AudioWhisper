@@ -116,8 +116,8 @@ Temporary Items
 .apdisk
 
 # App specific
-AudioWhisper.app/
-AudioWhisper.zip
+ContainerManager.app/
+ContainerManager.zip
 notarization.log
 *.xcodeproj/
 __pycache__
