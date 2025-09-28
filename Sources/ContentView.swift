@@ -676,12 +676,35 @@ struct ContentView: View {
                     // Don't show error for intentional cancellation
                 }
             } catch {
-                await MainActor.run {
-                    errorMessage = error.localizedDescription
-                    showError = true
-                    isProcessing = false
-                    transcriptionStartTime = nil
-                    if shouldHintThisRun { hasShownFirstModelUseHint = true; showFirstModelUseHint = false }
+                // Redirect to Settings for missing local models
+                if case let SpeechToTextError.localTranscriptionFailed(inner) = error,
+                   let lwError = inner as? LocalWhisperError,
+                   lwError == .modelNotDownloaded {
+                    await MainActor.run {
+                        errorMessage = "Local Whisper model not downloaded. Opening Settings…"
+                        showError = true
+                        isProcessing = false
+                        transcriptionStartTime = nil
+                        NotificationCenter.default.post(name: .openSettingsRequested, object: nil)
+                        if shouldHintThisRun { hasShownFirstModelUseHint = true; showFirstModelUseHint = false }
+                    }
+                } else if let pe = error as? ParakeetError, pe == .modelNotReady {
+                    await MainActor.run {
+                        errorMessage = "Parakeet model not downloaded. Opening Settings…"
+                        showError = true
+                        isProcessing = false
+                        transcriptionStartTime = nil
+                        NotificationCenter.default.post(name: .openSettingsRequested, object: nil)
+                        if shouldHintThisRun { hasShownFirstModelUseHint = true; showFirstModelUseHint = false }
+                    }
+                } else {
+                    await MainActor.run {
+                        errorMessage = error.localizedDescription
+                        showError = true
+                        isProcessing = false
+                        transcriptionStartTime = nil
+                        if shouldHintThisRun { hasShownFirstModelUseHint = true; showFirstModelUseHint = false }
+                    }
                 }
             }
         }

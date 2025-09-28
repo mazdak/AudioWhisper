@@ -296,6 +296,10 @@ class SpeechToTextService: ObservableObject {
             let text = try await parakeetService.transcribe(audioFileURL: audioURL, pythonPath: pythonPath)
             return Self.cleanTranscriptionText(text)
         } catch {
+            // Pass through model-not-ready distinctly so UI can redirect to Settings
+            if let pe = error as? ParakeetError, pe == .modelNotReady {
+                throw pe
+            }
             throw SpeechToTextError.transcriptionFailed("Parakeet error: \(error.localizedDescription)")
         }
     }

@@ -63,7 +63,7 @@ class LocalWhisperErrorTests: XCTestCase {
     
     func testErrorDescriptions() {
         let errors: [(LocalWhisperError, String)] = [
-            (.modelNotDownloaded, "Whisper model not downloaded. Please download the model first."),
+            (.modelNotDownloaded, "Whisper model not downloaded. Please download the model in Settings before using offline transcription."),
             (.invalidAudioFile, "Invalid audio file format"),
             (.bufferAllocationFailed, "Failed to allocate audio buffer"),
             (.noChannelData, "No audio channel data found"),

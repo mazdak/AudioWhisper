@@ -12,15 +12,15 @@ enum MLXCorrectionError: Error, LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .pythonNotFound(let path):
-            return "Python runtime not available at: \(path)\n\nFix:\n• Open Settings ▸ Local LLM ▸ Install/Update Dependencies with uv"
+            return "Python executable not found at: \(path)\n\nFix:\n• Open Settings ▸ Local LLM ▸ Install/Update Dependencies with uv"
         case .scriptNotFound:
             return "MLX correction script not found in app bundle"
         case .correctionFailed(let message):
             return "MLX correction failed: \(message)"
         case .invalidResponse(let message):
             return "Invalid response from MLX correction: \(message)"
-        case .dependencyMissing(let dependency, _):
-            return "\(dependency) is not installed\n\nFix: Open Settings ▸ Local LLM ▸ Install/Update Dependencies with uv"
+        case .dependencyMissing(let dependency, let installCommand):
+            return "\(dependency) is not installed\n\nFix: Run: \(installCommand)\nOr open Settings ▸ Local LLM ▸ Install/Update Dependencies with uv"
         case .processTimedOut(let timeout):
             return "Correction timed out after \(timeout) seconds\n\nTry shorter text or check system resources"
         }

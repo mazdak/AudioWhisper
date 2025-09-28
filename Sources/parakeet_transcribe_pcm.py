@@ -8,10 +8,9 @@ import sys
 import json
 import os
 
-# Set environment to force offline operation
-os.environ['HF_HUB_OFFLINE'] = '1'
-os.environ['TRANSFORMERS_OFFLINE'] = '1'
+# Keep HF from grabbing a token implicitly; don't force offline globally here.
 os.environ['HF_HUB_DISABLE_IMPLICIT_TOKEN'] = '1'
+os.environ.setdefault('HF_HUB_DISABLE_PROGRESS_BARS', '1')
 
 try:
     import numpy as np
@@ -54,17 +53,27 @@ def main():
     pcm_file_path = sys.argv[1]
 
     try:
-        # Load Parakeet model (should be cached locally after ensureParakeetModel)
-        # Try offline loading first to avoid network timeouts
+        # Load Parakeet model strictly offline — downloads must be done in Settings
+        repo = "mlx-community/parakeet-tdt-0.6b-v2"
+        prev_hf_offline = os.environ.get('HF_HUB_OFFLINE')
+        prev_tr_offline = os.environ.get('TRANSFORMERS_OFFLINE')
         try:
-            model = from_pretrained("mlx-community/parakeet-tdt-0.6b-v2", local_files_only=True)
+            os.environ['HF_HUB_OFFLINE'] = '1'
+            os.environ['TRANSFORMERS_OFFLINE'] = '1'
+            model = from_pretrained(repo)
         except Exception as offline_error:
-            print(f"Offline loading failed: {offline_error}", file=sys.stderr)
-            print("Falling back to online loading (this may take time)...", file=sys.stderr)
-            model = from_pretrained("mlx-community/parakeet-tdt-0.6b-v2")
+            # Restore env then fail clearly; UI should direct user to Settings to download
+            if prev_hf_offline is None:
+                os.environ.pop('HF_HUB_OFFLINE', None)
+            else:
+                os.environ['HF_HUB_OFFLINE'] = prev_hf_offline
+            if prev_tr_offline is None:
+                os.environ.pop('TRANSFORMERS_OFFLINE', None)
+            else:
+                os.environ['TRANSFORMERS_OFFLINE'] = prev_tr_offline
+            raise RuntimeError(f"Model not available offline: {offline_error}")
 
         # Check if PCM file exists
-        import os
         if not os.path.exists(pcm_file_path):
             raise FileNotFoundError(f"PCM file not found: {pcm_file_path}")
 

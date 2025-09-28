@@ -3,10 +3,9 @@ import sys
 import json
 import os
 
-# Set environment to force offline operation
-os.environ['HF_HUB_OFFLINE'] = '1'
-os.environ['TRANSFORMERS_OFFLINE'] = '1'
+# Keep HF from grabbing a token implicitly; default to online unless cache exists
 os.environ['HF_HUB_DISABLE_IMPLICIT_TOKEN'] = '1'
+os.environ.setdefault('HF_HUB_DISABLE_PROGRESS_BARS', '1')
 
 def main():
     try:
@@ -30,7 +29,24 @@ def main():
         return 3
 
     try:
-        model, tokenizer = load(model_repo, local_files_only=True)
+        # Strictly offline here: downloads must be done in Settings
+        prev_hf_offline = os.environ.get('HF_HUB_OFFLINE')
+        prev_tr_offline = os.environ.get('TRANSFORMERS_OFFLINE')
+        try:
+            os.environ['HF_HUB_OFFLINE'] = '1'
+            os.environ['TRANSFORMERS_OFFLINE'] = '1'
+            model, tokenizer = load(model_repo)
+        except Exception as offline_error:
+            # Restore env then fail clearly; UI should direct user to Settings to download
+            if prev_hf_offline is None:
+                os.environ.pop('HF_HUB_OFFLINE', None)
+            else:
+                os.environ['HF_HUB_OFFLINE'] = prev_hf_offline
+            if prev_tr_offline is None:
+                os.environ.pop('TRANSFORMERS_OFFLINE', None)
+            else:
+                os.environ['TRANSFORMERS_OFFLINE'] = prev_tr_offline
+            return print(json.dumps({"success": False, "error": "MLX model not available offline. Please open Settings to download it."}))
         # Load prompt from file if provided, else use default
         default_prompt = (
             "You are a transcription corrector. Fix grammar, casing, punctuation, and obvious mis-hearings "

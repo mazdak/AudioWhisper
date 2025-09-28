@@ -32,9 +32,7 @@ class ErrorPresenter {
     
     private init() {
         // Detect if running in tests - thread-safe initialization
-        queue.sync {
-            _isTestEnvironment = NSClassFromString("XCTestCase") != nil
-        }
+        queue.sync { _isTestEnvironment = AppEnvironment.isRunningTests }
     }
     
     func showError(_ message: String) {
@@ -107,8 +105,8 @@ class ErrorPresenter {
     }
     
     private func showAlertOnMainThread(_ message: String) async {
-        // Skip UI operations in test environment
-        if isTestEnvironment {
+        // Skip UI operations in test environment or non-interactive runs
+        if isTestEnvironment || AppEnvironment.isRunningTests {
             // In tests, just handle the error classification
             await handleTestErrorResponse(for: message)
             return

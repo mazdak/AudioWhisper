@@ -40,7 +40,6 @@ final class MLXModelManager: ObservableObject {
             estimatedSize: "2.8 GB",
             description: "High quality correction"
         ),
-        // (Gemma-3n removed per current support decision)
     ]
     
     private init() {
@@ -137,29 +136,37 @@ import json
 import os
 import traceback
 
-# Set environment to show download progress and force offline operation
-os.environ['HF_HUB_DISABLE_PROGRESS_BARS'] = '0'
-os.environ['HF_HUB_OFFLINE'] = '1'
-os.environ['TRANSFORMERS_OFFLINE'] = '1'
+# Show progress; avoid implicit token usage
+os.environ.setdefault('HF_HUB_DISABLE_PROGRESS_BARS', '0')
 os.environ['HF_HUB_DISABLE_IMPLICIT_TOKEN'] = '1'
 
 try:
     print(json.dumps({"status": "checking", "message": "Checking mlx-lm..."}), flush=True)
-
     from mlx_lm import load
 
-    print(json.dumps({"status": "downloading", "message": "Loading model (offline mode)..."}), flush=True)
+    repo = "\(repo)"
 
-    model, tokenizer = load("\(repo)", local_files_only=True)
-
-    print(json.dumps({"status": "complete", "message": "Model loaded successfully"}), flush=True)
+    # Try offline first if cache exists; else allow online
+    try:
+        os.environ['HF_HUB_OFFLINE'] = '1'
+        os.environ['TRANSFORMERS_OFFLINE'] = '1'
+        print(json.dumps({"status": "downloading", "message": "Trying offline cache..."}), flush=True)
+        _model, _tok = load(repo)
+        print(json.dumps({"status": "complete", "message": "Model loaded from cache"}), flush=True)
+    except Exception as offline_err:
+        # Restore env then try online
+        os.environ.pop('HF_HUB_OFFLINE', None)
+        os.environ.pop('TRANSFORMERS_OFFLINE', None)
+        print(json.dumps({"status": "downloading", "message": f"Offline unavailable: {offline_err}. Downloading..."}), flush=True)
+        _model, _tok = load(repo)
+        print(json.dumps({"status": "complete", "message": "Model downloaded"}), flush=True)
 
 except ImportError as e:
     error_msg = f"mlx-lm not installed. Run: uv add mlx-lm. Error: {str(e)}"
     print(json.dumps({"status": "error", "message": error_msg}), flush=True)
     sys.exit(1)
 except Exception as e:
-    error_msg = f"Error: {str(e)}\\nTraceback: {traceback.format_exc()}"
+    error_msg = f"Error: {str(e)}\nTraceback: {traceback.format_exc()}"
     print(json.dumps({"status": "error", "message": error_msg}), flush=True)
     sys.exit(1)
 """
@@ -327,15 +334,15 @@ except Exception as e:
         let pythonScript = """
 import json, sys, traceback, os
 
-# Set environment to force offline operation
-os.environ['HF_HUB_OFFLINE'] = '1'
-os.environ['TRANSFORMERS_OFFLINE'] = '1'
+# Allow downloads; avoid implicit token usage
 os.environ['HF_HUB_DISABLE_IMPLICIT_TOKEN'] = '1'
+os.environ.setdefault('HF_HUB_DISABLE_PROGRESS_BARS', '0')
 
 try:
     from parakeet_mlx import from_pretrained
-    from_pretrained(\"\(repo)\", local_files_only=True)
-    print(json.dumps({"status": "complete", "message": "Model loaded"}), flush=True)
+    # Trigger download if not cached; load from cache otherwise
+    from_pretrained(\"\(repo)\")
+    print(json.dumps({"status": "complete", "message": "Model ready"}), flush=True)
 except Exception as e:
     print(json.dumps({"status": "error", "message": str(e)}), flush=True)
     sys.exit(1)

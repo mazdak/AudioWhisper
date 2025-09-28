@@ -9,6 +9,7 @@ enum ParakeetError: Error, LocalizedError, Equatable {
     case invalidResponse(String)
     case dependencyMissing(String, installCommand: String)
     case processTimedOut(TimeInterval)
+    case modelNotReady
     
     var errorDescription: String? {
         switch self {
@@ -24,6 +25,8 @@ enum ParakeetError: Error, LocalizedError, Equatable {
             return "\(dependency) is not installed\n\nFix: Open Settings ▸ Parakeet ▸ Install/Update Dependencies with uv"
         case .processTimedOut(let timeout):
             return "Transcription timed out after \(timeout) seconds\n\nTry with a shorter audio file or check system resources"
+        case .modelNotReady:
+            return "Parakeet model not downloaded. Open Settings ▸ Parakeet to download it."
         }
     }
 }
@@ -38,9 +41,10 @@ class ParakeetService {
     private let logger = Logger(subsystem: "com.audiowhisper.app", category: "ParakeetService")
     
     func transcribe(audioFileURL: URL, pythonPath: String) async throws -> String {
-
-        // Step 0: Ensure Parakeet model is downloaded before transcription
-        await MLXModelManager.shared.ensureParakeetModel()
+        // Step 0: Do not download here; just verify model cache exists
+        guard isModelCached() else {
+            throw ParakeetError.modelNotReady
+        }
 
         // Step 1: Process audio with Swift AudioProcessor to create raw PCM data
         let pcmDataURL = try await processAudioToRawPCM(audioFileURL: audioFileURL)
@@ -51,6 +55,26 @@ class ParakeetService {
         
         // Step 2: Call Python with the raw PCM data instead of original audio
         return try await transcribeWithRawPCM(pcmDataURL: pcmDataURL, pythonPath: pythonPath)
+    }
+
+    private func isModelCached() -> Bool {
+        let repo = "mlx-community/parakeet-tdt-0.6b-v2"
+        let escaped = repo.replacingOccurrences(of: "/", with: "--")
+        let base = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".cache/huggingface/hub/models--\(escaped)")
+        var isDir: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: base.path, isDirectory: &isDir), isDir.boolValue else { return false }
+        let refsMain = base.appendingPathComponent("refs/main")
+        guard let rev = try? String(contentsOf: refsMain, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines), !rev.isEmpty else {
+            return false
+        }
+        let snap = base.appendingPathComponent("snapshots/\(rev)")
+        guard FileManager.default.fileExists(atPath: snap.path, isDirectory: &isDir), isDir.boolValue else { return false }
+        // Look for at least one weights file under snapshot or blobs
+        let snapFiles = (try? FileManager.default.contentsOfDirectory(atPath: snap.path)) ?? []
+        let blobsFiles = (try? FileManager.default.contentsOfDirectory(atPath: base.appendingPathComponent("blobs").path)) ?? []
+        let hasWeights = snapFiles.contains { $0.hasSuffix(".safetensors") } || blobsFiles.contains { $0.hasSuffix(".safetensors") }
+        return hasWeights
     }
     
     private func processAudioToRawPCM(audioFileURL: URL) async throws -> URL {
@@ -293,16 +317,19 @@ class ParakeetService {
             if terminationStatus != 0 {
                 logger.error("Parakeet process failed with status: \(terminationStatus)")
                 logger.error("Error output: \(errorString)")
-                
-                // Provide more specific error handling
-                logger.error("Python script failed with error: \(errorString)")
-                logger.error("Termination status: \(terminationStatus)")
-                
+
+                // If the script emitted JSON to stdout, try to parse it for a better error message
+                if let responseData = outputString.data(using: .utf8),
+                   let response = try? JSONDecoder().decode(ParakeetResponse.self, from: responseData),
+                   response.success == false {
+                    throw ParakeetError.transcriptionFailed(response.error ?? "Unknown error")
+                }
+
                 if errorString.contains("parakeet_mlx") || errorString.contains("ModuleNotFoundError") {
                     throw ParakeetError.dependencyMissing("parakeet-mlx", installCommand: "uv add parakeet-mlx")
-                } else {
-                    throw ParakeetError.transcriptionFailed(errorString.isEmpty ? "Process exited with status \(terminationStatus)" : errorString)
                 }
+
+                throw ParakeetError.transcriptionFailed(errorString.isEmpty ? "Process exited with status \(terminationStatus)" : errorString)
             }
             
             // Parse the JSON response

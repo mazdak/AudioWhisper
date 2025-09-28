@@ -124,6 +124,14 @@ else
   echo "⚠️ mlx_semantic_correct.py not found, MLX semantic correction will not work"
 fi
 
+# Copy verify scripts
+if [ -f "Sources/verify_parakeet.py" ]; then
+  cp Sources/verify_parakeet.py AudioWhisper.app/Contents/Resources/
+fi
+if [ -f "Sources/verify_mlx.py" ]; then
+  cp Sources/verify_mlx.py AudioWhisper.app/Contents/Resources/
+fi
+
 # Bundle uv (Apple Silicon). Prefer repo copy; else fall back to system uv if available
 if [ -f "Sources/Resources/bin/uv" ]; then
   cp Sources/Resources/bin/uv AudioWhisper.app/Contents/Resources/bin/uv

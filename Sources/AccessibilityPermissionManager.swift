@@ -4,6 +4,11 @@ import ApplicationServices
 
 /// Dedicated manager for handling Accessibility permissions with proper explanations and error handling
 class AccessibilityPermissionManager {
+    private let isTestEnvironment: Bool
+    
+    init() {
+        isTestEnvironment = NSClassFromString("XCTestCase") != nil
+    }
     
     /// Checks if the app has Accessibility permission without prompting the user
     /// - Returns: true if permission is granted, false otherwise
@@ -21,7 +26,13 @@ class AccessibilityPermissionManager {
             return
         }
         
-        // Show explanation alert before requesting permission
+        // In tests, do not show any dialogs
+        if isTestEnvironment {
+            completion(false)
+            return
+        }
+        
+        // Show explanation alert before requesting permission (runtime only)
         showPermissionExplanationAlert { [weak self] userWantsToGrant in
             guard userWantsToGrant else {
                 completion(false)
@@ -35,6 +46,7 @@ class AccessibilityPermissionManager {
     
     /// Shows a detailed explanation of why Accessibility permission is needed
     private func showPermissionExplanationAlert(completion: @escaping (Bool) -> Void) {
+        if isTestEnvironment { completion(false); return }
         DispatchQueue.main.async {
             let alert = NSAlert()
             alert.messageText = "Accessibility Permission Required for SmartPaste"
@@ -85,6 +97,7 @@ class AccessibilityPermissionManager {
     
     /// Requests permission from the system and monitors the result
     private func requestPermissionFromSystem(completion: @escaping (Bool) -> Void) {
+        if isTestEnvironment { completion(false); return }
         // Request permission with system prompt
         let checkOptionPrompt = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
         let options = [checkOptionPrompt: true] as CFDictionary
@@ -98,6 +111,7 @@ class AccessibilityPermissionManager {
     
     /// Monitors permission status after a system request
     private func monitorPermissionStatus(completion: @escaping (Bool) -> Void) {
+        if isTestEnvironment { completion(false); return }
         var checkCount = 0
         let maxChecks = 60 // Check for up to 30 seconds (60 * 0.5s) - users might need time to navigate
         
@@ -136,6 +150,7 @@ class AccessibilityPermissionManager {
     
     /// Shows confirmation when permission is successfully granted
     private func showPermissionGrantedConfirmation() {
+        if isTestEnvironment { return }
         let alert = NSAlert()
         alert.messageText = "SmartPaste Enabled!"
         alert.informativeText = """
@@ -152,6 +167,7 @@ class AccessibilityPermissionManager {
     
     /// Shows helpful message when permission request times out
     private func showPermissionTimeoutMessage() {
+        if isTestEnvironment { return }
         let alert = NSAlert()
         alert.messageText = "Permission Setup Incomplete"
         alert.informativeText = """
@@ -181,6 +197,7 @@ class AccessibilityPermissionManager {
     
     /// Shows detailed education about Accessibility permissions in macOS
     private func showAccessibilityPermissionEducation() {
+        if isTestEnvironment { return }
         DispatchQueue.main.async {
             let alert = NSAlert()
             alert.messageText = "Understanding macOS Accessibility Permissions"
@@ -250,6 +267,7 @@ class AccessibilityPermissionManager {
     
     /// Opens System Settings to the Accessibility section
     private func openAccessibilitySystemSettings() {
+        if isTestEnvironment { return }
         // Try modern URL scheme first (macOS 13+)
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
             if NSWorkspace.shared.open(url) {

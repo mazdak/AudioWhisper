@@ -5,6 +5,27 @@ import ServiceManagement
 import HotKey
 import os.log
 
+private actor VerificationMessageStore {
+    private var stdout: String = ""
+    private var stderr: String = ""
+
+    func updateStdout(_ value: String) {
+        stdout = value
+    }
+
+    func updateStderr(_ value: String) {
+        stderr = value
+    }
+
+    func stdoutMessage() -> String {
+        stdout
+    }
+
+    func stderrMessage() -> String {
+        stderr
+    }
+}
+
 struct SettingsView: View {
     @AppStorage("selectedMicrophone") private var selectedMicrophone = ""
     @AppStorage("globalHotkey") private var globalHotkey = "⌘⇧Space"
@@ -36,6 +57,10 @@ struct SettingsView: View {
     @State private var downloadedModels: [WhisperModel] = []
     @State private var totalModelsSize: Int64 = 0
     @State private var modelDownloadStates: [WhisperModel: Bool] = [:]
+    @State private var isVerifyingLocalWhisper = false
+    @State private var localWhisperVerifyMessage: String?
+    @State private var isVerifyingMLX = false
+    @State private var mlxVerifyMessage: String?
     
     private let keychainService: KeychainServiceProtocol
     private let skipOnAppear: Bool
@@ -51,6 +76,8 @@ struct SettingsView: View {
     @State private var setupLogs = ""
     @State private var envReady = false
     @State private var isCheckingEnv = false
+    @State private var isVerifyingParakeet = false
+    @State private var parakeetVerifyMessage: String?
     
     init(keychainService: KeychainServiceProtocol = KeychainService.shared, skipOnAppear: Bool = false) {
         self.keychainService = keychainService
@@ -277,6 +304,20 @@ struct SettingsView: View {
                                 runUvSetupSheet(title: "Setting up Parakeet dependencies…")
                                 }
                                 .buttonStyle(.borderedProminent)
+                            } else {
+                                HStack(spacing: 8) {
+                                    if isVerifyingParakeet { ProgressView().controlSize(.small) }
+                                    Button(isVerifyingParakeet ? "Verifying…" : "Verify Parakeet Model") {
+                                        verifyParakeetModel()
+                                    }
+                                    .disabled(isVerifyingParakeet)
+                                    .buttonStyle(.bordered)
+                                    if let msg = parakeetVerifyMessage, !msg.isEmpty {
+                                        Text(msg)
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
                             }
                         } else {
                             Text("Parakeet is only available on Apple Silicon Macs.")
@@ -450,6 +491,22 @@ struct SettingsView: View {
                         }
                         .padding(.top, 12)
 
+                        // Verify selected model
+                        HStack(spacing: 8) {
+                            if isVerifyingLocalWhisper { ProgressView().controlSize(.small) }
+                            Button(isVerifyingLocalWhisper ? "Verifying…" : "Verify Selected Model") {
+                                verifyLocalWhisperModel()
+                            }
+                            .disabled(isVerifyingLocalWhisper)
+                            .buttonStyle(.bordered)
+                            if let msg = localWhisperVerifyMessage, !msg.isEmpty {
+                                Text(msg)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .padding(.top, 10)
+
                         // Error Display
                         if let error = downloadError {
                             HStack {
@@ -540,6 +597,22 @@ struct SettingsView: View {
                         .background(Color(NSColor.controlBackgroundColor))
                         .cornerRadius(8)
                         
+                        // Verify MLX model
+                        HStack(spacing: 8) {
+                            if isVerifyingMLX { ProgressView().controlSize(.small) }
+                            Button(isVerifyingMLX ? "Verifying…" : "Verify MLX Model") {
+                                verifyMLXModel()
+                            }
+                            .disabled(isVerifyingMLX)
+                            .buttonStyle(.bordered)
+                            if let msg = mlxVerifyMessage, !msg.isEmpty {
+                                Text(msg)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .padding(.top, 10)
+                        
                         // Learn more about MLX
                         Link("Learn more about MLX", 
                              destination: URL(string: "https://github.com/ml-explore/mlx-examples/tree/main/llms")!)
@@ -610,13 +683,31 @@ struct SettingsView: View {
                 if let storedProvider = UserDefaults.standard.string(forKey: "transcriptionProvider"),
                    let provider = TranscriptionProvider(rawValue: storedProvider) {
                     transcriptionProvider = provider
+                    // Pre-flight checks/downloads happen here, not during recording
                     if provider == .parakeet {
                         Task { await MLXModelManager.shared.ensureParakeetModel() }
+                    } else if provider == .local {
+                        // Ensure selected Whisper model is present; start download if missing
+                        Task { @MainActor in
+                            if !(await ModelManager.shared.isModelDownloaded(selectedWhisperModel)) {
+                                downloadModel(selectedWhisperModel)
+                            }
+                        }
                     }
                 }
                 // Normalize MLX selection: remove Gemma 2 from choices
                 if semanticCorrectionModelRepo.contains("gemma-2-2b") {
                     semanticCorrectionModelRepo = "mlx-community/Llama-3.2-3B-Instruct-4bit"
+                }
+                // Ensure MLX correction model is present when Local MLX mode is selected
+                let mode = SemanticCorrectionMode(rawValue: semanticCorrectionModeRaw) ?? .off
+                if mode == .localMLX {
+                    Task {
+                        await MLXModelManager.shared.refreshModelList()
+                        if !MLXModelManager.shared.downloadedModels.contains(semanticCorrectionModelRepo) {
+                            await MLXModelManager.shared.downloadModel(semanticCorrectionModelRepo)
+                        }
+                    }
                 }
                 
                 // Make sure the view can receive key events
@@ -638,6 +729,13 @@ struct SettingsView: View {
                         Task { await MLXModelManager.shared.ensureParakeetModel() }
                     }
                 }
+            } else if newValue == .local {
+                // Auto-start download for selected local Whisper model
+                Task { @MainActor in
+                    if !(await ModelManager.shared.isModelDownloaded(selectedWhisperModel)) {
+                        downloadModel(selectedWhisperModel)
+                    }
+                }
             }
         }
         .onChange(of: semanticCorrectionModeRaw) { oldValue, newValue in
@@ -648,7 +746,16 @@ struct SettingsView: View {
                     // Refresh env status quickly
                     checkEnvReady()
                     if !envReady { showLocalLLMConfirm = true }
-                    else { hasSetupLocalLLM = true }
+                    else {
+                        hasSetupLocalLLM = true
+                        // Ensure selected MLX correction model is downloaded
+                        Task {
+                            await MLXModelManager.shared.refreshModelList()
+                            if !MLXModelManager.shared.downloadedModels.contains(semanticCorrectionModelRepo) {
+                                await MLXModelManager.shared.downloadModel(semanticCorrectionModelRepo)
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -717,7 +824,9 @@ struct SettingsView: View {
     }
     
     func saveAPIKey(_ key: String, service: String, account: String) {
-        keychainService.saveQuietly(key, service: service, account: account)
+        let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { keychainService.deleteQuietly(service: service, account: account) }
+        else { keychainService.saveQuietly(trimmed, service: service, account: account) }
     }
     
     func getAPIKey(service: String, account: String) -> String? {
@@ -837,6 +946,90 @@ struct SettingsView: View {
         return base ?? ""
     }
 
+    private func verifyParakeetModel() {
+        isVerifyingParakeet = true
+        parakeetVerifyMessage = "Starting verification…"
+        Task {
+            do {
+                let py = try await Task.detached(priority: .userInitiated) {
+                    try UvBootstrap.ensureVenv(userPython: nil) { msg in
+                        // optional: stream uv logs
+                    }
+                }.value
+                let pythonPath = py.path
+                await MainActor.run { parakeetVerifyMessage = "Checking model (offline)…" }
+
+                let process = Process()
+                process.executableURL = URL(fileURLWithPath: pythonPath)
+                // Find verify_parakeet.py in bundle or Sources
+                var scriptURL = Bundle.main.url(forResource: "verify_parakeet", withExtension: "py")
+                if scriptURL == nil {
+                    let src = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("Sources/verify_parakeet.py")
+                    if FileManager.default.fileExists(atPath: src.path) { scriptURL = src }
+                }
+                guard let scriptURL else { parakeetVerifyMessage = "Script not found"; isVerifyingParakeet = false; return }
+                process.arguments = [scriptURL.path]
+                let out = Pipe(); let err = Pipe()
+                process.standardOutput = out; process.standardError = err
+
+                let messageStore = VerificationMessageStore()
+                out.fileHandleForReading.readabilityHandler = { handle in
+                    let data = handle.availableData
+                    guard !data.isEmpty, let s = String(data: data, encoding: .utf8) else { return }
+                    let lines = s.split(separator: "\n").map(String.init)
+                    for line in lines {
+                        if let d = line.data(using: .utf8),
+                           let j = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
+                           let msg = j["message"] as? String {
+                            Task {
+                                await messageStore.updateStdout(msg)
+                                await MainActor.run { parakeetVerifyMessage = msg }
+                            }
+                        }
+                    }
+                }
+                err.fileHandleForReading.readabilityHandler = { handle in
+                    let data = handle.availableData
+                    guard !data.isEmpty, let s = String(data: data, encoding: .utf8) else { return }
+                    let trimmed = s.trimmingCharacters(in: .whitespacesAndNewlines)
+                    Task {
+                        await messageStore.updateStderr(trimmed)
+                        await MainActor.run { parakeetVerifyMessage = trimmed }
+                    }
+                }
+
+                try process.run()
+                // Add a timeout so the UI cannot get stuck if the process hangs
+                let timeoutTask = Task {
+                    try await Task.sleep(nanoseconds: 180_000_000_000) // 180s
+                    if process.isRunning { process.terminate() }
+                }
+                await Task.detached { process.waitUntilExit() }.value
+                timeoutTask.cancel()
+
+                let lastStdoutMessage = await messageStore.stdoutMessage()
+                let lastStderrMessage = await messageStore.stderrMessage()
+
+                await MainActor.run {
+                    isVerifyingParakeet = false
+                    if process.terminationStatus == 0 {
+                        parakeetVerifyMessage = (lastStdoutMessage.isEmpty ? "Model verified" : lastStdoutMessage)
+                        hasSetupParakeet = true
+                        Task { await MLXModelManager.shared.refreshModelList() }
+                    } else {
+                        let msg = lastStdoutMessage.isEmpty ? lastStderrMessage : lastStdoutMessage
+                        parakeetVerifyMessage = msg.isEmpty ? "Verification failed" : "Verification failed: \(msg)"
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    isVerifyingParakeet = false
+                    parakeetVerifyMessage = "Verification error: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+
     private func revealEnvInFinder() {
         let appSupport = (try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true))
         let dir = appSupport?.appendingPathComponent("AudioWhisper/python_project/.venv/")
@@ -854,6 +1047,112 @@ struct SettingsView: View {
                 try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
             }
             NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: dir.path)
+        }
+    }
+
+    private func localWhisperModelPath(for model: WhisperModel) -> URL? {
+        guard let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            return nil
+        }
+        return documentsPath
+            .appendingPathComponent("huggingface")
+            .appendingPathComponent("models")
+            .appendingPathComponent("argmaxinc")
+            .appendingPathComponent("whisperkit-coreml")
+            .appendingPathComponent(model.whisperKitModelName)
+    }
+
+    private func verifyLocalWhisperModel() {
+        isVerifyingLocalWhisper = true
+        localWhisperVerifyMessage = "Checking files…"
+        let model = selectedWhisperModel
+        Task {
+            // Fast existence check via ModelManager
+            let isPresent = await ModelManager.shared.isModelDownloaded(model)
+            if !isPresent {
+                await MainActor.run {
+                    isVerifyingLocalWhisper = false
+                    localWhisperVerifyMessage = "Model files missing — click Get to download."
+                }
+                return
+            }
+            // Inspect folder contents for sanity
+            if let path = localWhisperModelPath(for: model) {
+                let files = (try? FileManager.default.contentsOfDirectory(atPath: path.path)) ?? []
+                let hasCoreML = files.contains { $0.hasSuffix(".mlmodelc") }
+                let hasJSON = files.contains { $0.hasSuffix(".json") }
+                await MainActor.run { localWhisperVerifyMessage = "Files OK" + (hasCoreML ? " • CoreML" : "") + (hasJSON ? " • JSON" : "") }
+            }
+            await MainActor.run {
+                isVerifyingLocalWhisper = false
+                if (localWhisperVerifyMessage ?? "").isEmpty { localWhisperVerifyMessage = "Model verified" }
+            }
+        }
+    }
+
+    private func verifyMLXModel() {
+        isVerifyingMLX = true
+        mlxVerifyMessage = "Checking model (offline)…"
+        let repo = semanticCorrectionModelRepo
+        Task {
+            do {
+                let py = try await Task.detached(priority: .userInitiated) {
+                    try UvBootstrap.ensureVenv(userPython: nil) { _ in }
+                }.value
+                let pythonPath = py.path
+                let process = Process()
+                process.executableURL = URL(fileURLWithPath: pythonPath)
+                // Find verify_mlx.py in bundle or Sources
+                var scriptURL = Bundle.main.url(forResource: "verify_mlx", withExtension: "py")
+                if scriptURL == nil {
+                    let src = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("Sources/verify_mlx.py")
+                    if FileManager.default.fileExists(atPath: src.path) { scriptURL = src }
+                }
+                guard let scriptURL else { mlxVerifyMessage = "Script not found"; isVerifyingMLX = false; return }
+                process.arguments = [scriptURL.path, repo]
+                let out = Pipe(); let err = Pipe()
+                process.standardOutput = out; process.standardError = err
+                let messageStore = VerificationMessageStore()
+                out.fileHandleForReading.readabilityHandler = { handle in
+                    let data = handle.availableData
+                    guard !data.isEmpty, let s = String(data: data, encoding: .utf8) else { return }
+                    for line in s.split(separator: "\n").map(String.init) {
+                        if let d = line.data(using: .utf8),
+                           let j = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
+                           let msg = j["message"] as? String {
+                            Task {
+                                await messageStore.updateStdout(msg)
+                                await MainActor.run { mlxVerifyMessage = msg }
+                            }
+                        }
+                    }
+                }
+                err.fileHandleForReading.readabilityHandler = { handle in
+                    let data = handle.availableData
+                    guard !data.isEmpty, let s = String(data: data, encoding: .utf8) else { return }
+                    let msg = s.trimmingCharacters(in: .whitespacesAndNewlines)
+                    Task { @MainActor in mlxVerifyMessage = msg }
+                }
+                try process.run()
+                let timeout = Task { try await Task.sleep(nanoseconds: 180_000_000_000); if process.isRunning { process.terminate() } }
+                await Task.detached { process.waitUntilExit() }.value
+                timeout.cancel()
+                let lastMsg = await messageStore.stdoutMessage()
+                await MainActor.run {
+                    isVerifyingMLX = false
+                    if process.terminationStatus == 0 {
+                        mlxVerifyMessage = lastMsg.isEmpty ? "Model verified" : lastMsg
+                        Task { await MLXModelManager.shared.refreshModelList() }
+                    } else {
+                        if (mlxVerifyMessage ?? "").isEmpty { mlxVerifyMessage = "Verification failed" }
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    isVerifyingMLX = false
+                    mlxVerifyMessage = "Verification error: \(error.localizedDescription)"
+                }
+            }
         }
     }
     
