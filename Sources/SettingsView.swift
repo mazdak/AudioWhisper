@@ -33,6 +33,9 @@ struct SettingsView: View {
     @AppStorage("selectedWhisperModel") private var selectedWhisperModel = WhisperModel.base
     @AppStorage("startAtLogin") private var startAtLogin = true
     @AppStorage("immediateRecording") private var immediateRecording = false
+    @AppStorage("pressAndHoldEnabled") private var pressAndHoldEnabled = PressAndHoldConfiguration.defaults.enabled
+    @AppStorage("pressAndHoldKeyIdentifier") private var pressAndHoldKeyIdentifier = PressAndHoldConfiguration.defaults.key.rawValue
+    @AppStorage("pressAndHoldMode") private var pressAndHoldModeRaw = PressAndHoldConfiguration.defaults.mode.rawValue
     @AppStorage("autoBoostMicrophoneVolume") private var autoBoostMicrophoneVolume = false
     @AppStorage("enableSmartPaste") private var enableSmartPaste = false
     @AppStorage("playCompletionSound") private var playCompletionSound = true
@@ -132,6 +135,47 @@ struct SettingsView: View {
                     }
                 }
             }
+
+            Section("Press & Hold Hotkey") {
+                Toggle("Enable Press & Hold", isOn: $pressAndHoldEnabled)
+                    .toggleStyle(.switch)
+                    .accessibilityLabel("Enable press and hold recording")
+                    .accessibilityHint("When enabled, holding a modifier key can start and stop recording globally")
+                    .onChange(of: pressAndHoldEnabled) { _, _ in
+                        publishPressAndHoldConfiguration()
+                    }
+
+                if pressAndHoldEnabled {
+                    Picker("Behavior", selection: $pressAndHoldModeRaw) {
+                        ForEach(PressAndHoldMode.allCases) { mode in
+                            Text(mode.displayName).tag(mode.rawValue)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .accessibilityLabel("Press and hold behavior")
+                    .accessibilityHint("Choose whether holding the key records or toggles recording")
+                    .onChange(of: pressAndHoldModeRaw) { _, _ in
+                        publishPressAndHoldConfiguration()
+                    }
+
+                    Picker("Key", selection: $pressAndHoldKeyIdentifier) {
+                        ForEach(PressAndHoldKey.allCases) { key in
+                            Text(key.displayName).tag(key.rawValue)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .accessibilityLabel("Press and hold key")
+                    .accessibilityHint("Select which modifier key will control recordings")
+                    .onChange(of: pressAndHoldKeyIdentifier) { _, _ in
+                        publishPressAndHoldConfiguration()
+                    }
+
+                    Text("Hold the selected key anywhere to start recording. Release it to finish when using Press and Hold mode. Requires Accessibility permission.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .padding(.top, 4)
+                }
+            }
             
             Section("General") {
                 Toggle("Start at Login", isOn: $startAtLogin)
@@ -186,6 +230,10 @@ struct SettingsView: View {
                     .accessibilityLabel("View transcription history")
                     .accessibilityHint("Opens a window to view and manage saved transcriptions")
                 }
+            }
+
+            Section(header: Text("Usage Stats")) {
+                UsageDashboardView()
             }
             
             Section(header: Text("Speech-to-Text Provider")) {
@@ -858,6 +906,17 @@ struct SettingsView: View {
                 downloadStartTime.removeValue(forKey: model)
             }
         }
+    }
+
+    private func publishPressAndHoldConfiguration() {
+        let selectedMode = PressAndHoldMode(rawValue: pressAndHoldModeRaw) ?? PressAndHoldConfiguration.defaults.mode
+        let selectedKey = PressAndHoldKey(rawValue: pressAndHoldKeyIdentifier) ?? PressAndHoldConfiguration.defaults.key
+        let configuration = PressAndHoldConfiguration(
+            enabled: pressAndHoldEnabled,
+            key: selectedKey,
+            mode: selectedMode
+        )
+        NotificationCenter.default.post(name: .pressAndHoldSettingsChanged, object: configuration)
     }
     
     private func updateGlobalHotkey(_ newHotkey: String) {

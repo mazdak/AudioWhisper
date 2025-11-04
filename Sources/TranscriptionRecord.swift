@@ -10,17 +10,25 @@ final class TranscriptionRecord {
     @Attribute(.unique) var id: UUID
     var text: String
     var date: Date
-    var provider: String // TranscriptionProvider.rawValue
-    var duration: TimeInterval?
-    var modelUsed: String?
+   var provider: String // TranscriptionProvider.rawValue
+   var duration: TimeInterval?
+   var modelUsed: String?
+    var wordCount: Int = 0
     
-    init(text: String, provider: TranscriptionProvider, duration: TimeInterval? = nil, modelUsed: String? = nil) {
+    init(
+        text: String,
+        provider: TranscriptionProvider,
+        duration: TimeInterval? = nil,
+        modelUsed: String? = nil,
+        wordCount: Int = 0
+    ) {
         self.id = UUID()
         self.text = text
         self.date = Date()
         self.provider = provider.rawValue
         self.duration = duration
         self.modelUsed = modelUsed
+        self.wordCount = wordCount
     }
 }
 
@@ -70,6 +78,12 @@ extension TranscriptionRecord {
         }
         let truncatedText = String(text.prefix(maxLength))
         return truncatedText + "..."
+    }
+
+    var wordsPerMinute: Double? {
+        guard let duration = duration, duration > 0 else { return nil }
+        guard wordCount > 0 else { return nil }
+        return Double(wordCount) / (duration / 60.0)
     }
 }
 

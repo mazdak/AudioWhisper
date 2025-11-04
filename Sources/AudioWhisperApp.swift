@@ -60,6 +60,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var recordingWindowDelegate: RecordingWindowDelegate?
     private var audioRecorder: AudioRecorder?
     private var recordingAnimationTimer: DispatchSourceTimer?
+    private var pressAndHoldMonitor: PressAndHoldKeyMonitor?
+    private var pressAndHoldConfiguration = PressAndHoldSettings.configuration()
+    private var isHoldRecordingActive = false
+
+    private enum HotkeyTriggerSource {
+        case standardHotkey
+        case pressAndHold
+    }
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Skip UI initialization in test environment
@@ -77,6 +85,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             Logger.app.error("Failed to initialize DataManager: \(error.localizedDescription)")
             // App continues with in-memory fallback
         }
+
+        Task { await UsageMetricsStore.shared.bootstrapIfNeeded() }
         
         // Setup app configuration
         AppSetupHelper.setupApp()
@@ -107,9 +117,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         // Set up global hotkey and keyboard monitoring
         hotKeyManager = HotKeyManager { [weak self] in
-            self?.handleHotkey()
+            self?.handleHotkey(source: .standardHotkey)
         }
         keyboardEventHandler = KeyboardEventHandler()
+        configureShortcutMonitors()
         
         // Listen for screen configuration changes
         NotificationCenter.default.addObserver(
@@ -162,9 +173,131 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             name: .recordingStopped,
             object: nil
         )
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(onPressAndHoldSettingsChanged(_:)),
+            name: .pressAndHoldSettingsChanged,
+            object: nil
+        )
+    }
+
+    @objc private func onPressAndHoldSettingsChanged(_ notification: Notification) {
+        configureShortcutMonitors()
+    }
+
+    private func configureShortcutMonitors() {
+        pressAndHoldMonitor?.stop()
+        pressAndHoldMonitor = nil
+        isHoldRecordingActive = false
+
+        let newConfiguration = PressAndHoldSettings.configuration()
+        pressAndHoldConfiguration = newConfiguration
+
+        guard newConfiguration.enabled else { return }
+
+        let keyUpHandler: (() -> Void)? = (newConfiguration.mode == .hold) ? { [weak self] in
+            self?.handlePressAndHoldKeyUp()
+        } : nil
+
+        let monitor = PressAndHoldKeyMonitor(
+            configuration: newConfiguration,
+            keyDownHandler: { [weak self] in
+                self?.handlePressAndHoldKeyDown()
+            },
+            keyUpHandler: keyUpHandler
+        )
+
+        pressAndHoldMonitor = monitor
+        monitor.start()
+    }
+
+    private func handlePressAndHoldKeyDown() {
+        switch pressAndHoldConfiguration.mode {
+        case .hold:
+            startRecordingFromPressAndHold()
+        case .toggle:
+            handleHotkey(source: .pressAndHold)
+        }
+    }
+
+    private func handlePressAndHoldKeyUp() {
+        guard pressAndHoldConfiguration.mode == .hold else { return }
+        stopRecordingFromPressAndHold()
+    }
+
+    private func startRecordingFromPressAndHold() {
+        guard let recorder = audioRecorder else { return }
+
+        if recorder.isRecording {
+            isHoldRecordingActive = true
+            return
+        }
+
+        if !recorder.hasPermission {
+            showRecordingWindowForProcessing()
+            return
+        }
+
+        if recorder.startRecording() {
+            isHoldRecordingActive = true
+            updateMenuBarIcon(isRecording: true)
+            SoundManager().playRecordingStartSound()
+        } else {
+            isHoldRecordingActive = false
+            showRecordingWindowForProcessing { 
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                    NotificationCenter.default.post(
+                        name: .recordingStartFailed,
+                        object: nil
+                    )
+                }
+            }
+        }
+    }
+
+    private func stopRecordingFromPressAndHold() {
+        guard isHoldRecordingActive else { return }
+        guard let recorder = audioRecorder, recorder.isRecording else {
+            isHoldRecordingActive = false
+            return
+        }
+
+        isHoldRecordingActive = false
+        updateMenuBarIcon(isRecording: false)
+
+        showRecordingWindowForProcessing { 
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                NotificationCenter.default.post(name: .spaceKeyPressed, object: nil)
+            }
+        }
+    }
+
+    private func showRecordingWindowForProcessing(completion: (() -> Void)? = nil) {
+        if recordingWindow == nil {
+            createRecordingWindow()
+        }
+
+        guard let window = recordingWindow else {
+            completion?()
+            return
+        }
+
+        if window.isVisible {
+            completion?()
+        } else {
+            windowController.toggleRecordWindow(window) {
+                completion?()
+            }
+        }
     }
     
-    private func handleHotkey() {
+    private func handleHotkey(source: HotkeyTriggerSource) {
+        if source == .standardHotkey && pressAndHoldConfiguration.enabled {
+            // When press-and-hold is active, ignore the traditional hotkey callback.
+            return
+        }
+
         let immediateRecording = UserDefaults.standard.bool(forKey: "immediateRecording")
         
         if immediateRecording {

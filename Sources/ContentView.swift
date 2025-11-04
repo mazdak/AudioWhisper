@@ -619,6 +619,7 @@ struct ContentView: View {
                 guard let audioURL = audioRecorder.stopRecording() else {
                     throw NSError(domain: "AudioRecorder", code: 1, userInfo: [NSLocalizedDescriptionKey: LocalizedStrings.Errors.failedToGetRecordingURL])
                 }
+                let sessionDuration = audioRecorder.lastRecordingDuration
                 
                 // Check if we got a valid recording URL
                 guard !audioURL.path.isEmpty else {
@@ -654,15 +655,29 @@ struct ContentView: View {
                         finalText = corrected
                     }
                 }
+                let wordCount = UsageMetricsStore.estimatedWordCount(for: finalText)
+                let characterCount = finalText.count
+
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(finalText, forType: .string)
                 let shouldSave: Bool = await MainActor.run { DataManager.shared.isHistoryEnabled }
                 if shouldSave {
                     let modelUsed: String? = await MainActor.run { (transcriptionProvider == .local) ? self.selectedWhisperModel.rawValue : nil }
-                    let record = TranscriptionRecord(text: finalText, provider: transcriptionProvider, duration: nil, modelUsed: modelUsed)
+                    let record = TranscriptionRecord(
+                        text: finalText,
+                        provider: transcriptionProvider,
+                        duration: sessionDuration,
+                        modelUsed: modelUsed,
+                        wordCount: wordCount
+                    )
                     await DataManager.shared.saveTranscriptionQuietly(record)
                 }
                 await MainActor.run {
+                    UsageMetricsStore.shared.recordSession(
+                        duration: sessionDuration,
+                        wordCount: wordCount,
+                        characterCount: characterCount
+                    )
                     transcriptionStartTime = nil
                     showConfirmationAndPaste(text: finalText)
                     if shouldHintThisRun { hasShownFirstModelUseHint = true; showFirstModelUseHint = false }
