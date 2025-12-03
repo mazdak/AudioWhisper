@@ -64,7 +64,7 @@ swift run
 swift run --verbose
 ```
 
-**Important**: The `build.sh` script is only for creating distributable releases. During development:
+**Important**: The build scripts in `scripts/` are only for creating distributable releases. During development:
 - Use `swift run` to avoid signing/entitlement issues
 - Permissions are requested on each launch (normal for development)
 - App gets new bundle signature each build
@@ -111,9 +111,9 @@ swift run
 
 ## Building for Distribution
 
-### When to Use build.sh
+### When to Use the Build Scripts
 
-Only use `build.sh` when creating a release for distribution:
+Only use the build scripts when creating a release for distribution:
 - Creating app bundles for users
 - Preparing for code signing
 - Building for notarization
@@ -123,7 +123,7 @@ Only use `build.sh` when creating a release for distribution:
 
 ```bash
 # Create unsigned app bundle
-./build.sh
+make build
 ```
 
 This creates:
@@ -137,10 +137,10 @@ This creates:
 ```bash
 # With explicit identity
 export CODE_SIGN_IDENTITY="Developer ID Application: Your Name"
-./build.sh
+make build
 
 # Auto-detect Developer ID (if available)
-./build.sh
+make build
 ```
 
 ### Notarized Release Build
@@ -153,7 +153,7 @@ export AUDIO_WHISPER_APPLE_PASSWORD='app-specific-password'
 export AUDIO_WHISPER_TEAM_ID='your-team-id'
 
 # Build with notarization
-./build.sh --notarize
+make build-notarize
 ```
 
 ## Code Signing
@@ -227,7 +227,7 @@ Notarization is required for distribution outside the Mac App Store:
    - Generate password for "AudioWhisper Notarization"
 
 2. **Submit for Notarization:**
-   Use `./build.sh --notarize` or manually:
+   Use `make build-notarize` or manually:
    ```bash
    # Create zip
    ditto -c -k --keepParent AudioWhisper.app AudioWhisper.zip
@@ -270,17 +270,15 @@ Notarization is required for distribution outside the Mac App Store:
 ### Project Structure
 ```
 AudioWhisper/
-├── Sources/
-│   └── AudioWhisper/
-│       ├── main.swift              # Entry point
-│       ├── AudioWhisperApp.swift   # Main app structure
-│       ├── Views/                  # SwiftUI views
-│       ├── Services/               # Core services
-│       ├── Models/                 # Data models
-│       └── Utils/                  # Utilities
+├── Sources/                        # Swift source files
 ├── Tests/                          # Unit tests
+├── scripts/                        # Build and automation scripts
+│   ├── build.sh                    # Release build script
+│   ├── generate-icons.sh           # App icon generator
+│   ├── run-tests.sh                # Test runner
+│   └── update-brew-cask.sh         # Homebrew cask updater
 ├── Package.swift                   # Swift package manifest
-├── build.sh                        # Release build script
+├── Makefile                        # Build automation
 └── CLAUDE.md                       # AI assistant notes
 ```
 

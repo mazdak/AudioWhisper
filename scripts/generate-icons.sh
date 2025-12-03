@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Change to repo root (parent of scripts/)
+cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
+
 # Generate app icons from source image
 SOURCE_IMAGE="AudioWhisperIcon.png"
 ICONSET_DIR="AudioWhisper.iconset"

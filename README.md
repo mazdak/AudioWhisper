@@ -28,19 +28,38 @@ A lightweight macOS menu bar app for quick audio transcription using OpenAI Whis
 
 ## Installation 🛠️
 
-### Option 1: Download Pre-built App
+### Option 1: Homebrew (Recommended)
+```bash
+# Tap the repository (one-time setup)
+brew tap mazdak/tap
+
+# Install AudioWhisper
+brew install audiowhisper
+
+# Launch the app
+open -a AudioWhisper
+```
+
+To update:
+```bash
+brew upgrade audiowhisper
+```
+
+> **Note**: The `mazdak/tap` repository also includes other tools like [LazyRedis](https://github.com/mazdak/lazyredis)
+
+### Option 2: Download Pre-built App
 1. Download the latest release from [Releases](https://github.com/mazdak/AudioWhisper/releases)
 2. Drag AudioWhisper.app to your Applications folder
 3. Launch and configure your API key through the settings
 
-### Option 2: Build from Source
+### Option 3: Build from Source
 ```bash
 # Clone the repository
 git clone https://github.com/mazdak/AudioWhisper.git
 cd AudioWhisper
 
 # Build the app
-./build.sh
+make build
 
 # Copy to Applications
 cp -r AudioWhisper.app /Applications/
@@ -136,7 +155,7 @@ swift run
 swift build -c release
 
 # Create full app bundle with icon
-./build.sh
+make build
 ```
 
 ## Privacy & Security 🔒

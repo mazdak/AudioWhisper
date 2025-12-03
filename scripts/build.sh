@@ -4,6 +4,10 @@
 # For development, use: swift build && swift run
 # This script is for creating distributable releases
 
+# Change to repo root (parent of scripts/)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR/.." || exit 1
+
 # Parse command line arguments
 NOTARIZE=false
 while [[ $# -gt 0 ]]; do
@@ -216,7 +220,7 @@ EOF
 
 # Generate app icon from our source image
 if [ -f "AudioWhisperIcon.png" ]; then
-  ./generate-icons.sh
+  "$SCRIPT_DIR/generate-icons.sh"
 
   # Create proper icns file directly in app bundle
   if command -v iconutil >/dev/null 2>&1; then
