@@ -9,9 +9,9 @@ class AudioValidator {
     private static let supportedFileExtensions: Set<String> = [
         "m4a", "aac", "mp3", "wav", "aiff", "caf", "flac"
     ]
-    
+
     private static let supportedMimeTypes: Set<String> = [
-        "audio/mp4", "audio/aac", "audio/mpeg", "audio/wav", 
+        "audio/mp4", "audio/aac", "audio/mpeg", "audio/wav",
         "audio/x-wav", "audio/aiff", "audio/x-caf", "audio/flac"
     ]
     

@@ -1,9 +1,9 @@
 import Foundation
 
 struct VersionInfo {
-    static let version = "1.4.0"
-    static let gitHash = "5531c5821a98177e707e2ee689646a64df9069df"
-    static let buildDate = "2025-11-03"
+    static let version = "1.5.0"
+    static let gitHash = "56f347e08b6efc3f11b96fb2dbf3e77921405a01"
+    static let buildDate = "2025-12-03"
     
     static var displayVersion: String {
         if gitHash != "dev-build" && gitHash != "unknown" && !gitHash.isEmpty {

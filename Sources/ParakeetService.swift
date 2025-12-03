@@ -57,8 +57,12 @@ class ParakeetService {
         return try await transcribeWithRawPCM(pcmDataURL: pcmDataURL, pythonPath: pythonPath)
     }
 
+    private var selectedRepo: String {
+        UserDefaults.standard.string(forKey: "selectedParakeetModel") ?? ParakeetModel.v3Multilingual.rawValue
+    }
+
     private func isModelCached() -> Bool {
-        let repo = "mlx-community/parakeet-tdt-0.6b-v2"
+        let repo = selectedRepo
         let escaped = repo.replacingOccurrences(of: "/", with: "--")
         let base = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".cache/huggingface/hub/models--\(escaped)")
@@ -258,7 +262,7 @@ class ParakeetService {
                 let process = Process()
                 process.executableURL = URL(fileURLWithPath: pythonPath)
 
-                process.arguments = [tempScriptURL.path, pcmDataURL.path]
+                process.arguments = [tempScriptURL.path, pcmDataURL.path, self.selectedRepo]
 
                 let outputPipe = Pipe()
                 let errorPipe = Pipe()

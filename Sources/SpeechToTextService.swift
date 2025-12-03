@@ -99,23 +99,63 @@ class SpeechToTextService: ObservableObject {
         }
     }
     
+    private var geminiBaseURL: String {
+        let custom = UserDefaults.standard.string(forKey: "geminiBaseURL") ?? ""
+        if custom.isEmpty {
+            return "https://generativelanguage.googleapis.com"
+        }
+        // Remove trailing slash if present
+        return custom.hasSuffix("/") ? String(custom.dropLast()) : custom
+    }
+
+    /// Returns the full transcription endpoint URL for OpenAI-compatible APIs.
+    /// If the custom URL contains "audio/transcriptions", it's treated as a full endpoint.
+    /// Otherwise, "/audio/transcriptions" is appended to the base URL.
+    private var openAITranscriptionEndpoint: String {
+        let custom = UserDefaults.standard.string(forKey: "openAIBaseURL") ?? ""
+        if custom.isEmpty {
+            return "https://api.openai.com/v1/audio/transcriptions"
+        }
+        // If the URL already contains the transcriptions path, use it directly
+        // This supports Azure: https://foo.openai.azure.com/openai/deployments/whisper/audio/transcriptions?api-version=2024-02-01
+        if custom.contains("audio/transcriptions") {
+            return custom
+        }
+        // Otherwise treat as base URL and append the path
+        let base = custom.hasSuffix("/") ? String(custom.dropLast()) : custom
+        return "\(base)/audio/transcriptions"
+    }
+
+    /// Detects if the endpoint is Azure OpenAI based on the URL pattern
+    private var isAzureOpenAI: Bool {
+        let custom = UserDefaults.standard.string(forKey: "openAIBaseURL") ?? ""
+        return custom.contains(".openai.azure.com")
+    }
+
     private func transcribeWithOpenAI(audioURL: URL) async throws -> String {
         // Get API key from keychain
         guard let apiKey = keychainService.getQuietly(service: "AudioWhisper", account: "OpenAI") else {
             throw SpeechToTextError.apiKeyMissing("OpenAI")
         }
-        
-        let headers: HTTPHeaders = [
-            "Authorization": "Bearer \(apiKey)"
-        ]
-        
+
+        // Azure uses "api-key" header, OpenAI uses "Authorization: Bearer"
+        let headers: HTTPHeaders
+        if isAzureOpenAI {
+            headers = ["api-key": apiKey]
+        } else {
+            headers = ["Authorization": "Bearer \(apiKey)"]
+        }
+
+        let transcriptionURL = openAITranscriptionEndpoint
+
         return try await withCheckedThrowingContinuation { continuation in
             AF.upload(
                 multipartFormData: { multipartFormData in
                     multipartFormData.append(audioURL, withName: "file")
+                    // Azure deployments already specify the model, but it doesn't hurt to include
                     multipartFormData.append("whisper-1".data(using: .utf8)!, withName: "model")
                 },
-                to: "https://api.openai.com/v1/audio/transcriptions",
+                to: transcriptionURL,
                 headers: headers
             )
             .responseDecodable(of: WhisperResponse.self) { response in
@@ -150,7 +190,7 @@ class SpeechToTextService: ObservableObject {
     
     private func transcribeWithGeminiFilesAPI(audioURL: URL, apiKey: String) async throws -> String {
         // First, upload the file using Files API
-        let fileUploadURL = "https://generativelanguage.googleapis.com/upload/v1beta/files"
+        let fileUploadURL = "\(geminiBaseURL)/upload/v1beta/files"
         
         let uploadHeaders: HTTPHeaders = [
             "X-Goog-Api-Key": apiKey
@@ -180,7 +220,7 @@ class SpeechToTextService: ObservableObject {
         }
         
         // Now use the uploaded file for transcription
-        let transcriptionURL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent"
+        let transcriptionURL = "\(geminiBaseURL)/v1beta/models/gemini-2.5-flash-lite:generateContent"
         
         let headers: HTTPHeaders = [
             "X-Goog-Api-Key": apiKey,
@@ -236,7 +276,7 @@ class SpeechToTextService: ObservableObject {
             return audioData.base64EncodedString()
         }
         
-        let url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent"
+        let url = "\(geminiBaseURL)/v1beta/models/gemini-2.5-flash-lite:generateContent"
         
         let headers: HTTPHeaders = [
             "X-Goog-Api-Key": apiKey,

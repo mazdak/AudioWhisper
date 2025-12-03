@@ -53,6 +53,7 @@ struct ContentView: View {
     @State private var windowFocusObserver: NSObjectProtocol?
     @State private var retryObserver: NSObjectProtocol?
     @State private var showAudioFileObserver: NSObjectProtocol?
+    @State private var transcribeFileObserver: NSObjectProtocol?
     @State private var lastAudioURL: URL?
     @State private var awaitingSemanticPaste = false
     @AppStorage("hasShownFirstModelUseHint") private var hasShownFirstModelUseHint = false
@@ -308,6 +309,17 @@ struct ContentView: View {
             ) { _ in
                 showLastAudioFile()
             }
+
+            // Listen for transcribe audio file requests
+            transcribeFileObserver = NotificationCenter.default.addObserver(
+                forName: .transcribeAudioFile,
+                object: nil,
+                queue: .main
+            ) { notification in
+                if let url = notification.object as? URL {
+                    transcribeExternalAudioFile(url)
+                }
+            }
         }
         .onDisappear {
             // Clean up observers to prevent memory leaks
@@ -355,7 +367,12 @@ struct ContentView: View {
                 NotificationCenter.default.removeObserver(observer)
                 showAudioFileObserver = nil
             }
-            
+
+            if let observer = transcribeFileObserver {
+                NotificationCenter.default.removeObserver(observer)
+                transcribeFileObserver = nil
+            }
+
             // Cancel any running processing task
             processingTask?.cancel()
             processingTask = nil
@@ -732,7 +749,128 @@ struct ContentView: View {
         if mode == .localMLX { return true }
         return false
     }
-    
+
+    private func transcribeExternalAudioFile(_ audioURL: URL) {
+        // Cancel any existing processing task
+        processingTask?.cancel()
+
+        // Decide if we should show the first-use hint for this run
+        let shouldHintThisRun = !hasShownFirstModelUseHint && isLocalModelInvocationPlanned()
+        if shouldHintThisRun { showFirstModelUseHint = true }
+
+        processingTask = Task {
+            isProcessing = true
+            transcriptionStartTime = Date()
+            progressMessage = "Transcribing file..."
+
+            do {
+                // Check for cancellation before starting
+                try Task.checkCancellation()
+
+                // Store the audio URL for potential retry
+                lastAudioURL = audioURL
+
+                // Check for cancellation before transcription
+                try Task.checkCancellation()
+
+                // Raw transcription first (no semantic correction)
+                let text: String
+                if transcriptionProvider == .local {
+                    text = try await speechService.transcribeRaw(audioURL: audioURL, provider: transcriptionProvider, model: selectedWhisperModel)
+                } else {
+                    text = try await speechService.transcribeRaw(audioURL: audioURL, provider: transcriptionProvider)
+                }
+
+                // Check for cancellation after transcription
+                try Task.checkCancellation()
+
+                // Single-paste policy: compute correction if enabled, paste exactly one string
+                let modeRaw = UserDefaults.standard.string(forKey: "semanticCorrectionMode") ?? SemanticCorrectionMode.off.rawValue
+                let mode = SemanticCorrectionMode(rawValue: modeRaw) ?? .off
+                var finalText = text
+                if mode != .off {
+                    await MainActor.run { progressMessage = "Semantic correction..." }
+                    let corrected = await semanticCorrectionService.correct(text: text, providerUsed: transcriptionProvider)
+                    let trimmed = corrected.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !trimmed.isEmpty {
+                        finalText = corrected
+                    }
+                }
+                let wordCount = UsageMetricsStore.estimatedWordCount(for: finalText)
+                let characterCount = finalText.count
+
+                // Get file duration if possible (estimate based on file size for now)
+                let fileAttributes = try? FileManager.default.attributesOfItem(atPath: audioURL.path)
+                let fileSize = (fileAttributes?[.size] as? Int64) ?? 0
+                // Rough estimate: ~16KB per second for M4A at 128kbps
+                let estimatedDuration = TimeInterval(fileSize) / 16000.0
+
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(finalText, forType: .string)
+                let shouldSave: Bool = await MainActor.run { DataManager.shared.isHistoryEnabled }
+                if shouldSave {
+                    let modelUsed: String? = await MainActor.run { (transcriptionProvider == .local) ? self.selectedWhisperModel.rawValue : nil }
+                    let record = TranscriptionRecord(
+                        text: finalText,
+                        provider: transcriptionProvider,
+                        duration: estimatedDuration,
+                        modelUsed: modelUsed,
+                        wordCount: wordCount
+                    )
+                    await DataManager.shared.saveTranscriptionQuietly(record)
+                }
+                await MainActor.run {
+                    UsageMetricsStore.shared.recordSession(
+                        duration: estimatedDuration,
+                        wordCount: wordCount,
+                        characterCount: characterCount
+                    )
+                    transcriptionStartTime = nil
+                    showConfirmationAndPaste(text: finalText)
+                    if shouldHintThisRun { hasShownFirstModelUseHint = true; showFirstModelUseHint = false }
+                }
+            } catch is CancellationError {
+                // Handle cancellation gracefully
+                await MainActor.run {
+                    isProcessing = false
+                    transcriptionStartTime = nil
+                    if shouldHintThisRun { hasShownFirstModelUseHint = true; showFirstModelUseHint = false }
+                }
+            } catch {
+                // Redirect to Settings for missing local models
+                if case let SpeechToTextError.localTranscriptionFailed(inner) = error,
+                   let lwError = inner as? LocalWhisperError,
+                   lwError == .modelNotDownloaded {
+                    await MainActor.run {
+                        errorMessage = "Local Whisper model not downloaded. Opening Settings…"
+                        showError = true
+                        isProcessing = false
+                        transcriptionStartTime = nil
+                        NotificationCenter.default.post(name: .openSettingsRequested, object: nil)
+                        if shouldHintThisRun { hasShownFirstModelUseHint = true; showFirstModelUseHint = false }
+                    }
+                } else if let pe = error as? ParakeetError, pe == .modelNotReady {
+                    await MainActor.run {
+                        errorMessage = "Parakeet model not downloaded. Opening Settings…"
+                        showError = true
+                        isProcessing = false
+                        transcriptionStartTime = nil
+                        NotificationCenter.default.post(name: .openSettingsRequested, object: nil)
+                        if shouldHintThisRun { hasShownFirstModelUseHint = true; showFirstModelUseHint = false }
+                    }
+                } else {
+                    await MainActor.run {
+                        errorMessage = error.localizedDescription
+                        showError = true
+                        isProcessing = false
+                        transcriptionStartTime = nil
+                        if shouldHintThisRun { hasShownFirstModelUseHint = true; showFirstModelUseHint = false }
+                    }
+                }
+            }
+        }
+    }
+
     private func showConfirmationAndPaste(text: String) {
         // Show success state
         showSuccess = true

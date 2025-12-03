@@ -36,7 +36,7 @@ enum WhisperModel: String, CaseIterable, Codable, Sendable {
     case base = "base"
     case small = "small"
     case largeTurbo = "large-v3-turbo"
-    
+
     var displayName: String {
         switch self {
         case .tiny:
@@ -49,7 +49,7 @@ enum WhisperModel: String, CaseIterable, Codable, Sendable {
             return "Large Turbo (1.5GB)"
         }
     }
-    
+
     var fileSize: String {
         switch self {
         case .tiny:
@@ -62,11 +62,11 @@ enum WhisperModel: String, CaseIterable, Codable, Sendable {
             return "1.5GB"
         }
     }
-    
+
     var fileName: String {
         return "ggml-\(rawValue).bin"
     }
-    
+
     var downloadURL: URL {
         // Safe fallback version - returns base model URL if current model URL is invalid
         do {
@@ -76,14 +76,14 @@ enum WhisperModel: String, CaseIterable, Codable, Sendable {
             return URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin")!
         }
     }
-    
+
     func getDownloadURL() throws -> URL {
         guard let url = URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/\(fileName)") else {
             throw WhisperModelError.invalidURL(fileName: fileName)
         }
         return url
     }
-    
+
     var description: String {
         switch self {
         case .tiny:
@@ -95,5 +95,32 @@ enum WhisperModel: String, CaseIterable, Codable, Sendable {
         case .largeTurbo:
             return "Highest accuracy, optimized for speed"
         }
+    }
+}
+
+enum ParakeetModel: String, CaseIterable, Codable, Sendable {
+    case v2English = "mlx-community/parakeet-tdt-0.6b-v2"
+    case v3Multilingual = "mlx-community/parakeet-tdt-0.6b-v3"
+
+    var displayName: String {
+        switch self {
+        case .v2English:
+            return "v2 English (~2.5 GB)"
+        case .v3Multilingual:
+            return "v3 Multilingual (~2.5 GB)"
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .v2English:
+            return "English only, original model"
+        case .v3Multilingual:
+            return "25 languages, auto-detection"
+        }
+    }
+
+    var repoId: String {
+        rawValue
     }
 }

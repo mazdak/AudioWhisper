@@ -67,20 +67,20 @@ final class SemanticCorrectionService {
         guard let apiKey = keychainService.getQuietly(service: "AudioWhisper", account: "OpenAI") else {
             return text
         }
-        let prompt = readPromptFile(name: "cloud_openai_prompt.txt") ?? "You are a transcription corrector. Fix grammar, casing, punctuation, and obvious mis-hearings that do not change meaning. Remove filler words and transcribed pauses that add no meaning (e.g., 'um', 'uh', 'erm', 'you know', 'like' as filler; '[pause]', '(pause)', ellipses for hesitations). Do not remove meaningful words. Do not summarize or add content. Output only the corrected text."
+        let prompt = readPromptFile(name: "cloud_openai_prompt.txt") ?? "Clean up this speech transcription: fix typos, grammar, punctuation, and remove filler words (um, uh, like, you know). Keep the original language. Output only the corrected text."
         let url = "https://api.openai.com/v1/chat/completions"
         let headers: HTTPHeaders = [
             "Authorization": "Bearer \(apiKey)",
             "Content-Type": "application/json"
         ]
         let body: [String: Any] = [
-            "model": "gpt-5-nano",
+            "model": "gpt-5.1-mini",
             "messages": [
                 ["role": "system", "content": prompt],
                 ["role": "user", "content": text]
             ],
-            // Note: gpt-5-nano doesn't support temperature adjustment
-            "max_completion_tokens": 8192  // Standardized limit for long transcriptions
+            "temperature": 0.3,
+            "max_completion_tokens": 8192
         ]
 
         do {
@@ -103,16 +103,24 @@ final class SemanticCorrectionService {
     }
 
     // MARK: - Cloud (Gemini)
+    private var geminiBaseURL: String {
+        let custom = UserDefaults.standard.string(forKey: "geminiBaseURL") ?? ""
+        if custom.isEmpty {
+            return "https://generativelanguage.googleapis.com"
+        }
+        return custom.hasSuffix("/") ? String(custom.dropLast()) : custom
+    }
+
     private func correctWithGemini(text: String) async -> String {
         guard let apiKey = keychainService.getQuietly(service: "AudioWhisper", account: "Gemini") else {
             return text
         }
-        let url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent"
+        let url = "\(geminiBaseURL)/v1beta/models/gemini-2.5-flash-lite:generateContent"
         let headers: HTTPHeaders = [
             "X-Goog-Api-Key": apiKey,
             "Content-Type": "application/json"
         ]
-        let prompt = readPromptFile(name: "cloud_gemini_prompt.txt") ?? "You are a transcription corrector. Fix grammar, casing, punctuation, and obvious mis-hearings that do not change meaning. Remove filler words and transcribed pauses that add no meaning (e.g., 'um', 'uh', 'erm', 'you know', 'like' as filler; '[pause]', '(pause)', ellipses for hesitations). Do not remove meaningful words. Do not summarize or add content. Output only the corrected text."
+        let prompt = readPromptFile(name: "cloud_gemini_prompt.txt") ?? "Clean up this speech transcription: fix typos, grammar, punctuation, and remove filler words (um, uh, like, you know). Keep the original language. Output only the corrected text."
         let body: [String: Any] = [
             "contents": [[
                 "parts": [[
@@ -156,15 +164,15 @@ final class SemanticCorrectionService {
         return try? String(contentsOf: url, encoding: .utf8)
     }
 
-    // MARK: - Safety Guard
-    private static func safeMerge(original: String, corrected: String, maxChangeRatio: Double) -> String {
+    // MARK: - Safety Guard (internal for testability)
+    static func safeMerge(original: String, corrected: String, maxChangeRatio: Double) -> String {
         guard !corrected.isEmpty else { return original }
         let ratio = normalizedEditDistance(a: original, b: corrected)
         if ratio > maxChangeRatio { return original }
         return corrected.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private static func normalizedEditDistance(a: String, b: String) -> Double {
+    static func normalizedEditDistance(a: String, b: String) -> Double {
         if a == b { return 0 }
         let aChars = Array(a)
         let bChars = Array(b)

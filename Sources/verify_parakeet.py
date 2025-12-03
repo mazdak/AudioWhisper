@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-import os, json, traceback
+import os, json, traceback, sys
 
 def emit(status, message):
     print(json.dumps({"status": status, "message": message}), flush=True)
 
 def main():
     os.environ['HF_HUB_DISABLE_IMPLICIT_TOKEN'] = '1'
-    repo = "mlx-community/parakeet-tdt-0.6b-v2"
+    # Default to v3 multilingual model if not specified
+    repo = sys.argv[1] if len(sys.argv) > 1 else "mlx-community/parakeet-tdt-0.6b-v3"
     try:
         emit("checking", "Importing parakeet-mlx…")
         from parakeet_mlx import from_pretrained

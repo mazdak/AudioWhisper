@@ -117,8 +117,8 @@ class ParakeetServiceTests: XCTestCase {
             _ = try await parakeetService.transcribe(audioFileURL: testAudioURL, pythonPath: invalidPythonPath)
             XCTFail("Should have thrown an error")
         } catch let error as ParakeetError {
-            // The error could be either pythonNotFound or transcriptionFailed (if audio processing fails first)
-            // Both are valid outcomes for this test scenario
+            // The error could be pythonNotFound, transcriptionFailed, or modelNotReady
+            // All are valid outcomes for this test scenario
             switch error {
             case .pythonNotFound(let path) where path == invalidPythonPath:
                 // Expected pythonNotFound error
@@ -126,24 +126,27 @@ class ParakeetServiceTests: XCTestCase {
             case .transcriptionFailed:
                 // Also acceptable - audio processing failed before Python validation
                 break
+            case .modelNotReady:
+                // Also acceptable - model not cached (v3 multilingual may not be downloaded)
+                break
             default:
-                XCTFail("Expected pythonNotFound or transcriptionFailed error, got \(error)")
+                XCTFail("Expected pythonNotFound, transcriptionFailed, or modelNotReady error, got \(error)")
             }
         } catch {
             XCTFail("Should have thrown ParakeetError, got \(error)")
         }
     }
-    
+
     func testTranscribeWithInvalidPythonPathOnly() async {
         let invalidPythonPath = "/invalid/python/path"
         let testAudioURL = URL(fileURLWithPath: "/tmp/test.m4a")
-        
+
         do {
             _ = try await parakeetService.transcribe(audioFileURL: testAudioURL, pythonPath: invalidPythonPath)
             XCTFail("Should have thrown an error")
         } catch let error as ParakeetError {
-            // The error could be either pythonNotFound or transcriptionFailed (if audio processing fails first)
-            // Both are valid outcomes for this test scenario
+            // The error could be pythonNotFound, transcriptionFailed, or modelNotReady
+            // All are valid outcomes for this test scenario
             switch error {
             case .pythonNotFound(let path) where path == invalidPythonPath:
                 // Expected pythonNotFound error
@@ -151,24 +154,27 @@ class ParakeetServiceTests: XCTestCase {
             case .transcriptionFailed:
                 // Also acceptable - audio processing failed before Python validation
                 break
+            case .modelNotReady:
+                // Also acceptable - model not cached (v3 multilingual may not be downloaded)
+                break
             default:
-                XCTFail("Expected pythonNotFound or transcriptionFailed error, got \(error)")
+                XCTFail("Expected pythonNotFound, transcriptionFailed, or modelNotReady error, got \(error)")
             }
         } catch {
             XCTFail("Should have thrown ParakeetError, got \(error)")
         }
     }
-    
+
     func testTranscribeWithNativeAudioProcessing() async {
         let invalidPythonPath = "/invalid/python/path"
         let testAudioURL = URL(fileURLWithPath: "/tmp/test.m4a")
-        
+
         do {
             _ = try await parakeetService.transcribe(audioFileURL: testAudioURL, pythonPath: invalidPythonPath)
             XCTFail("Should have thrown an error")
         } catch let error as ParakeetError {
-            // The error could be either pythonNotFound or transcriptionFailed (if audio processing fails first)
-            // Both are valid outcomes for this test scenario
+            // The error could be pythonNotFound, transcriptionFailed, or modelNotReady
+            // All are valid outcomes for this test scenario
             switch error {
             case .pythonNotFound(let path) where path == invalidPythonPath:
                 // Expected pythonNotFound error
@@ -176,8 +182,11 @@ class ParakeetServiceTests: XCTestCase {
             case .transcriptionFailed:
                 // Also acceptable - audio processing failed before Python validation
                 break
+            case .modelNotReady:
+                // Also acceptable - model not cached (v3 multilingual may not be downloaded)
+                break
             default:
-                XCTFail("Expected pythonNotFound or transcriptionFailed error, got \(error)")
+                XCTFail("Expected pythonNotFound, transcriptionFailed, or modelNotReady error, got \(error)")
             }
         } catch {
             XCTFail("Should have thrown ParakeetError, got \(error)")

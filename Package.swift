@@ -10,14 +10,14 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/Alamofire/Alamofire.git", from: "5.10.2"),
         .package(url: "https://github.com/soffes/HotKey", from: "0.2.1"),
-        .package(url: "https://github.com/argmaxinc/WhisperKit.git", from: "0.13.1")
+        .package(url: "https://github.com/argmaxinc/WhisperKit.git", from: "0.15.0")
     ],
     targets: [
         .executableTarget(
             name: "AudioWhisper",
             dependencies: ["Alamofire", "HotKey", "WhisperKit"],
             path: "Sources",
-            exclude: ["__pycache__", "VersionInfo.swift.template"],
+            exclude: ["VersionInfo.swift.template"],
             resources: [
                 .process("Assets.xcassets"),
                 .copy("parakeet_transcribe_pcm.py"),

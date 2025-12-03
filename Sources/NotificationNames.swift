@@ -30,6 +30,9 @@ extension Notification.Name {
     static let retryRequested = Notification.Name("RetryRequested")
     static let retryTranscriptionRequested = Notification.Name("RetryTranscriptionRequested")
     static let showAudioFileRequested = Notification.Name("ShowAudioFileRequested")
+
+    // MARK: - File Transcription
+    static let transcribeAudioFile = Notification.Name("TranscribeAudioFile")
     
     // MARK: - Paste Operations
     static let pasteOperationFailed = Notification.Name("PasteOperationFailed")

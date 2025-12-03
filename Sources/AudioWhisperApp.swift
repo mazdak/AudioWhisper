@@ -4,6 +4,7 @@ import AppKit
 import HotKey
 import ServiceManagement
 import os.log
+import UniformTypeIdentifiers
 
 @main
 struct AudioWhisperApp: App {
@@ -106,6 +107,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Create menu
         let menu = NSMenu()
         menu.addItem(NSMenuItem(title: LocalizedStrings.Menu.record, action: #selector(toggleRecordWindow), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "Transcribe Audio File...", action: #selector(transcribeAudioFile), keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: LocalizedStrings.Menu.history, action: #selector(showHistory), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: LocalizedStrings.Menu.settings, action: #selector(openSettings), keyEquivalent: ""))
@@ -523,9 +525,53 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func showHelp() {
         // Show the welcome dialog as help
         let shouldOpenSettings = WelcomeWindow.showWelcomeDialog()
-        
+
         if shouldOpenSettings {
             openSettings()
+        }
+    }
+
+    @objc func transcribeAudioFile() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        panel.allowedContentTypes = [
+            .mpeg4Audio,
+            .mp3,
+            .wav,
+            .aiff,
+            .init(filenameExtension: "m4a")!,
+            .init(filenameExtension: "aac") ?? .mpeg4Audio,
+            .init(filenameExtension: "flac") ?? .audio,
+            .init(filenameExtension: "caf") ?? .audio
+        ]
+        panel.message = "Select an audio file to transcribe"
+        panel.prompt = "Transcribe"
+
+        panel.begin { [weak self] response in
+            guard response == .OK, let url = panel.url else { return }
+            self?.processAudioFile(url)
+        }
+    }
+
+    private func processAudioFile(_ url: URL) {
+        // Show the recording window in processing mode
+        if recordingWindow == nil {
+            createRecordingWindow()
+        }
+        guard let window = recordingWindow else { return }
+
+        if !window.isVisible {
+            windowController.toggleRecordWindow(window)
+        }
+
+        // Notify ContentView to process the file
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            NotificationCenter.default.post(
+                name: .transcribeAudioFile,
+                object: url
+            )
         }
     }
     

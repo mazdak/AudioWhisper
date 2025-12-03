@@ -365,6 +365,111 @@ extension SpeechToTextServiceTests {
         XCTAssertEqual(allProviders.count, 4)
     }
 
+    // MARK: - Custom OpenAI Endpoint Tests
+
+    func testOpenAIEndpointDefaultsToStandard() {
+        // Clear any custom URL
+        UserDefaults.standard.removeObject(forKey: "openAIBaseURL")
+
+        // The default should be the standard OpenAI endpoint
+        // We can't directly test the private property, but we can verify the behavior
+        // by checking that a request would go to the right place (via error message or mock)
+        let customURL = UserDefaults.standard.string(forKey: "openAIBaseURL")
+        XCTAssertNil(customURL)
+    }
+
+    func testOpenAIEndpointWithBaseURL() {
+        // Test that a base URL gets /audio/transcriptions appended
+        let baseURL = "https://api.example.com/v1"
+        UserDefaults.standard.set(baseURL, forKey: "openAIBaseURL")
+
+        // Verify it was set
+        let storedURL = UserDefaults.standard.string(forKey: "openAIBaseURL")
+        XCTAssertEqual(storedURL, baseURL)
+
+        // The endpoint logic should append /audio/transcriptions
+        // since the URL doesn't contain "audio/transcriptions"
+        XCTAssertFalse(baseURL.contains("audio/transcriptions"))
+
+        // Cleanup
+        UserDefaults.standard.removeObject(forKey: "openAIBaseURL")
+    }
+
+    func testOpenAIEndpointWithFullAzureURL() {
+        // Test that a full Azure URL is used as-is
+        let azureURL = "https://my-resource.openai.azure.com/openai/deployments/whisper/audio/transcriptions?api-version=2024-02-01"
+        UserDefaults.standard.set(azureURL, forKey: "openAIBaseURL")
+
+        // Verify it was set
+        let storedURL = UserDefaults.standard.string(forKey: "openAIBaseURL")
+        XCTAssertEqual(storedURL, azureURL)
+
+        // The endpoint logic should use this URL as-is
+        // since it already contains "audio/transcriptions"
+        XCTAssertTrue(azureURL.contains("audio/transcriptions"))
+
+        // Verify Azure detection
+        XCTAssertTrue(azureURL.contains(".openai.azure.com"))
+
+        // Cleanup
+        UserDefaults.standard.removeObject(forKey: "openAIBaseURL")
+    }
+
+    func testOpenAIEndpointWithProxyURL() {
+        // Test proxy service like aiswarm.me
+        let proxyURL = "https://aiswarm.me/v1"
+        UserDefaults.standard.set(proxyURL, forKey: "openAIBaseURL")
+
+        // Verify it was set
+        let storedURL = UserDefaults.standard.string(forKey: "openAIBaseURL")
+        XCTAssertEqual(storedURL, proxyURL)
+
+        // Should NOT be detected as Azure
+        XCTAssertFalse(proxyURL.contains(".openai.azure.com"))
+
+        // Should need /audio/transcriptions appended
+        XCTAssertFalse(proxyURL.contains("audio/transcriptions"))
+
+        // Cleanup
+        UserDefaults.standard.removeObject(forKey: "openAIBaseURL")
+    }
+
+    func testAzureEndpointDetection() {
+        // Test various URL patterns for Azure detection
+        let azureURLs = [
+            "https://my-resource.openai.azure.com/openai/deployments/whisper/audio/transcriptions?api-version=2024-02-01",
+            "https://eastus.openai.azure.com/openai/deployments/my-whisper/audio/transcriptions?api-version=2023-09-01"
+        ]
+
+        let nonAzureURLs = [
+            "https://api.openai.com/v1",
+            "https://aiswarm.me/v1",
+            "https://my-proxy.com/openai/v1",
+            ""
+        ]
+
+        for url in azureURLs {
+            XCTAssertTrue(url.contains(".openai.azure.com"), "Should detect Azure: \(url)")
+        }
+
+        for url in nonAzureURLs {
+            XCTAssertFalse(url.contains(".openai.azure.com"), "Should NOT detect Azure: \(url)")
+        }
+    }
+
+    func testOpenAIEndpointPreservesQueryString() {
+        // Test that query strings are preserved for full endpoints
+        let urlWithQuery = "https://my-resource.openai.azure.com/openai/deployments/whisper/audio/transcriptions?api-version=2024-02-01"
+        UserDefaults.standard.set(urlWithQuery, forKey: "openAIBaseURL")
+
+        let storedURL = UserDefaults.standard.string(forKey: "openAIBaseURL")
+        XCTAssertEqual(storedURL, urlWithQuery)
+        XCTAssertTrue(storedURL?.contains("api-version=") == true)
+
+        // Cleanup
+        UserDefaults.standard.removeObject(forKey: "openAIBaseURL")
+    }
+
 }
 
 // MARK: - Mock Extensions

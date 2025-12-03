@@ -45,16 +45,17 @@ def load_raw_pcm(pcm_file_path, sample_rate=16000):
 
 
 def main():
-    if len(sys.argv) != 2:
-        print("Usage: python parakeet_transcribe_pcm.py <pcm_file_path>", file=sys.stderr)
+    if len(sys.argv) < 2:
+        print("Usage: python parakeet_transcribe_pcm.py <pcm_file_path> [model_repo]", file=sys.stderr)
         print("Expected input: Raw float32 PCM data at 16kHz, mono", file=sys.stderr)
         sys.exit(1)
 
     pcm_file_path = sys.argv[1]
+    # Default to v3 multilingual model if not specified
+    repo = sys.argv[2] if len(sys.argv) > 2 else "mlx-community/parakeet-tdt-0.6b-v3"
 
     try:
         # Load Parakeet model strictly offline — downloads must be done in Settings
-        repo = "mlx-community/parakeet-tdt-0.6b-v2"
         prev_hf_offline = os.environ.get('HF_HUB_OFFLINE')
         prev_tr_offline = os.environ.get('TRANSFORMERS_OFFLINE')
         try:

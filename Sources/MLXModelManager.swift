@@ -26,7 +26,10 @@ final class MLXModelManager: ObservableObject {
     private let logger = Logger(subsystem: "com.audiowhisper.app", category: "MLXModelManager")
     private let cacheDirectory: URL
 
-    static let parakeetRepo = "mlx-community/parakeet-tdt-0.6b-v2"
+    static var parakeetRepo: String {
+        let rawValue = UserDefaults.standard.string(forKey: "selectedParakeetModel") ?? ParakeetModel.v3Multilingual.rawValue
+        return rawValue
+    }
     
     // Popular models for semantic correction (real model names from Hugging Face)
     static let recommendedModels = [
@@ -56,50 +59,83 @@ final class MLXModelManager: ObservableObject {
             self.modelSizes.removeAll()
             self.totalCacheSize = 0
         }
-        
+
         guard FileManager.default.fileExists(atPath: cacheDirectory.path) else {
             logger.info("Hugging Face cache directory doesn't exist")
             return
         }
-        
-        do {
-            let contents = try FileManager.default.contentsOfDirectory(
-                at: cacheDirectory,
+
+        // Perform heavy file system operations off the main thread
+        let cacheDir = cacheDirectory
+        let result: [(String, Int64)] = await Task.detached(priority: .utility) {
+            var models: [(String, Int64)] = []
+
+            guard let contents = try? FileManager.default.contentsOfDirectory(
+                at: cacheDir,
                 includingPropertiesForKeys: nil
-            )
-            
-            var totalSize: Int64 = 0
-            
+            ) else {
+                return models
+            }
+
             for item in contents {
                 guard item.lastPathComponent.hasPrefix("models--") else { continue }
-                
+
                 // Convert directory name back to repo format
                 let modelName = item.lastPathComponent
                     .replacingOccurrences(of: "models--", with: "")
                     .replacingOccurrences(of: "--", with: "/")
-                
+
                 // Check if this looks like an MLX model
                 let mlxKeywords = ["mlx", "qwen", "llama", "phi", "mistral", "gemma", "starcoder", "parakeet"]
                 let isLikelyMLX = mlxKeywords.contains { modelName.lowercased().contains($0) }
-                
+
                 if isLikelyMLX {
-                    let size = calculateDirectorySize(at: item)
-                    await MainActor.run {
-                        self.downloadedModels.insert(modelName)
-                        self.modelSizes[modelName] = size
-                        totalSize += size
-                    }
+                    let size = Self.calculateDirectorySizeSync(at: item)
+                    models.append((modelName, size))
                 }
             }
-            
+
+            return models
+        }.value
+
+        // Update UI state on main thread
+        var totalSize: Int64 = 0
+        for (modelName, size) in result {
             await MainActor.run {
-                self.totalCacheSize = totalSize
+                self.downloadedModels.insert(modelName)
+                self.modelSizes[modelName] = size
             }
-            
-            logger.info("Found \(self.downloadedModels.count) MLX models, total size: \(self.formatBytes(totalSize))")
-        } catch {
-            logger.error("Failed to scan model directory: \(error.localizedDescription)")
+            totalSize += size
         }
+
+        await MainActor.run {
+            self.totalCacheSize = totalSize
+        }
+
+        logger.info("Found \(self.downloadedModels.count) MLX models, total size: \(self.formatBytes(totalSize))")
+    }
+
+    // Static version for use in detached tasks (nonisolated for background execution)
+    private nonisolated static func calculateDirectorySizeSync(at url: URL) -> Int64 {
+        var size: Int64 = 0
+
+        guard let enumerator = FileManager.default.enumerator(
+            at: url,
+            includingPropertiesForKeys: [.totalFileAllocatedSizeKey, .fileAllocatedSizeKey]
+        ) else {
+            return 0
+        }
+
+        for case let fileURL as URL in enumerator {
+            do {
+                let resourceValues = try fileURL.resourceValues(forKeys: [.totalFileAllocatedSizeKey, .fileAllocatedSizeKey])
+                size += Int64(resourceValues.totalFileAllocatedSize ?? resourceValues.fileAllocatedSize ?? 0)
+            } catch {
+                continue
+            }
+        }
+
+        return size
     }
     
     func downloadModel(_ repo: String) async {

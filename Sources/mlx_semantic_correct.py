@@ -49,10 +49,8 @@ def main():
             return print(json.dumps({"success": False, "error": "MLX model not available offline. Please open Settings to download it."}))
         # Load prompt from file if provided, else use default
         default_prompt = (
-            "You are a transcription corrector. Fix grammar, casing, punctuation, and obvious mis-hearings "
-            "that do not change meaning. Remove filler words and transcribed pauses that add no meaning "
-            "(e.g., 'um', 'uh', 'erm', 'you know', 'like' as filler; '[pause]', '(pause)', ellipses for hesitations). "
-            "Do not remove meaningful words. Do not summarize or add content. Output only the corrected text."
+            "Clean up this speech transcription: fix typos, grammar, punctuation, and remove filler words "
+            "(um, uh, like, you know). Keep the original language. Output only the corrected text."
         )
         system_prompt = default_prompt
         if len(sys.argv) >= 4:

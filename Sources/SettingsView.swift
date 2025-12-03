@@ -46,7 +46,11 @@ struct SettingsView: View {
     @AppStorage("semanticCorrectionMode") private var semanticCorrectionModeRaw = SemanticCorrectionMode.off.rawValue
     @AppStorage("semanticCorrectionModelRepo") private var semanticCorrectionModelRepo = "mlx-community/Llama-3.2-3B-Instruct-4bit"
     @AppStorage("hasSetupParakeet") private var hasSetupParakeet = false
+    @AppStorage("selectedParakeetModel") private var selectedParakeetModel = ParakeetModel.v3Multilingual
     @AppStorage("hasSetupLocalLLM") private var hasSetupLocalLLM = false
+    @AppStorage("openAIBaseURL") private var openAIBaseURL = ""
+    @AppStorage("geminiBaseURL") private var geminiBaseURL = ""
+    @State private var showAdvancedAPISettings = false
     @StateObject private var modelManager = ModelManager.shared
     @State private var availableMicrophones: [AVCaptureDevice] = []
     @State private var openAIKey = ""
@@ -302,6 +306,52 @@ struct SettingsView: View {
                         .font(.caption)
                         .accessibilityLabel("Get API key from \(transcriptionProvider == .openai ? "OpenAI" : "Google")")
                         .accessibilityHint("Opens \(transcriptionProvider == .openai ? "OpenAI" : "Google") website to create an API key")
+
+                    // Advanced API settings (custom base URL for proxies)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Button(action: { showAdvancedAPISettings.toggle() }) {
+                            HStack {
+                                Image(systemName: showAdvancedAPISettings ? "chevron.down" : "chevron.right")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Text("Advanced")
+                                    .font(.caption)
+                                Spacer()
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+
+                        if showAdvancedAPISettings {
+                            VStack(alignment: .leading, spacing: 8) {
+                                if transcriptionProvider == .openai {
+                                    TextField("Custom Endpoint (optional)", text: $openAIBaseURL)
+                                        .textFieldStyle(.roundedBorder)
+                                        .font(.caption)
+                                    Text("Base URL or full endpoint. Examples:")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                    Text("• https://api.openai.com/v1 (base URL)")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                    Text("• https://your-resource.openai.azure.com/openai/deployments/whisper/audio/transcriptions?api-version=2024-02-01")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                        .lineLimit(2)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                } else {
+                                    TextField("Custom Base URL (optional)", text: $geminiBaseURL)
+                                        .textFieldStyle(.roundedBorder)
+                                        .font(.caption)
+                                    Text("Default: https://generativelanguage.googleapis.com")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            .padding(.top, 4)
+                            .padding(.leading, 16)
+                        }
+                    }
                 }
                 
                 // Parakeet Configuration
@@ -315,19 +365,42 @@ struct SettingsView: View {
                                 .frame(width: 32, height: 32)
                                 .background(Color.blue.opacity(0.1))
                                 .clipShape(Circle())
-                            
+
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Advanced Local Processing")
                                     .font(.headline)
                                     .fontWeight(.semibold)
-                                
+
                                 Text("Requires Apple Silicon and Python dependencies. First use may download ~2.5 GB model.")
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
                                     .fixedSize(horizontal: false, vertical: true)
                             }
                         }
-                        
+
+                        // Model selection picker
+                        VStack(alignment: .leading, spacing: 8) {
+                            Picker("Model", selection: $selectedParakeetModel) {
+                                ForEach(ParakeetModel.allCases, id: \.self) { model in
+                                    VStack(alignment: .leading) {
+                                        Text(model.displayName)
+                                    }
+                                    .tag(model)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .onChange(of: selectedParakeetModel) { _, newModel in
+                                // Trigger download of newly selected model if not cached
+                                Task {
+                                    await MLXModelManager.shared.ensureParakeetModel()
+                                }
+                            }
+
+                            Text(selectedParakeetModel.description)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+
                         if Arch.isAppleSilicon {
                             HStack(spacing: 6) {
                                 if isCheckingEnv { ProgressView().controlSize(.small) }
@@ -1027,7 +1100,8 @@ struct SettingsView: View {
                     if FileManager.default.fileExists(atPath: src.path) { scriptURL = src }
                 }
                 guard let scriptURL else { parakeetVerifyMessage = "Script not found"; isVerifyingParakeet = false; return }
-                process.arguments = [scriptURL.path]
+                let repoToVerify = self.selectedParakeetModel.repoId
+                process.arguments = [scriptURL.path, repoToVerify]
                 let out = Pipe(); let err = Pipe()
                 process.standardOutput = out; process.standardError = err
 
