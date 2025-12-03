@@ -1,6 +1,6 @@
 # AudioWhisper 🎙️
 
-A lightweight macOS menu bar app for quick audio transcription using OpenAI Whisper, Google Gemini, Local WhisperKit, or Nvidia Parakeet. Press a hotkey, record your thoughts, and get instant text that's automatically copied to your clipboard.
+A lightweight macOS menu bar app for quick audio transcription using OpenAI Whisper, Google Gemini, Local WhisperKit, or Parakeet‑MLX. Press a hotkey, record your thoughts, and get instant text that's automatically copied to your clipboard.
 
 <p align="center">
   <img src="https://github.com/mazdak/AudioWhisper/blob/master/AudioWhisperIcon.png" width="128" height="128" alt="AudioWhisper Icon">
@@ -8,23 +8,22 @@ A lightweight macOS menu bar app for quick audio transcription using OpenAI Whis
 
 ## Features ✨
 
-- **🎯 Quick Access**: Global hotkey (⌘⇧Space) to start recording from anywhere
-- **🎙️ Menu Bar App**: Lives quietly in your menu bar, no dock icon
-- **🚀 Instant Transcription**: Powered by OpenAI Whisper, Google Gemini, Local WhisperKit with CoreML, or Parakeet-MLX
-- **📋 Smart Paste**: Transcribed text is automatically copied and can be pasted
-- **🔈 Visual and Sound Feedback**: Real-time audio level indicator while recording, chime when finished transcription
-- **⌨️ Keyboard Shortcuts**: Space to start/stop recording, ESC to cancel
-- **💬 User Guidance**: Clear on-screen instructions for all actions
-- **🌓 Dark Mode**: Beautiful native macOS design that adapts to your system
-- **🔐 Secure**: API keys stored in macOS Keychain
-- **🔒 Privacy-First**: Local transcription option keeps audio on your device
-- **⚡ Lightweight**: Minimal resource usage, starts with your Mac
+- **Global hotkey + push‑to‑talk**: Default ⌘⇧Space, optional press‑and‑hold on a modifier key, and an Express Mode that starts/stops with a single hotkey press
+- **Multiple engines**: OpenAI Whisper, Google Gemini, offline WhisperKit (CoreML), and Parakeet‑MLX (Apple Silicon, multilingual) with built-in model download/verify tools
+- **Semantic clean‑up**: Optional post-processing with local MLX (Llama 3.2 3B 4‑bit) or the same cloud provider to fix typos, punctuation, and filler words
+- **Transcribe files**: Menu bar → “Transcribe Audio File…” to convert existing audio without recording
+- **History & insights**: Opt‑in transcription history with search/clear/retention plus a Usage Dashboard (sessions, words, WPM, time/keystrokes saved, rebuild from history)
+- **Smart paste & focus**: Clipboard copy plus optional auto‑⌘V; restores focus to the app you were in; plays gentle completion chime
+- **Performance helpers**: Auto‑boost mic input while recording, live level meter, start-at-login toggle
+- **Secure by default**: API keys in macOS Keychain, local modes keep audio on‑device, no analytics
 
 ## Requirements 📋
 
-- macOS 14.0 (Sonoma) or later  
-- OpenAI API key, Google Gemini API key, Local Whisper (no API key required), or Parakeet with Python
-- Swift 5.9+ (for building from source)
+- macOS 14.0 (Sonoma) or later
+- Apple Silicon strongly recommended; **required** for Parakeet and local MLX semantic correction (local Whisper works on Intel but is slower)
+- Disk space: up to ~1.5 GB for Whisper large‑turbo, ~2.5 GB for Parakeet model cache if enabled
+- API keys: OpenAI or Google Gemini for cloud; none needed for Local Whisper/Parakeet/local MLX correction
+- Swift 5.9+ (if building from source)
 
 ## Installation 🛠️
 
@@ -69,63 +68,63 @@ cp -r AudioWhisper.app /Applications/
 
 ### Transcription Options
 
-**Local WhisperKit (Privacy-First)**
-- No API key required
-- Audio never leaves your device
-- CoreML hardware acceleration with Neural Engine support
-- Choose from 6 different model sizes (39MB to 2.9GB)
-- Models download automatically on first use
+**Local WhisperKit (Offline CoreML)**
+- No API key; audio stays on-device
+- Four models: Tiny (39 MB), Base (142 MB), Small (466 MB), Large Turbo (1.5 GB)
+- Downloads in Settings → Speech-to-Text; uses Neural Engine; storage cap slider + per-model verify/delete
 
-**Local Parakeet (VERY Fast, English only, Privacy-First)**
-- No API key required
-- Audio never leaves your device
-- MLX hardware acceleration
-- ADVANCED: Make sure you have a Python installation on your machine: [Parakeet MLX Instructions](https://github.com/senstella/parakeet-mlx).
-- Pick Parakeet (Advanced) and enter the full path to your Python binary
+**Parakeet‑MLX (Offline, very fast, multilingual)**
+- Apple Silicon only; no API key; audio stays local
+- Choose v2 English or v3 Multilingual (~2.5 GB)
+- Click “Install Dependencies” to bootstrap the bundled uv/MLX environment, then “Verify Parakeet Model”
+- Models cache under `~/.cache/huggingface/hub`
 
-**OpenAI (Recommended for Cloud)**
-1. Visit https://platform.openai.com/api-keys
-2. Create a new API key
-3. Copy the key starting with `sk-`
+**OpenAI (Cloud)**
+1. Get an API key: https://platform.openai.com/api-keys (starts with `sk-`)
+2. Optional: set a custom endpoint (Azure/OpenAI-compatible proxy) in Settings → Advanced
 
-**Google Gemini**
-1. Visit https://makersuite.google.com/app/apikey
-2. Create a new API key
-3. Copy the key starting with `AIza`
+**Google Gemini (Cloud)**
+1. Get an API key: https://makersuite.google.com/app/apikey (starts with `AIza`)
+2. Optional: override the base URL for proxies/self-hosted gateways
+3. Large files automatically use the Gemini Files API
 
-**Parakeet (Advanced)**
-- Local transcription using MLX framework for Apple Silicon optimization
-- Requires Python with parakeet-mlx installed
-- First use downloads ~600MB model from Hugging Face
-- Setup instructions:
-  ```bash
-  
-  # Install parakeet-mlx 
-  uv add parakeet-mlx -U
-  # or
-  pip install parakeet-mlx
-  ```
-- Configure Python path in settings (usually `/usr/bin/python3`)
+**Semantic Correction (Optional)**
+- Modes: Off, Local MLX, or Cloud (uses the active provider)
+- Local MLX downloads `mlx-community/Llama-3.2-3B-Instruct-4bit` and runs fully offline on Apple Silicon
+- You can override prompts by placing `.txt` files in `~/Library/Application Support/AudioWhisper/prompts/`
+
+**History & Usage Stats (Optional)**
+- Enable “Save Transcription History” in Settings; pick retention: 1 week / 1 month / 3 months / forever
+- “View History” offers search, expand, delete, or clear-all (all stored locally)
+- Usage Dashboard shows sessions, words, WPM, time saved, keystrokes saved; rebuild counters from history or reset with one click
+
+**Productivity Toggles**
+- Express Mode: the hotkey starts/stops recording and pastes without opening the window
+- Press & Hold: choose a modifier key (⌘/⌥/⌃/Fn) and hold to record; requires Accessibility permission
+- Smart Paste: auto ⌘V after transcription; requires Input Monitoring permission
+- Auto-boost microphone input while recording, start at login, completion sound toggle
 
 ### First Run
 
 1. Launch AudioWhisper from Applications
 2. The app will detect no API keys and show a welcome dialog
 3. Click OK to open Settings
-4. Choose your preferred provider:
-   - **Local WhisperKit**: Select model size (downloads automatically, no API key needed)
-   - **OpenAI or Gemini**: Paste your API key and click "Save"
-   - **Advanced: Parakeet 🦜**: You need a working Python 3 installation with `parakeet-mlx` installed.
+4. Choose your provider:
+   - **Local WhisperKit**: pick a model; download starts automatically
+   - **OpenAI or Gemini**: paste your key, optionally set a custom endpoint/base URL
+   - **Parakeet‑MLX**: click Install Dependencies → Verify Parakeet Model (Apple Silicon)
+   - **Semantic Correction**: pick Off / Local MLX / Cloud
 
-5. Toggle "Start at Login" if you want the app to launch automatically
+5. (Optional) Enable History + retention, Usage stats, Smart Paste, Express Mode, or Press & Hold
+6. Toggle "Start at Login" if you want the app to launch automatically
 
 ## Usage 🎯
 
-1. **Quick Recording**: Press ⌘⇧Space anywhere to open the recording window
-2. **Start Recording**: Click the blue microphone button or press Space
-3. **Stop Recording**: Click the button again or press Space
-4. **Cancel**: Press ESC at any time to dismiss the window
-5. **Auto-Paste**: After transcription, text is automatically copied and pasted to the previous app
+1. **Quick or Express**: Press ⌘⇧Space. If Express Mode is on, the first press starts recording and the next press stops and pastes without showing the window.
+2. **Start Recording**: Click the mic or press Space. If Press & Hold is enabled, hold your chosen modifier key to record.
+3. **Stop Recording**: Click/Space again (or release the modifier in Press & Hold). Press ESC anytime to cancel.
+4. **Paste**: Text is copied to the clipboard; if Smart Paste is on we auto‑⌘V into the last app and then return focus.
+5. **Transcribe a file**: Menu bar → **Transcribe Audio File…** and pick any audio file.
 
 The app lives in your menu bar - click the microphone icon for quick access to recording or settings.
 
@@ -135,6 +134,12 @@ The recording window shows helpful instructions at the bottom:
 - **Recording**: "Press Space to stop • Escape to cancel"
 - **Processing**: "Processing audio..."
 - **Success**: "Text copied to clipboard"
+
+## History & Usage Stats 📚
+
+- Turn on **Save Transcription History** in Settings to store transcripts locally with retention options (1 week, 1 month, 3 months, forever).
+- Open **History** from the menu bar or Settings to search, expand details, delete individual entries, or clear all.
+- The **Usage Dashboard** (in Settings) aggregates sessions, words, words per minute, estimated time saved, and keystrokes saved; you can rebuild stats from history or reset counters anytime.
 
 ## Building from Source 👨‍💻
 
@@ -163,6 +168,8 @@ make build
 - **Local Transcription**: Choose Local WhisperKit to keep audio completely on your device
 - **Third Party Processing**: OpenAI/Google options transmit audio for transcription
 - **Keychain Storage**: API keys are securely stored in macOS Keychain
+- **History**: If enabled, transcripts stay local and respect your chosen retention window
+- **Permissions**: Smart Paste needs Input Monitoring; Press & Hold needs Accessibility; both are only used for the stated features
 - **No Tracking**: We don't collect any usage data or analytics
 - **Microphone Permission**: You'll be prompted once on first use
 - **Open Source**: Audit the code yourself for peace of mind
@@ -171,36 +178,34 @@ make build
 
 | Action | Shortcut |
 |--------|----------|
-| Toggle Recording Window | ⌘⇧Space |
-| Start/Stop Recording | Space |
+| Toggle window / Express hotkey | ⌘⇧Space (default, configurable) |
+| Press & Hold (optional) | Hold chosen modifier (⌘ / ⌥ / ⌃ / Fn) |
+| Start/Stop in window | Space |
 | Cancel/Close Window | ESC |
-| Open Settings | Click menu bar → Settings |
+| Open Settings | Menu bar → Settings |
 
 ## Troubleshooting 🔧
 
-**"Unidentified Developer" Warning**
-- Right-click the app and select "Open" instead of double-clicking
-- Click "Open" in the security dialog
+**"Unidentified Developer" warning**
+- Right‑click the app → Open → confirm the dialog once
 
-**Microphone Permission**
-- Go to System Settings → Privacy & Security → Microphone
-- Ensure AudioWhisper is enabled
+**Smart Paste or Press & Hold not working**
+- Grant permissions in System Settings → Privacy & Security → Input Monitoring (Smart Paste) and Accessibility (Press & Hold)
 
-**API Key Issues**
-- Verify your API key is correct in Settings
-- Check your API quota/credits
-- Try switching between OpenAI and Gemini
+**Microphone not detected**
+- System Settings → Privacy & Security → Microphone → enable AudioWhisper
 
-**Recording Window Issues**
-- The window floats above all apps
-- Click outside or press ESC to dismiss
-- Use ⌘⇧Space to toggle visibility
+**API key problems**
+- Re‑enter the key in Settings and click Save; check quota; verify any custom base URL/endpoint is correct
 
-**Parakeet Setup Issues**
-- Ensure Python and parakeet-mlx are installed: `python3 -c "import parakeet_mlx; print('OK')"`
-- Use "Test" button in settings to validate setup
-- Check Python path is correct (usually `/usr/bin/python3`)
-- For custom Python installations, specify full path to python executable
+**Local models missing or failing**
+- Settings → Speech-to-Text → Local Whisper: download/verify the selected model; ensure storage cap isn’t too low
+
+**Parakeet/MLX not ready**
+- Apple Silicon only; open Settings → Speech-to-Text → Parakeet → Install Dependencies → Verify Parakeet Model
+
+**Semantic correction issues**
+- For Local MLX, click Install Dependencies then Verify MLX Model; for Cloud, ensure the same provider has a valid API key
 
 ## Contributing 🤝
 
@@ -221,6 +226,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Alamofire](https://github.com/Alamofire/Alamofire) - MIT License
 - [HotKey](https://github.com/soffes/HotKey) - MIT License
 - [WhisperKit](https://github.com/argmaxinc/WhisperKit) - MIT License
+- [MLX](https://github.com/ml-explore/mlx) & [parakeet-mlx](https://github.com/senstella/parakeet-mlx) (Python, bundled) - MIT License
 
 ## Acknowledgments 🙏
 
@@ -229,6 +235,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Supports Google Gemini as an alternative
 - Local transcription powered by WhisperKit with CoreML acceleration
 - Parakeet-MLX library for providing an easy accelerated Python interface
+- MLX LLM stack for optional on-device semantic correction
 
 ---
 
