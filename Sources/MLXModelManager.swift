@@ -417,15 +417,37 @@ except Exception as e:
 
         do {
             try process.run()
-            process.waitUntilExit()
+
+            // Wait for process in background to avoid blocking main thread
+            Task.detached {
+                process.waitUntilExit()
+
+                let exitStatus = process.terminationStatus
+
+                await MainActor.run { [weak self] in
+                    self?.isDownloading[repo] = false
+                    if exitStatus != 0 {
+                        self?.downloadProgress[repo] = "Error: Download failed (exit code: \(exitStatus))"
+                    } else {
+                        self?.downloadProgress.removeValue(forKey: repo)
+                    }
+
+                    if exitStatus == 0 {
+                        Task {
+                            await self?.refreshModelList()
+                        }
+                        self?.logger.info("Successfully downloaded Parakeet model: \(repo)")
+                    } else {
+                        self?.logger.error("Failed to download Parakeet model: \(repo) with exit code: \(exitStatus)")
+                    }
+                }
+            }
         } catch {
+            logger.error("Failed to launch Python process for Parakeet: \(error)")
             await MainActor.run {
+                self.isDownloading[repo] = false
                 self.downloadProgress[repo] = "Error: \(error.localizedDescription)"
             }
-        }
-
-        await MainActor.run {
-            self.isDownloading[repo] = false
         }
     }
 
