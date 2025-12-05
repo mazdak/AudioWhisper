@@ -234,6 +234,17 @@ struct SettingsView: View {
                     .accessibilityLabel("View transcription history")
                     .accessibilityHint("Opens a window to view and manage saved transcriptions")
                 }
+
+                Button("Open Recordings Folder...") {
+                    NSWorkspace.shared.open(FileManager.default.temporaryDirectory)
+                }
+                .buttonStyle(.bordered)
+                .accessibilityLabel("Open recordings folder")
+                .accessibilityHint("Opens the temporary folder where audio recordings are stored")
+
+                Text("Audio recordings are temporarily stored here until transcription completes.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
 
             Section(header: Text("Usage Stats")) {
