@@ -1405,6 +1405,12 @@ struct DownloadingView: View {
     }
 }
 
+// TODO: Consider migrating to sindresorhus/KeyboardShortcuts library
+// (https://github.com/sindresorhus/KeyboardShortcuts) which is the de facto
+// standard for macOS hotkey recording. It provides battle-tested validation,
+// built-in conflict detection with system/menu shortcuts, and would allow
+// removing this custom implementation (~300 lines). Used by VoiceInk, Maccy,
+// Amethyst, and other popular macOS apps.
 struct HotKeyRecorderView: View {
     @Binding var isRecording: Bool
     @Binding var recordedModifiers: NSEvent.ModifierFlags
@@ -1521,8 +1527,9 @@ struct HotKeyRecorderView: View {
             return false
         }
         
-        // Single modifier keys (like just shift) should require Command or Control
-        if modifiers == .shift || modifiers == .option {
+        // Shift-only combinations conflict with typing (e.g., Shift+A = "A")
+        // Option-only combinations like Option+Space are valid and commonly used
+        if modifiers == .shift {
             return false
         }
         
