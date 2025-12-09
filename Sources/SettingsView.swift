@@ -49,6 +49,9 @@ struct SettingsView: View {
     @AppStorage("selectedParakeetModel") private var selectedParakeetModel = ParakeetModel.v3Multilingual
     @AppStorage("hasSetupLocalLLM") private var hasSetupLocalLLM = false
     @AppStorage("openAIBaseURL") private var openAIBaseURL = ""
+    @AppStorage("openAIModel") private var openAIModel = ""
+    @AppStorage("openAITemperature") private var openAITemperature = 0.0
+    @AppStorage("openAILanguage") private var openAILanguage = ""
     @AppStorage("geminiBaseURL") private var geminiBaseURL = ""
     @State private var showAdvancedAPISettings = false
     @StateObject private var modelManager = ModelManager.shared
@@ -350,6 +353,35 @@ struct SettingsView: View {
                                         .foregroundColor(.secondary)
                                         .lineLimit(2)
                                         .fixedSize(horizontal: false, vertical: true)
+                                    
+                                    TextField("Model (optional)", text: $openAIModel)
+                                        .textFieldStyle(.roundedBorder)
+                                        .font(.caption)
+                                        .padding(.top, 8)
+                                    Text("Default: whisper-1. Override for other OpenAI-compatible APIs")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                    
+                                    TextField("Language (optional)", text: $openAILanguage)
+                                        .textFieldStyle(.roundedBorder)
+                                        .font(.caption)
+                                        .padding(.top, 8)
+                                    Text("ISO-639-1 code (e.g. en, es, fr). Leave empty for auto-detect")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                    
+                                    HStack {
+                                        Text("Temperature:")
+                                            .font(.caption)
+                                        Slider(value: $openAITemperature, in: 0...1, step: 0.1)
+                                        Text(String(format: "%.1f", openAITemperature))
+                                            .font(.caption)
+                                            .frame(width: 30)
+                                    }
+                                    .padding(.top, 8)
+                                    Text("0 = deterministic, higher = more variation")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
                                 } else {
                                     TextField("Custom Base URL (optional)", text: $geminiBaseURL)
                                         .textFieldStyle(.roundedBorder)

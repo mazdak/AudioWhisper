@@ -131,6 +131,25 @@ class SpeechToTextService: ObservableObject {
         let custom = UserDefaults.standard.string(forKey: "openAIBaseURL") ?? ""
         return custom.contains(".openai.azure.com")
     }
+    
+    /// Returns the model name to use for OpenAI-compatible transcription APIs.
+    /// Defaults to "whisper-1" if not customized.
+    private var openAIModelName: String {
+        let custom = UserDefaults.standard.string(forKey: "openAIModel") ?? ""
+        return custom.isEmpty ? "whisper-1" : custom
+    }
+    
+    /// Returns the temperature for OpenAI-compatible transcription APIs.
+    /// Defaults to 0 (deterministic). Range: 0-1.
+    private var openAITemperature: Double {
+        UserDefaults.standard.double(forKey: "openAITemperature")
+    }
+    
+    /// Returns the language code for OpenAI-compatible transcription APIs.
+    /// Empty string means auto-detect. Use ISO-639-1 codes (e.g. "en", "es").
+    private var openAILanguage: String {
+        UserDefaults.standard.string(forKey: "openAILanguage") ?? ""
+    }
 
     private func transcribeWithOpenAI(audioURL: URL) async throws -> String {
         // Get API key from keychain
@@ -148,12 +167,20 @@ class SpeechToTextService: ObservableObject {
 
         let transcriptionURL = openAITranscriptionEndpoint
 
+        let modelName = openAIModelName
+        let temperature = openAITemperature
+        let language = openAILanguage
+        
         return try await withCheckedThrowingContinuation { continuation in
             AF.upload(
                 multipartFormData: { multipartFormData in
                     multipartFormData.append(audioURL, withName: "file")
                     // Azure deployments already specify the model, but it doesn't hurt to include
-                    multipartFormData.append("whisper-1".data(using: .utf8)!, withName: "model")
+                    multipartFormData.append(modelName.data(using: .utf8)!, withName: "model")
+                    multipartFormData.append(String(temperature).data(using: .utf8)!, withName: "temperature")
+                    if !language.isEmpty {
+                        multipartFormData.append(language.data(using: .utf8)!, withName: "language")
+                    }
                 },
                 to: transcriptionURL,
                 headers: headers
