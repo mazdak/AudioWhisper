@@ -135,7 +135,8 @@ class SpeechToTextService: ObservableObject {
     /// Returns the model name to use for OpenAI-compatible transcription APIs.
     /// Defaults to "whisper-1" if not customized.
     private var openAIModelName: String {
-        let custom = UserDefaults.standard.string(forKey: "openAIModel") ?? ""
+        let custom = (UserDefaults.standard.string(forKey: "openAIModel") ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         return custom.isEmpty ? "whisper-1" : custom
     }
     
@@ -148,7 +149,8 @@ class SpeechToTextService: ObservableObject {
     /// Returns the language code for OpenAI-compatible transcription APIs.
     /// Empty string means auto-detect. Use ISO-639-1 codes (e.g. "en", "es").
     private var openAILanguage: String {
-        UserDefaults.standard.string(forKey: "openAILanguage") ?? ""
+        (UserDefaults.standard.string(forKey: "openAILanguage") ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func transcribeWithOpenAI(audioURL: URL) async throws -> String {
