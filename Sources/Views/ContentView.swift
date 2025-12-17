@@ -49,7 +49,7 @@ internal struct ContentView: View {
     }
     
     var body: some View {
-        InkRippleRecordingView(
+        WaveformRecordingView(
             status: statusViewModel.currentStatus,
             audioLevel: audioRecorder.audioLevel,
             onTap: {
