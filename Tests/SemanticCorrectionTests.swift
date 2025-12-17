@@ -143,7 +143,7 @@ final class SemanticCorrectionTests: XCTestCase {
     @MainActor
     func testRecommendedModelsCount() {
         let models = MLXModelManager.recommendedModels
-        XCTAssertEqual(models.count, 2, "Should have 2 recommended models")
+        XCTAssertEqual(models.count, 4, "Should have 4 recommended models")
     }
 
     @MainActor
@@ -152,15 +152,15 @@ final class SemanticCorrectionTests: XCTestCase {
         
         // Check that we have the expected models
         let modelRepos = models.map { $0.repo }
-        XCTAssertTrue(modelRepos.contains("mlx-community/Llama-3.2-3B-Instruct-4bit"))
-        XCTAssertTrue(modelRepos.contains("mlx-community/Qwen3-4B-Instruct-2507-5bit"))
+        let expectedRepos: Set<String> = [
+            "mlx-community/Llama-3.2-1B-Instruct-4bit",
+            "mlx-community/gemma-3-1b-it-4bit",
+            "mlx-community/Qwen3-1.7B-4bit",
+            "mlx-community/Phi-3.5-mini-instruct-4bit"
+        ]
+        XCTAssertEqual(Set(modelRepos), expectedRepos)
         XCTAssertFalse(modelRepos.contains("mlx-community/gemma-2-2b-it-4bit"))
-        
-        // Verify Qwen2.5-1.5B was removed (too small, hallucinates)
         XCTAssertFalse(modelRepos.contains("mlx-community/Qwen2.5-1.5B-Instruct-4bit"))
-        
-        // Verify Phi model was removed
-        XCTAssertFalse(modelRepos.contains { $0.lowercased().contains("phi") })
     }
     
     @MainActor

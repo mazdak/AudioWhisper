@@ -46,7 +46,7 @@ final class DataManagerIntegrationTests: XCTestCase {
     
     private func waitForAsyncOperation() async {
         // Small delay to ensure async operations complete
-        try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+        try? await Task.sleep(for: .milliseconds(100)) // 0.1 seconds
     }
     
     // MARK: - DataManager Protocol Integration Tests
