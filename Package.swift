@@ -24,6 +24,8 @@ let package = Package(
                 .copy("mlx_semantic_correct.py"),
                 .copy("verify_parakeet.py"),
                 .copy("verify_mlx.py"),
+                .copy("ml_daemon.py"),
+                .copy("ml"),
                 // Bundle additional resources like uv binary and lock files
                 .copy("Resources")
             ]
@@ -32,7 +34,7 @@ let package = Package(
             name: "AudioWhisperTests",
             dependencies: ["AudioWhisper"],
             path: "Tests",
-            exclude: ["README.md", "test_parakeet_transcribe.py"]
+            exclude: ["README.md", "test_parakeet_transcribe.py", "__Snapshots__"]
         )
     ]
 )
