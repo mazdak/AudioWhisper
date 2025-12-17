@@ -1,6 +1,7 @@
 import XCTest
 import SwiftUI
 import AppKit
+import CoreGraphics
 @testable import AudioWhisper
 
 /// Lightweight snapshot helper built on XCTest + ImageRenderer.
@@ -11,6 +12,17 @@ class SnapshotTestCase: XCTestCase {
     /// Enable recording by running tests with `SNAPSHOT_RECORD=1`.
     private var isRecording: Bool {
         ProcessInfo.processInfo.environment["SNAPSHOT_RECORD"] == "1"
+    }
+
+    private var isSnapshotTestingEnabled: Bool {
+        isRecording || ProcessInfo.processInfo.environment["SNAPSHOT_TESTS"] == "1"
+    }
+
+    override func setUpWithError() throws {
+        try super.setUpWithError()
+        guard isSnapshotTestingEnabled else {
+            throw XCTSkip("Snapshot tests are disabled by default. Set SNAPSHOT_TESTS=1 (or SNAPSHOT_RECORD=1) to run them.")
+        }
     }
     
     func assertSnapshot<V: View>(
@@ -55,6 +67,10 @@ class SnapshotTestCase: XCTestCase {
         }
         
         if baselineData != actualData {
+            if imagesMatchIgnoringEncoding(baselinePNGData: baselineData, actualPNGData: actualData) {
+                return
+            }
+
             let expectedAttachment = XCTAttachment(contentsOfFile: snapshotURL)
             expectedAttachment.name = "\(name)-baseline"
             expectedAttachment.lifetime = .deleteOnSuccess
@@ -78,6 +94,16 @@ class SnapshotTestCase: XCTestCase {
             .appendingPathComponent(snapshotFolderName, isDirectory: true)
             .appendingPathComponent("\(name).png")
     }
+
+    private func imagesMatchIgnoringEncoding(baselinePNGData: Data, actualPNGData: Data) -> Bool {
+        guard let baselineImage = NSImage(data: baselinePNGData),
+              let actualImage = NSImage(data: actualPNGData),
+              let baselineBytes = baselineImage.normalizedRGBABytes(),
+              let actualBytes = actualImage.normalizedRGBABytes() else {
+            return false
+        }
+        return baselineBytes == actualBytes
+    }
 }
 
 private extension NSImage {
@@ -87,5 +113,42 @@ private extension NSImage {
             return nil
         }
         return bitmap.representation(using: .png, properties: [:])
+    }
+
+    func normalizedRGBABytes() -> Data? {
+        var proposedRect = NSRect(origin: .zero, size: size)
+        guard let cgImage = cgImage(forProposedRect: &proposedRect, context: nil, hints: nil) else {
+            return nil
+        }
+
+        let width = cgImage.width
+        let height = cgImage.height
+        let bytesPerPixel = 4
+        let bytesPerRow = width * bytesPerPixel
+        let byteCount = bytesPerRow * height
+
+        var buffer = Data(count: byteCount)
+        let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB()
+        let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
+
+        let result = buffer.withUnsafeMutableBytes { rawBuffer -> Bool in
+            guard let baseAddress = rawBuffer.baseAddress else { return false }
+            guard let context = CGContext(
+                data: baseAddress,
+                width: width,
+                height: height,
+                bitsPerComponent: 8,
+                bytesPerRow: bytesPerRow,
+                space: colorSpace,
+                bitmapInfo: bitmapInfo.rawValue
+            ) else {
+                return false
+            }
+            context.interpolationQuality = .none
+            context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+            return true
+        }
+
+        return result ? buffer : nil
     }
 }

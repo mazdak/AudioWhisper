@@ -168,4 +168,8 @@ internal final class SourceUsageStore {
         orderedStats = []
         defaults.removeObject(forKey: storageKey)
     }
+
+    func resetForTesting() {
+        reset()
+    }
 }
