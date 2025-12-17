@@ -127,3 +127,4 @@ __pycache__
 .env.local
 AudioWhisper.iconset/
 .build-uv/
+.beads/
