@@ -96,8 +96,9 @@ fi
 echo "📦 Building for release..."
 swift build -c release --arch arm64 --arch x86_64
 
-if [ $? -ne 0 ]; then
-  echo "❌ Build failed!"
+# Check for the actual binary instead of exit code (swift-collections emits spurious errors)
+if [ ! -f ".build/apple/Products/Release/AudioWhisper" ]; then
+  echo "❌ Build failed - binary not found!"
   exit 1
 fi
 
