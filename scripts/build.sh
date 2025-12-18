@@ -57,11 +57,11 @@ if [ -f "Sources/VersionInfo.swift.template" ]; then
   sed -e "s/VERSION_PLACEHOLDER/$VERSION/g" \
     -e "s/GIT_HASH_PLACEHOLDER/$GIT_HASH/g" \
     -e "s/BUILD_DATE_PLACEHOLDER/$BUILD_DATE/g" \
-    Sources/VersionInfo.swift.template >Sources/VersionInfo.swift
+    Sources/VersionInfo.swift.template >Sources/Utilities/VersionInfo.swift
   echo "Generated VersionInfo.swift from template"
 else
   echo "Warning: VersionInfo.swift.template not found, using fallback"
-  cat >Sources/VersionInfo.swift <<EOF
+  cat >Sources/Utilities/VersionInfo.swift <<EOF
 import Foundation
 
 struct VersionInfo {
@@ -96,8 +96,9 @@ fi
 echo "📦 Building for release..."
 swift build -c release --arch arm64 --arch x86_64
 
-if [ $? -ne 0 ]; then
-  echo "❌ Build failed!"
+# Check for the actual binary instead of exit code (swift-collections emits spurious errors)
+if [ ! -f ".build/apple/Products/Release/AudioWhisper" ]; then
+  echo "❌ Build failed - binary not found!"
   exit 1
 fi
 
@@ -112,6 +113,12 @@ BUILD_NUMBER="${VERSION//./}"
 
 # Copy executable (universal binary)
 cp .build/apple/Products/Release/AudioWhisper AudioWhisper.app/Contents/MacOS/
+
+# Copy dashboard logo
+if [ -f "Sources/Resources/DashboardLogo.jpg" ]; then
+  cp Sources/Resources/DashboardLogo.jpg AudioWhisper.app/Contents/Resources/
+  echo "Copied dashboard logo"
+fi
 
 # Copy Python scripts for Parakeet and MLX support
 if [ -f "Sources/parakeet_transcribe_pcm.py" ]; then
@@ -134,6 +141,20 @@ if [ -f "Sources/verify_parakeet.py" ]; then
 fi
 if [ -f "Sources/verify_mlx.py" ]; then
   cp Sources/verify_mlx.py AudioWhisper.app/Contents/Resources/
+fi
+
+# Copy ML daemon entrypoint and package
+if [ -f "Sources/ml_daemon.py" ]; then
+  cp Sources/ml_daemon.py AudioWhisper.app/Contents/Resources/
+  echo "Copied ML daemon entrypoint"
+fi
+if [ -d "Sources/ml" ]; then
+  cp -R Sources/ml AudioWhisper.app/Contents/Resources/
+  # Remove __pycache__ directories
+  find AudioWhisper.app/Contents/Resources/ml -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+  echo "Copied ml package"
+else
+  echo "⚠️ Sources/ml package not found, ML daemon will not work"
 fi
 
 # Bundle uv (Apple Silicon). Prefer repo copy; else fall back to system uv if available

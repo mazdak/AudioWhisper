@@ -3,6 +3,16 @@ import AVFoundation
 
 class MockAVAudioRecorder: AVAudioRecorder, @unchecked Sendable {
     private var mockIsRecording = false
+    
+    override convenience init() {
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("mock_\(UUID().uuidString).m4a")
+        let settings: [String: Any] = [
+            AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
+            AVSampleRateKey: 44100,
+            AVNumberOfChannelsKey: 1
+        ]
+        try! self.init(url: tempURL, settings: settings)
+    }
     private var mockCurrentTime: TimeInterval = 0
     private var mockAveragePower: Float = -10.0
     private var mockPeakPower: Float = -5.0

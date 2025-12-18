@@ -1,6 +1,7 @@
 import XCTest
 @testable import AudioWhisper
 
+@MainActor
 final class PermissionManagerTests: XCTestCase {
 
     var permissionManager: PermissionManager!

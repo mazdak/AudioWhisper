@@ -56,6 +56,68 @@ When extending functionality, prefer these existing dependencies over introducin
 - Do not introduce unrelated changes or fix pre-existing warnings.
 - Include a brief rationale and testing steps in the PR description.
 
+## 7. Building and Deploying
+
+### Quick Build & Deploy
+
+```bash
+# 1. Build the app bundle
+make build
+
+# 2. If make build fails after "Build succeeded", run manually:
+cd /Users/yesh/Documents/personal/reference/AudioWhisper
+swift build -c release --arch arm64 --arch x86_64
+
+# Create app bundle manually if needed:
+rm -rf AudioWhisper.app
+mkdir -p AudioWhisper.app/Contents/{MacOS,Resources,Resources/bin}
+cp .build/apple/Products/Release/AudioWhisper AudioWhisper.app/Contents/MacOS/
+chmod +x AudioWhisper.app/Contents/MacOS/AudioWhisper
+
+# Copy Python scripts and ml/ package
+cp Sources/*.py AudioWhisper.app/Contents/Resources/ 2>/dev/null || true
+cp -R Sources/ml AudioWhisper.app/Contents/Resources/ 2>/dev/null || true
+find AudioWhisper.app/Contents/Resources/ml -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+
+# Copy uv binary
+cp "$(command -v uv)" AudioWhisper.app/Contents/Resources/bin/uv 2>/dev/null || true
+
+# Generate Info.plist (see scripts/build.sh for full template)
+# Generate icons
+./scripts/generate-icons.sh
+iconutil -c icns AudioWhisper.iconset -o AudioWhisper.app/Contents/Resources/AppIcon.icns
+
+# 3. Sign with stable identifier
+codesign --force --deep --sign - --identifier "com.audiowhisper.app" AudioWhisper.app
+
+# 4. Deploy
+pkill -x AudioWhisper 2>/dev/null || true
+sleep 1
+rm -rf /Applications/AudioWhisper.app
+cp -R AudioWhisper.app /Applications/
+
+# 5. Launch
+open /Applications/AudioWhisper.app
+```
+
+### Accessibility Permission (SmartPaste)
+
+**Critical**: The app uses adhoc code signing. When replacing the app bundle, macOS invalidates existing Accessibility permissions because the code signature hash changes.
+
+After deploying a new build, the user must:
+1. Open **System Settings → Privacy & Security → Accessibility**
+2. **Remove** AudioWhisper from the list (select it, click `-`)
+3. **Re-add** it (click `+`, navigate to `/Applications/AudioWhisper.app`)
+4. Ensure the toggle is **ON**
+
+Without this, SmartPaste will silently fail (paste won't work).
+
+### Troubleshooting
+
+- **"Build succeeded" then "Build failed"**: The Swift build works but post-build steps fail. Check if `.build/apple/Products/Release/AudioWhisper` exists and run bundle creation manually.
+- **SmartPaste broken after deploy**: Re-grant Accessibility permission (see above).
+- **App won't launch**: Check `codesign -dvvv /Applications/AudioWhisper.app` for signing issues.
+
 ---
 
 *This file is intended solely for guiding AI assistants. Do not expose it in end-user documentation.*

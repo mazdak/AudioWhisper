@@ -1,6 +1,5 @@
 import XCTest
 import Foundation
-import Combine
 import WhisperKit
 @testable import AudioWhisper
 
@@ -83,9 +82,10 @@ extension FileManager: FileManagerProtocol {
 }
 
 // MARK: - Mock ModelManager
-class MockModelManager: ObservableObject {
-    @MainActor @Published var downloadProgress: [WhisperModel: Double] = [:]
-    @MainActor @Published var downloadingModels: Set<WhisperModel> = []
+@Observable
+class MockModelManager {
+    @MainActor var downloadProgress: [WhisperModel: Double] = [:]
+    @MainActor var downloadingModels: Set<WhisperModel> = []
     
     private let mockFileManager: MockFileManager
     private var downloadRequests: [WhisperModel: Bool] = [:]
@@ -136,7 +136,7 @@ class MockModelManager: ObservableObject {
         // Clean up after download completes (will be done at the end)
         
         // Simulate actual download time
-        try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
+        try? await Task.sleep(for: .milliseconds(100)) // 100ms
         
         // Simulate download completion
         let destination = await MainActor.run { 
@@ -209,13 +209,11 @@ class MockModelManager: ObservableObject {
 class ModelManagerTests: XCTestCase {
     var mockFileManager: MockFileManager!
     var mockModelManager: MockModelManager!
-    var cancellables: Set<AnyCancellable>!
     
     override func setUp() {
         super.setUp()
         mockFileManager = MockFileManager()
         mockModelManager = MockModelManager(fileManager: mockFileManager)
-        cancellables = Set<AnyCancellable>()
     }
     
     @MainActor
@@ -227,7 +225,6 @@ class ModelManagerTests: XCTestCase {
     override func tearDown() {
         mockFileManager = nil
         mockModelManager = nil
-        cancellables = nil
         super.tearDown()
     }
     
@@ -282,7 +279,7 @@ class ModelManagerTests: XCTestCase {
         }
         
         // Wait a bit for first download to mark as downloading
-        try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
+        try? await Task.sleep(for: .milliseconds(50)) // 50ms
         
         // Try to start second download
         do {
@@ -305,36 +302,29 @@ class ModelManagerTests: XCTestCase {
     func testDownloadingModelsTracking() async {
         await resetModelState()
         let model = WhisperModel.small
-        
-        // Track downloading models
-        let downloadingExpectation = XCTestExpectation(description: "Downloading models should be tracked")
-        let downloadingStates = ActorBox<[Set<WhisperModel>]>([])
-        
-        await MainActor.run {
-            mockModelManager.$downloadingModels
-                .sink { downloading in
-                    Task {
-                        await downloadingStates.append(downloading)
-                        let states = await downloadingStates.value
-                        if downloading.isEmpty && states.count > 1 {
-                            downloadingExpectation.fulfill()
-                        }
-                    }
-                }
-                .store(in: &cancellables)
-        }
-        
-        do {
+
+        let startedExpectation = XCTestExpectation(description: "Download state entered")
+        let finishedExpectation = XCTestExpectation(description: "Download state cleared")
+
+        let downloadTask = Task {
             try await mockModelManager.downloadModel(model)
-            await fulfillment(of: [downloadingExpectation], timeout: 1.0)
-            
-            // Verify downloading states
-            let states = await downloadingStates.value
-            XCTAssertTrue(states.contains(where: { $0.contains(model) }))
-            XCTAssertTrue(states.last?.isEmpty ?? false)
-            
-        } catch {
-            XCTFail("Download should succeed: \(error)")
+            finishedExpectation.fulfill()
+        }
+
+        // Allow the download task to mark state as downloading
+        try? await Task.sleep(for: .milliseconds(20))
+        await MainActor.run {
+            if mockModelManager.downloadingModels.contains(model) {
+                startedExpectation.fulfill()
+            }
+        }
+
+        await fulfillment(of: [startedExpectation, finishedExpectation], timeout: 1.0)
+        _ = try? await downloadTask.value
+
+        await MainActor.run {
+            XCTAssertFalse(mockModelManager.downloadingModels.contains(model))
+            XCTAssertNil(mockModelManager.downloadProgress[model])
         }
     }
     

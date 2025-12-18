@@ -125,3 +125,6 @@ __pycache__
 # Environment
 .env
 .env.local
+AudioWhisper.iconset/
+.build-uv/
+.beads/

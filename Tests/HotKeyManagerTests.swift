@@ -92,7 +92,7 @@ final class HotKeyManagerTests: XCTestCase {
         let expectation = XCTestExpectation(description: "Hotkey updated")
         
         // Post notification to update hotkey
-        DispatchQueue.main.async {
+        Task { @MainActor in
             NotificationCenter.default.post(
                 name: .updateGlobalHotkey,
                 object: "⌘B"

@@ -76,7 +76,7 @@ final class TranscriptionHistoryIntegrationTests: XCTestCase {
     
     private func waitForAsyncOperation() async {
         // Give more time for async operations to complete and ensure they're properly flushed
-        try? await Task.sleep(nanoseconds: 250_000_000) // 0.25 seconds
+        try? await Task.sleep(for: .milliseconds(250)) // 0.25 seconds
         
         // Force main actor to process any pending tasks
         await MainActor.run {
@@ -737,7 +737,7 @@ final class TranscriptionHistoryIntegrationTests: XCTestCase {
             }
             
             // Small delay between batches
-            try? await Task.sleep(nanoseconds: 10_000_000) // 0.01 seconds
+            try? await Task.sleep(for: .milliseconds(10)) // 0.01 seconds
         }
         
         // Verify all records were created
@@ -843,7 +843,7 @@ final class TranscriptionHistoryIntegrationTests: XCTestCase {
             // Task 2: Perform searches periodically
             group.addTask {
                 for _ in 0..<10 {
-                    try? await Task.sleep(nanoseconds: 50_000_000) // 0.05 seconds
+                    try? await Task.sleep(for: .milliseconds(50)) // 0.05 seconds
                     await MainActor.run {
                         let records = try? self.modelContext.fetch(FetchDescriptor<TranscriptionRecord>())
                         let searchResults = records?.filter { $0.matches(searchQuery: "Sequential") }

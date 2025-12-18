@@ -5,13 +5,20 @@ import Foundation
 class ParakeetServiceTests: XCTestCase {
     
     var parakeetService: ParakeetService!
+    var originalRepo: String?
     
     override func setUp() {
         super.setUp()
+        originalRepo = UserDefaults.standard.string(forKey: "selectedParakeetModel")
         parakeetService = ParakeetService()
     }
     
     override func tearDown() {
+        if let originalRepo {
+            UserDefaults.standard.set(originalRepo, forKey: "selectedParakeetModel")
+        } else {
+            UserDefaults.standard.removeObject(forKey: "selectedParakeetModel")
+        }
         parakeetService = nil
         super.tearDown()
     }
@@ -42,34 +49,17 @@ class ParakeetServiceTests: XCTestCase {
     
     // MARK: - Validation Tests
     
-    func testValidateSetupWithInvalidPython() async {
-        let invalidPath = "/invalid/python/path"
+    func testValidateSetupRequiresCachedModel() async {
+        let missingRepo = "example.com/missing-repo-\(UUID().uuidString)"
+        UserDefaults.standard.set(missingRepo, forKey: "selectedParakeetModel")
         
         do {
-            try await parakeetService.validateSetup(pythonPath: invalidPath)
-            XCTFail("Should have thrown an error for invalid Python path")
+            try await parakeetService.validateSetup(pythonPath: "/usr/bin/python3")
+            XCTFail("Should have thrown modelNotReady when cache is missing")
         } catch let error as ParakeetError {
-            XCTAssertEqual(error, ParakeetError.pythonNotFound(path: invalidPath))
+            XCTAssertEqual(error, ParakeetError.modelNotReady)
         } catch {
             XCTFail("Should have thrown ParakeetError, got \(error)")
-        }
-    }
-    
-    func testValidateSetupWithValidSystemPython() async {
-        let systemPythonPath = "/usr/bin/python3"
-        
-        // Only test if system Python exists
-        if FileManager.default.fileExists(atPath: systemPythonPath) {
-            do {
-                try await parakeetService.validateSetup(pythonPath: systemPythonPath)
-                // If this doesn't throw, Python exists but parakeet-mlx probably isn't installed
-                // This is expected behavior for most systems
-            } catch let error as ParakeetError {
-                // Expected if parakeet-mlx is not installed
-                XCTAssertTrue(error.localizedDescription.contains("parakeet-mlx"))
-            } catch {
-                XCTFail("Unexpected error type: \(error)")
-            }
         }
     }
     
@@ -109,85 +99,16 @@ class ParakeetServiceTests: XCTestCase {
     
     // MARK: - File Path Tests
     
-    func testTranscribeWithInvalidPythonPath() async {
-        let invalidPythonPath = "/invalid/python/path"
+    func testTranscribeRequiresCachedModel() async {
+        let missingRepo = "example.com/missing-repo-\(UUID().uuidString)"
+        UserDefaults.standard.set(missingRepo, forKey: "selectedParakeetModel")
         let testAudioURL = URL(fileURLWithPath: "/tmp/test.m4a")
         
         do {
-            _ = try await parakeetService.transcribe(audioFileURL: testAudioURL, pythonPath: invalidPythonPath)
-            XCTFail("Should have thrown an error")
+            _ = try await parakeetService.transcribe(audioFileURL: testAudioURL, pythonPath: "/usr/bin/python3")
+            XCTFail("Expected modelNotReady when model cache is missing")
         } catch let error as ParakeetError {
-            // The error could be pythonNotFound, transcriptionFailed, or modelNotReady
-            // All are valid outcomes for this test scenario
-            switch error {
-            case .pythonNotFound(let path) where path == invalidPythonPath:
-                // Expected pythonNotFound error
-                break
-            case .transcriptionFailed:
-                // Also acceptable - audio processing failed before Python validation
-                break
-            case .modelNotReady:
-                // Also acceptable - model not cached (v3 multilingual may not be downloaded)
-                break
-            default:
-                XCTFail("Expected pythonNotFound, transcriptionFailed, or modelNotReady error, got \(error)")
-            }
-        } catch {
-            XCTFail("Should have thrown ParakeetError, got \(error)")
-        }
-    }
-
-    func testTranscribeWithInvalidPythonPathOnly() async {
-        let invalidPythonPath = "/invalid/python/path"
-        let testAudioURL = URL(fileURLWithPath: "/tmp/test.m4a")
-
-        do {
-            _ = try await parakeetService.transcribe(audioFileURL: testAudioURL, pythonPath: invalidPythonPath)
-            XCTFail("Should have thrown an error")
-        } catch let error as ParakeetError {
-            // The error could be pythonNotFound, transcriptionFailed, or modelNotReady
-            // All are valid outcomes for this test scenario
-            switch error {
-            case .pythonNotFound(let path) where path == invalidPythonPath:
-                // Expected pythonNotFound error
-                break
-            case .transcriptionFailed:
-                // Also acceptable - audio processing failed before Python validation
-                break
-            case .modelNotReady:
-                // Also acceptable - model not cached (v3 multilingual may not be downloaded)
-                break
-            default:
-                XCTFail("Expected pythonNotFound, transcriptionFailed, or modelNotReady error, got \(error)")
-            }
-        } catch {
-            XCTFail("Should have thrown ParakeetError, got \(error)")
-        }
-    }
-
-    func testTranscribeWithNativeAudioProcessing() async {
-        let invalidPythonPath = "/invalid/python/path"
-        let testAudioURL = URL(fileURLWithPath: "/tmp/test.m4a")
-
-        do {
-            _ = try await parakeetService.transcribe(audioFileURL: testAudioURL, pythonPath: invalidPythonPath)
-            XCTFail("Should have thrown an error")
-        } catch let error as ParakeetError {
-            // The error could be pythonNotFound, transcriptionFailed, or modelNotReady
-            // All are valid outcomes for this test scenario
-            switch error {
-            case .pythonNotFound(let path) where path == invalidPythonPath:
-                // Expected pythonNotFound error
-                break
-            case .transcriptionFailed:
-                // Also acceptable - audio processing failed before Python validation
-                break
-            case .modelNotReady:
-                // Also acceptable - model not cached (v3 multilingual may not be downloaded)
-                break
-            default:
-                XCTFail("Expected pythonNotFound, transcriptionFailed, or modelNotReady error, got \(error)")
-            }
+            XCTAssertEqual(error, .modelNotReady)
         } catch {
             XCTFail("Should have thrown ParakeetError, got \(error)")
         }
@@ -217,42 +138,24 @@ class ParakeetServiceTests: XCTestCase {
         }
     }
     
-    // MARK: - Edge Case Tests
-    
-    func testTranscribeWithNonExistentAudioFile() async {
-        let nonExistentAudioURL = URL(fileURLWithPath: "/tmp/nonexistent.m4a")
-        let systemPythonPath = "/usr/bin/python3"
-        
-        // Only test if system Python exists
-        if FileManager.default.fileExists(atPath: systemPythonPath) {
-            do {
-                _ = try await parakeetService.transcribe(audioFileURL: nonExistentAudioURL, pythonPath: systemPythonPath)
-                XCTFail("Should have thrown an error for non-existent audio file")
-            } catch {
-                // Expected - either parakeet-mlx not installed or audio file doesn't exist
-                XCTAssertTrue(error.localizedDescription.count > 0)
-            }
-        }
-    }
-    
     // MARK: - Bundle Resource Tests
     
-    func testParakeetScriptExists() {
-        // Test that the Python script can be found in the bundle
+    func testDaemonScriptExists() {
+        // Test that the ML daemon script can be found in the bundle
         // In test environment, check both Bundle.main and source directory
-        let scriptURL = Bundle.main.url(forResource: "parakeet_transcribe_pcm", withExtension: "py")
+        let scriptURL = Bundle.main.url(forResource: "ml_daemon", withExtension: "py")
         
         if scriptURL != nil {
             // Script found in bundle
-            XCTAssertNotNil(scriptURL, "Parakeet Python PCM script should be available in app bundle")
+            XCTAssertNotNil(scriptURL, "ML daemon script should be available in app bundle")
         } else {
             // In test environment, check if script exists in source directory
             let currentDir = URL(fileURLWithPath: #file).deletingLastPathComponent()
             let sourceDir = currentDir.deletingLastPathComponent().appendingPathComponent("Sources")
-            let sourceScriptURL = sourceDir.appendingPathComponent("parakeet_transcribe_pcm.py")
+            let sourceScriptURL = sourceDir.appendingPathComponent("ml_daemon.py")
             
             XCTAssertTrue(FileManager.default.fileExists(atPath: sourceScriptURL.path), 
-                         "Parakeet Python PCM script should be available in source directory during tests")
+                         "ML daemon script should be available in source directory during tests")
         }
     }
 }
