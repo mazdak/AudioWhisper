@@ -9,6 +9,7 @@ internal struct DashboardProvidersView: View {
     @AppStorage("hasSetupParakeet") var hasSetupParakeet = false
     @AppStorage("hasSetupLocalLLM") var hasSetupLocalLLM = false
     @AppStorage("openAIBaseURL") var openAIBaseURL = ""
+    @AppStorage("openAIModel") var openAIModel = "whisper-1"
     @AppStorage("geminiBaseURL") var geminiBaseURL = ""
     @AppStorage("maxModelStorageGB") var maxModelStorageGB = 5.0
     
@@ -784,7 +785,26 @@ internal struct DashboardProvidersView: View {
                                     .stroke(DashboardTheme.rule, lineWidth: 1)
                             )
                     }
-                    
+
+                    VStack(alignment: .leading, spacing: DashboardTheme.Spacing.xs) {
+                        Text("OpenAI Model")
+                            .font(DashboardTheme.Fonts.sans(11, weight: .medium))
+                            .foregroundStyle(DashboardTheme.inkMuted)
+
+                        TextField("whisper-1", text: $openAIModel)
+                            .textFieldStyle(.plain)
+                            .font(DashboardTheme.Fonts.mono(12, weight: .regular))
+                            .padding(DashboardTheme.Spacing.sm)
+                            .background(
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(DashboardTheme.pageBg)
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 4)
+                                    .stroke(DashboardTheme.rule, lineWidth: 1)
+                            )
+                    }
+
                     VStack(alignment: .leading, spacing: DashboardTheme.Spacing.xs) {
                         Text("Gemini")
                             .font(DashboardTheme.Fonts.sans(11, weight: .medium))
