@@ -153,12 +153,16 @@ internal class SpeechToTextService {
 
         let transcriptionURL = openAITranscriptionEndpoint
 
+        // Get model name from UserDefaults, defaulting to "whisper-1"
+        let modelName = UserDefaults.standard.string(forKey: "openAIModel")?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let model = (modelName?.isEmpty == false) ? modelName! : "whisper-1"
+
         return try await withCheckedThrowingContinuation { continuation in
             AF.upload(
                 multipartFormData: { multipartFormData in
                     multipartFormData.append(audioURL, withName: "file")
-                    // Azure deployments already specify the model, but it doesn't hurt to include
-                    multipartFormData.append("whisper-1".data(using: .utf8)!, withName: "model")
+                    // Use configured model or default to whisper-1
+                    multipartFormData.append(model.data(using: .utf8)!, withName: "model")
                 },
                 to: transcriptionURL,
                 headers: headers
