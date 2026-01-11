@@ -1,6 +1,7 @@
 import SwiftUI
 import ServiceManagement
 import AppKit
+import UniformTypeIdentifiers
 import os.log
 
 internal struct DashboardPreferencesView: View {
@@ -16,6 +17,8 @@ internal struct DashboardPreferencesView: View {
     @AppStorage("maxModelStorageGB") private var maxModelStorageGB = 5.0
 
     @State private var loginItemError: String?
+    @State private var excludedApps: [String] = []
+    @State private var showAppSelectionError = false
 
     private let storageOptions: [Double] = [1, 2, 5, 10, 20]
 
@@ -38,6 +41,14 @@ internal struct DashboardPreferencesView: View {
             .padding(DashboardTheme.Spacing.xl)
         }
         .background(DashboardTheme.pageBg)
+        .onAppear {
+            loadExcludedApps()
+        }
+        .alert("Cannot Exclude App", isPresented: $showAppSelectionError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("The selected file is not a valid application or doesn't have a bundle identifier.")
+        }
     }
 
     // MARK: - Header
@@ -122,6 +133,43 @@ internal struct DashboardPreferencesView: View {
                         subtitle: "For RustDesk and remote desktops. Types text character-by-character using your keyboard layout.",
                         isOn: $useDirectTypingForPaste
                     )
+
+                    Divider().background(DashboardTheme.rule)
+
+                    // Excluded Apps section
+                    VStack(alignment: .leading, spacing: 0) {
+                        HStack {
+                            Text("Excluded Apps")
+                                .font(DashboardTheme.Fonts.sans(11, weight: .semibold))
+                                .foregroundStyle(DashboardTheme.inkMuted)
+                                .tracking(0.5)
+                            Spacer()
+                        }
+                        .padding(.horizontal, DashboardTheme.Spacing.md)
+                        .padding(.top, DashboardTheme.Spacing.md)
+                        .padding(.bottom, DashboardTheme.Spacing.sm)
+
+                        if excludedApps.isEmpty {
+                            SettingsInfoRow(text: "No apps excluded. Add apps that don't work well with SmartPaste.")
+                        } else {
+                            ForEach(excludedApps, id: \.self) { bundleID in
+                                Divider().background(DashboardTheme.rule)
+                                ExcludedAppRow(bundleID: bundleID) {
+                                    removeExcludedApp(bundleID: bundleID)
+                                }
+                            }
+                        }
+
+                        Divider().background(DashboardTheme.rule)
+
+                        SettingsButtonRow(
+                            title: "Add App...",
+                            subtitle: "Select an application to exclude from SmartPaste",
+                            icon: "plus.circle"
+                        ) {
+                            showAddAppPicker()
+                        }
+                    }
                 }
 
                 Divider().background(DashboardTheme.rule)
@@ -296,6 +344,48 @@ internal struct DashboardPreferencesView: View {
         let formattedValue = formatter.string(from: NSNumber(value: value))
             ?? value.formatted(.number.precision(.fractionLength(1)))
         return "\(formattedValue) GB"
+    }
+
+    // MARK: - Excluded Apps Management
+
+    private func loadExcludedApps() {
+        excludedApps = UserDefaults.standard.stringArray(forKey: PasteManager.smartPasteExcludedAppsKey) ?? []
+    }
+
+    private func saveExcludedApps() {
+        UserDefaults.standard.set(excludedApps, forKey: PasteManager.smartPasteExcludedAppsKey)
+    }
+
+    private func addExcludedApp(bundleID: String) {
+        guard !excludedApps.contains(bundleID) else { return }
+        excludedApps.append(bundleID)
+        saveExcludedApps()
+    }
+
+    private func removeExcludedApp(bundleID: String) {
+        excludedApps.removeAll { $0 == bundleID }
+        saveExcludedApps()
+    }
+
+    private func showAddAppPicker() {
+        let panel = NSOpenPanel()
+        panel.title = "Select Application to Exclude"
+        panel.message = "Choose an app that doesn't work well with SmartPaste"
+        panel.prompt = "Exclude"
+        panel.allowedContentTypes = [.application]
+        panel.directoryURL = URL(fileURLWithPath: "/Applications")
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        panel.allowsMultipleSelection = false
+
+        if panel.runModal() == .OK, let appURL = panel.url {
+            if let bundle = Bundle(url: appURL),
+               let bundleID = bundle.bundleIdentifier {
+                addExcludedApp(bundleID: bundleID)
+            } else {
+                showAppSelectionError = true
+            }
+        }
     }
 }
 

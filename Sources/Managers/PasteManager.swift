@@ -200,12 +200,54 @@ internal class PasteManager {
 
     private let accessibilityManager: AccessibilityPermissionManager
 
-    /// Apps where SmartPaste doesn't work well and should be skipped
-    /// (text remains in clipboard for manual paste)
-    private static let smartPasteExcludedBundleIDs: Set<String> = [
+    /// UserDefaults key for SmartPaste excluded apps - shared with preferences UI
+    internal static let smartPasteExcludedAppsKey = "smartPasteExcludedApps"
+
+    /// Key to track if migration has been performed
+    private static let exclusionMigrationKey = "smartPasteExclusionMigrationV1"
+
+    /// Default apps to exclude on first launch (migration from hardcoded values)
+    private static let defaultExcludedApps = [
         "com.carriez.rustdesk",      // RustDesk - Cmd+V doesn't work due to CGEventSourceKeyState issue
         "com.rustdesk.RustDesk",     // Alternative bundle ID
     ]
+
+    /// Cached set of excluded bundle IDs - invalidated when UserDefaults changes
+    private static var _cachedExcludedBundleIDs: Set<String>?
+    private static var _userDefaultsObserver: NSObjectProtocol?
+
+    /// Apps where SmartPaste doesn't work well and should be skipped
+    /// (text remains in clipboard for manual paste)
+    /// Users can manage this list in Preferences -> Smart Paste -> Excluded Apps
+    private static var smartPasteExcludedBundleIDs: Set<String> {
+        if let cached = _cachedExcludedBundleIDs {
+            return cached
+        }
+
+        // Migration: seed defaults on first launch for users upgrading from hardcoded exclusions
+        if !UserDefaults.standard.bool(forKey: exclusionMigrationKey) {
+            // Only seed if the key doesn't exist yet (fresh install or upgrade)
+            if UserDefaults.standard.object(forKey: smartPasteExcludedAppsKey) == nil {
+                UserDefaults.standard.set(defaultExcludedApps, forKey: smartPasteExcludedAppsKey)
+            }
+            UserDefaults.standard.set(true, forKey: exclusionMigrationKey)
+        }
+
+        let ids = Set(UserDefaults.standard.stringArray(forKey: smartPasteExcludedAppsKey) ?? [])
+        _cachedExcludedBundleIDs = ids
+
+        // Observe UserDefaults changes to invalidate cache
+        if _userDefaultsObserver == nil {
+            _userDefaultsObserver = NotificationCenter.default.addObserver(
+                forName: UserDefaults.didChangeNotification,
+                object: nil,
+                queue: .main
+            ) { _ in
+                _cachedExcludedBundleIDs = nil
+            }
+        }
+        return ids
+    }
 
     init(accessibilityManager: AccessibilityPermissionManager = AccessibilityPermissionManager()) {
         self.accessibilityManager = accessibilityManager
