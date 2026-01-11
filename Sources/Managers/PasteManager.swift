@@ -3,6 +3,143 @@ import AppKit
 import ApplicationServices
 import Carbon
 import Observation
+import os.log
+
+// MARK: - Keyboard Layout Helper
+
+/// Modifier flags needed to type a character
+private struct KeyModifiers: OptionSet {
+    let rawValue: UInt8
+    static let shift = KeyModifiers(rawValue: 1 << 0)
+    static let option = KeyModifiers(rawValue: 1 << 1)
+}
+
+/// Helper to find the correct key code for a character based on the current keyboard layout.
+/// This makes character-by-character typing work correctly with non-US layouts (e.g., Hungarian QWERTZ).
+private final class KeyboardLayoutHelper {
+
+    /// Cached mapping from character to (keyCode, modifiers) for current keyboard layout
+    private var charToKeyCodeCache: [Character: (CGKeyCode, KeyModifiers)] = [:]
+    private var cachedLayoutID: String?
+
+    /// Shared instance
+    static let shared = KeyboardLayoutHelper()
+
+    private init() {
+        rebuildCacheIfNeeded()
+    }
+
+    /// Find the key code and modifiers needed to type a character
+    func keyCodeForCharacter(_ char: Character) -> (keyCode: CGKeyCode, modifiers: KeyModifiers)? {
+        rebuildCacheIfNeeded()
+        return charToKeyCodeCache[char]
+    }
+
+    /// Rebuild the cache if the keyboard layout has changed
+    private func rebuildCacheIfNeeded() {
+        guard let inputSource = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue() else {
+            return
+        }
+
+        // Get layout identifier
+        guard let layoutIDPtr = TISGetInputSourceProperty(inputSource, kTISPropertyInputSourceID) else {
+            return
+        }
+        let layoutID = Unmanaged<CFString>.fromOpaque(layoutIDPtr).takeUnretainedValue() as String
+
+        // Skip rebuild if layout hasn't changed
+        if layoutID == cachedLayoutID && !charToKeyCodeCache.isEmpty {
+            return
+        }
+
+        Logger.app.info("KeyboardLayoutHelper: Rebuilding cache for layout '\(layoutID)'")
+        cachedLayoutID = layoutID
+        charToKeyCodeCache.removeAll()
+
+        // Get the keyboard layout data
+        guard let layoutDataPtr = TISGetInputSourceProperty(inputSource, kTISPropertyUnicodeKeyLayoutData) else {
+            Logger.app.warning("KeyboardLayoutHelper: Could not get layout data, falling back to US layout")
+            return
+        }
+
+        let layoutData = Unmanaged<CFData>.fromOpaque(layoutDataPtr).takeUnretainedValue() as Data
+
+        layoutData.withUnsafeBytes { rawPtr in
+            guard let ptr = rawPtr.baseAddress?.assumingMemoryBound(to: UCKeyboardLayout.self) else {
+                return
+            }
+
+            var deadKeyState: UInt32 = 0
+            var chars = [UniChar](repeating: 0, count: 4)
+            var actualLength: Int = 0
+
+            // Modifier combinations to scan (in priority order - prefer simpler modifiers)
+            // Carbon modifier bits: shiftKey=0x200, optionKey=0x800
+            // UCKeyTranslate expects these shifted right by 8
+            let modifierCombinations: [(carbonMod: UInt32, keyMod: KeyModifiers)] = [
+                (0, []),                                           // No modifiers
+                (UInt32(shiftKey >> 8), .shift),                   // Shift only
+                (UInt32(optionKey >> 8), .option),                 // Option only (AltGr)
+                (UInt32((shiftKey | optionKey) >> 8), [.shift, .option])  // Shift+Option
+            ]
+
+            // Scan all key codes (0-127) with all modifier combinations
+            for keyCode: UInt16 in 0..<128 {
+                for (carbonMod, keyMod) in modifierCombinations {
+                    deadKeyState = 0
+                    let status = UCKeyTranslate(
+                        ptr,
+                        keyCode,
+                        UInt16(kUCKeyActionDown),
+                        carbonMod,
+                        UInt32(LMGetKbdType()),
+                        UInt32(kUCKeyTranslateNoDeadKeysBit),
+                        &deadKeyState,
+                        chars.count,
+                        &actualLength,
+                        &chars
+                    )
+
+                    if status == noErr && actualLength > 0 {
+                        if let scalar = Unicode.Scalar(chars[0]) {
+                            let char = Character(scalar)
+                            // Only add if we don't already have a simpler way to type this character
+                            if charToKeyCodeCache[char] == nil {
+                                charToKeyCodeCache[char] = (CGKeyCode(keyCode), keyMod)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Always add whitespace keys (these are layout-independent)
+        charToKeyCodeCache[" "] = (CGKeyCode(kVK_Space), [])
+        charToKeyCodeCache["\t"] = (CGKeyCode(kVK_Tab), [])
+        charToKeyCodeCache["\n"] = (CGKeyCode(kVK_Return), [])
+        charToKeyCodeCache["\r"] = (CGKeyCode(kVK_Return), [])
+
+        Logger.app.info("KeyboardLayoutHelper: Cached \(self.charToKeyCodeCache.count) characters")
+
+        // Log mappings for common problematic characters to help diagnose issues
+        let debugChars: [Character] = ["'", "\"", "@", "#", "&", "[", "]", "{", "}", "|", "\\", "/", "?", "!"]
+        for char in debugChars {
+            if let (keyCode, mods) = charToKeyCodeCache[char] {
+                var modStr = "none"
+                if mods.contains(.shift) && mods.contains(.option) {
+                    modStr = "shift+option"
+                } else if mods.contains(.shift) {
+                    modStr = "shift"
+                } else if mods.contains(.option) {
+                    modStr = "option"
+                }
+                Logger.app.debug("KeyboardLayoutHelper: '\(char)' -> keyCode=\(keyCode), mods=\(modStr)")
+            } else {
+                Logger.app.debug("KeyboardLayoutHelper: '\(char)' -> NOT FOUND")
+            }
+        }
+    }
+}
 
 // Helper class to safely capture observer in closure
 // Uses a lock to ensure thread-safe access to the mutable observer property
@@ -49,19 +186,56 @@ internal enum PasteError: LocalizedError {
 @Observable
 @MainActor
 internal class PasteManager {
-    
+
+    // MARK: - Timing Constants
+
+    /// Delay between modifier registration and key press (for CGEvent paste)
+    private static let modifierRegisterDelay: UInt32 = 50_000     // 50ms
+    /// Delay between keyDown and keyUp (for CGEvent paste)
+    private static let keyUpDelay: UInt32 = 20_000                // 20ms
+    /// Delay between characters when typing directly (slower for RustDesk network capture)
+    private static let interCharacterDelay: UInt32 = 30_000       // 30ms
+    /// Delay between key down and up for direct typing
+    private static let directTypeKeyDelay: UInt32 = 15_000        // 15ms
+
     private let accessibilityManager: AccessibilityPermissionManager
-    
+
+    /// Apps where SmartPaste doesn't work well and should be skipped
+    /// (text remains in clipboard for manual paste)
+    private static let smartPasteExcludedBundleIDs: Set<String> = [
+        "com.carriez.rustdesk",      // RustDesk - Cmd+V doesn't work due to CGEventSourceKeyState issue
+        "com.rustdesk.RustDesk",     // Alternative bundle ID
+    ]
+
     init(accessibilityManager: AccessibilityPermissionManager = AccessibilityPermissionManager()) {
         self.accessibilityManager = accessibilityManager
     }
-    
+
+    /// Check if the current frontmost app should be excluded from SmartPaste
+    private func shouldSkipSmartPaste() -> Bool {
+        guard let frontApp = NSWorkspace.shared.frontmostApplication,
+              let bundleID = frontApp.bundleIdentifier else {
+            return false
+        }
+
+        if Self.smartPasteExcludedBundleIDs.contains(bundleID) {
+            Logger.app.info("PasteManager: Skipping SmartPaste for excluded app: \(bundleID)")
+            return true
+        }
+        return false
+    }
+
     /// Attempts to paste text to the currently active application
-    /// Uses CGEvent to simulate ⌘V 
+    /// Uses CGEvent to simulate ⌘V
     func pasteToActiveApp() {
         let enableSmartPaste = UserDefaults.standard.bool(forKey: "enableSmartPaste")
-        
+
         if enableSmartPaste {
+            // Skip SmartPaste for excluded apps (like RustDesk)
+            if shouldSkipSmartPaste() {
+                Logger.app.info("PasteManager: Text copied to clipboard (SmartPaste skipped for this app)")
+                return
+            }
             // Use CGEvent to simulate ⌘V
             performCGEventPaste()
         } else {
@@ -85,7 +259,15 @@ internal class PasteManager {
             handlePasteResult(.failure(PasteError.targetAppNotAvailable))
             return
         }
-        
+
+        // Skip SmartPaste for excluded apps (like RustDesk) - text is already in clipboard
+        if let bundleID = targetApp?.bundleIdentifier,
+           Self.smartPasteExcludedBundleIDs.contains(bundleID) {
+            Logger.app.info("PasteManager: SmartPaste skipped for excluded app: \(bundleID). Text in clipboard.")
+            handlePasteResult(.success(()))  // Report success since text is in clipboard
+            return
+        }
+
         // CRITICAL: Check accessibility permission without prompting - never bypass this check
         // If this fails, we must NOT attempt to proceed with CGEvent operations
         guard accessibilityManager.checkPermission() else {
@@ -169,7 +351,15 @@ internal class PasteManager {
             completion?(.failure(PasteError.accessibilityPermissionDenied))
             return
         }
-        
+
+        // Skip SmartPaste for excluded apps (like RustDesk) - text stays in clipboard
+        if shouldSkipSmartPaste() {
+            Logger.app.info("PasteManager: Text in clipboard (SmartPaste skipped for this app)")
+            handlePasteResult(.success(()))
+            completion?(.success(()))
+            return
+        }
+
         // CRITICAL SECURITY CHECK: Always verify accessibility permission before any CGEvent operations
         // This method should NEVER execute without proper permission - no exceptions
         guard accessibilityManager.checkPermission() else {
@@ -199,48 +389,214 @@ internal class PasteManager {
     
     // Removed - using AccessibilityPermissionManager instead
     
+    /// Main paste simulation function.
+    ///
+    /// ## Direct Typing Mode (for Remote Desktop apps like RustDesk)
+    /// When `useDirectTypingForPaste` is enabled, types text character-by-character.
+    /// This bypasses Cmd+V entirely because RustDesk's `CGEventSourceKeyState` only sees
+    /// physical keyboard state, making synthetic modifier keys invisible.
+    /// Uses layout-aware key code detection for correct typing on any keyboard layout.
+    /// **Note**: Blocks main thread during typing (~45ms per character).
+    ///
+    /// ## Normal Mode
+    /// 1. **AppleScript**: `keystroke "v" using command down` - works well with most apps.
+    /// 2. **CGEvent**: FlagsChanged + key events at HID level.
+    /// 3. **Character typing**: Fallback if other methods fail.
     private func simulateCmdVPaste() throws {
         // CRITICAL: Prevent any paste operations during tests
         if NSClassFromString("XCTestCase") != nil {
             throw PasteError.accessibilityPermissionDenied
         }
-        
+
         // Final permission check before creating any CGEvents
         // This is our last line of defense against unauthorized paste operations
         guard accessibilityManager.checkPermission() else {
+            Logger.app.error("PasteManager: Accessibility permission denied")
             throw PasteError.accessibilityPermissionDenied
         }
-        
-        // Create event source with proper session state
-        guard let source = CGEventSource(stateID: .combinedSessionState) else {
-            throw PasteError.eventSourceCreationFailed
+
+        Logger.app.info("PasteManager: Starting paste operation")
+
+        // Check if user prefers typing directly (for remote desktop apps like RustDesk)
+        // This mode types character-by-character because Cmd+V cannot work with RustDesk.
+        // See Research/rustdesk_paste_attempts.md for full explanation.
+        let useDirectTyping = UserDefaults.standard.bool(forKey: "useDirectTypingForPaste")
+        if useDirectTyping {
+            Logger.app.info("PasteManager: Direct Typing Mode - typing character-by-character")
+            if !typeClipboardContents() {
+                throw PasteError.keyboardEventCreationFailed
+            }
+            return
         }
-        
-        // Configure event source to suppress local events during paste operation
-        // This prevents interference from local keyboard input
-        source.setLocalEventsFilterDuringSuppressionState(
-            [.permitLocalMouseEvents, .permitSystemDefinedEvents],
-            state: .eventSuppressionStateSuppressionInterval
-        )
-        
-        // Create ⌘V key events for paste operation
-        let cmdFlag = CGEventFlags([.maskCommand])
-        let vKeyCode = CGKeyCode(kVK_ANSI_V) // V key code
-        
-        // Create both key down and key up events for complete key press simulation
-        guard let keyVDown = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: true),
-              let keyVUp = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: false) else {
+
+        // Try AppleScript approach first - this works better with some apps
+        if tryAppleScriptPaste() {
+            Logger.app.info("PasteManager: AppleScript paste succeeded")
+            return
+        }
+
+        Logger.app.info("PasteManager: AppleScript failed, trying CGEvent approach")
+
+        // Try CGEvent approach
+        do {
+            try simulateCGEventPaste()
+            return
+        } catch {
+            Logger.app.warning("PasteManager: CGEvent paste failed: \(error)")
+        }
+
+        // Final fallback: type the text directly (works with remote desktop apps)
+        Logger.app.info("PasteManager: All paste methods failed, falling back to direct typing")
+        if !typeClipboardContents() {
             throw PasteError.keyboardEventCreationFailed
         }
-        
-        // Apply Command modifier flag to both events
+    }
+
+    /// Get clipboard contents and type them directly
+    /// - Returns: true if text was typed, false if clipboard was empty
+    @discardableResult
+    private func typeClipboardContents() -> Bool {
+        guard let text = NSPasteboard.general.string(forType: .string), !text.isEmpty else {
+            Logger.app.error("PasteManager: No text in clipboard")
+            return false
+        }
+        typeTextDirectly(text)
+        return true
+    }
+
+    /// Try pasting using AppleScript - works better with some apps like RustDesk
+    private func tryAppleScriptPaste() -> Bool {
+        let script = """
+        tell application "System Events"
+            keystroke "v" using command down
+        end tell
+        """
+
+        var error: NSDictionary?
+        if let scriptObject = NSAppleScript(source: script) {
+            scriptObject.executeAndReturnError(&error)
+            if let error = error {
+                Logger.app.warning("PasteManager: AppleScript error: \(error)")
+                return false
+            }
+            return true
+        }
+        return false
+    }
+
+    /// Simulate Cmd+V using CGEvent with flagsChanged events for modifiers
+    private func simulateCGEventPaste() throws {
+        // Create event source
+        guard let source = CGEventSource(stateID: .hidSystemState) else {
+            Logger.app.error("PasteManager: Failed to create event source")
+            throw PasteError.eventSourceCreationFailed
+        }
+
+        let vKeyCode = CGKeyCode(kVK_ANSI_V)
+        let cmdFlag = CGEventFlags([.maskCommand])
+        let noFlag = CGEventFlags([])
+
+        Logger.app.info("PasteManager: Creating flagsChanged + key events")
+
+        // Create flagsChanged event for Command key down (this is what the system generates for modifier presses)
+        guard let flagsChangedDown = CGEvent(source: source) else {
+            Logger.app.error("PasteManager: Failed to create flagsChanged event")
+            throw PasteError.keyboardEventCreationFailed
+        }
+        flagsChangedDown.type = .flagsChanged
+        flagsChangedDown.flags = cmdFlag
+
+        // Create V key events
+        guard let keyVDown = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: true),
+              let keyVUp = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: false) else {
+            Logger.app.error("PasteManager: Failed to create keyboard events")
+            throw PasteError.keyboardEventCreationFailed
+        }
+
+        // Set Command flag on V key events
         keyVDown.flags = cmdFlag
         keyVUp.flags = cmdFlag
-        
-        // Post the key events to the system
-        // This simulates pressing and releasing ⌘V
-        keyVDown.post(tap: .cgSessionEventTap)
-        keyVUp.post(tap: .cgSessionEventTap)
+
+        // Create flagsChanged event for Command key up
+        guard let flagsChangedUp = CGEvent(source: source) else {
+            Logger.app.error("PasteManager: Failed to create flagsChanged up event")
+            throw PasteError.keyboardEventCreationFailed
+        }
+        flagsChangedUp.type = .flagsChanged
+        flagsChangedUp.flags = noFlag
+
+        // Post the sequence using HID tap (lowest level)
+        let tap: CGEventTapLocation = .cghidEventTap
+        Logger.app.info("PasteManager: Posting flagsChanged sequence to HID tap")
+
+        // Send: flagsChanged(cmd down) -> keyDown(v) -> keyUp(v) -> flagsChanged(cmd up)
+        flagsChangedDown.post(tap: tap)
+        usleep(Self.modifierRegisterDelay)
+        keyVDown.post(tap: tap)
+        usleep(Self.keyUpDelay)
+        keyVUp.post(tap: tap)
+        usleep(Self.modifierRegisterDelay)
+        flagsChangedUp.post(tap: tap)
+
+        Logger.app.info("PasteManager: CGEvent paste completed")
+    }
+
+    /// Type text character by character - fallback for apps that don't handle Cmd+V well.
+    /// Uses layout-aware key code detection for correct typing on any keyboard layout.
+    private func typeTextDirectly(_ text: String) {
+        Logger.app.info("PasteManager: Typing text directly (\(text.count) characters)")
+
+        guard let source = CGEventSource(stateID: .hidSystemState) else {
+            Logger.app.error("PasteManager: Failed to create event source for typing")
+            return
+        }
+
+        let layoutHelper = KeyboardLayoutHelper.shared
+
+        for char in text {
+            // Try layout-aware lookup first (works with any keyboard layout)
+            if let (keyCode, modifiers) = layoutHelper.keyCodeForCharacter(char) {
+                // Build CGEventFlags from KeyModifiers
+                var flags = CGEventFlags([])
+                if modifiers.contains(.shift) {
+                    flags.insert(.maskShift)
+                }
+                if modifiers.contains(.option) {
+                    flags.insert(.maskAlternate)
+                }
+
+                if let keyDown = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true),
+                   let keyUp = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false) {
+                    keyDown.flags = flags
+                    keyUp.flags = flags
+
+                    keyDown.post(tap: .cghidEventTap)
+                    usleep(Self.directTypeKeyDelay)
+                    keyUp.post(tap: .cghidEventTap)
+                }
+            } else {
+                // Fallback: use unicode string for unmapped characters (e.g., accented chars not on current layout)
+                // This works for local apps but may not work with RustDesk for special characters
+                let uniChars = Array(String(char).utf16)
+                let neutralKeyCode = CGKeyCode(0x72)  // kVK_Help - doesn't produce visible chars
+
+                if let keyDown = CGEvent(keyboardEventSource: source, virtualKey: neutralKeyCode, keyDown: true) {
+                    keyDown.keyboardSetUnicodeString(stringLength: uniChars.count, unicodeString: uniChars)
+                    keyDown.post(tap: .cghidEventTap)
+                    usleep(Self.directTypeKeyDelay)
+                }
+                if let keyUp = CGEvent(keyboardEventSource: source, virtualKey: neutralKeyCode, keyDown: false) {
+                    keyUp.keyboardSetUnicodeString(stringLength: uniChars.count, unicodeString: uniChars)
+                    keyUp.post(tap: .cghidEventTap)
+                }
+                Logger.app.debug("PasteManager: Using unicode fallback for character not on current layout: '\(char)'")
+            }
+
+            // Small delay between characters
+            usleep(Self.interCharacterDelay)
+        }
+
+        Logger.app.info("PasteManager: Finished typing text")
     }
     
     private func handlePasteResult(_ result: Result<Void, PasteError>) {

@@ -9,6 +9,7 @@ internal struct DashboardPreferencesView: View {
     @AppStorage("silentExpressMode") private var silentExpressMode = false
     @AppStorage("autoBoostMicrophoneVolume") private var autoBoostMicrophoneVolume = false
     @AppStorage("enableSmartPaste") private var enableSmartPaste = false
+    @AppStorage("useDirectTypingForPaste") private var useDirectTypingForPaste = false
     @AppStorage("playCompletionSound") private var playCompletionSound = true
     @AppStorage("transcriptionHistoryEnabled") private var transcriptionHistoryEnabled = false
     @AppStorage("transcriptionRetentionPeriod") private var transcriptionRetentionPeriodRaw = RetentionPeriod.oneMonth.rawValue
@@ -106,6 +107,22 @@ internal struct DashboardPreferencesView: View {
                     subtitle: "Automatically paste finished transcripts",
                     isOn: $enableSmartPaste
                 )
+                .onChange(of: enableSmartPaste) { _, newValue in
+                    // Reset direct typing when Smart Paste is disabled
+                    if !newValue {
+                        useDirectTypingForPaste = false
+                    }
+                }
+
+                if enableSmartPaste {
+                    Divider().background(DashboardTheme.rule)
+
+                    SettingsToggleRow(
+                        title: "Direct Typing Mode",
+                        subtitle: "For RustDesk and remote desktops. Types text character-by-character using your keyboard layout.",
+                        isOn: $useDirectTypingForPaste
+                    )
+                }
 
                 Divider().background(DashboardTheme.rule)
 

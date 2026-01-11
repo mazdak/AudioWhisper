@@ -84,8 +84,14 @@ internal protocol DataManagerProtocol {
 
 @MainActor
 internal final class DataManager: DataManagerProtocol {
+    /// Shared instance typed as protocol for general use
     nonisolated(unsafe) static let shared: DataManagerProtocol = MainActor.assumeIsolated {
         DataManager()
+    }
+
+    /// Shared instance typed as concrete class for dependency injection
+    nonisolated(unsafe) static let sharedInstance: DataManager = MainActor.assumeIsolated {
+        shared as! DataManager
     }
     
     private var modelContainer: ModelContainer?

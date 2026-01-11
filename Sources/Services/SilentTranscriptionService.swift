@@ -9,19 +9,56 @@ import os.log
 internal class SilentTranscriptionService {
     static let shared = SilentTranscriptionService()
 
-    private let speechService = SpeechToTextService()
-    private let semanticCorrectionService = SemanticCorrectionService()
-    private let soundManager = SoundManager()
-    private let pasteManager = PasteManager()
+    private let speechService: SpeechToTextServiceProtocol
+    private let semanticCorrectionService: SemanticCorrectionServiceProtocol
+    private let soundManager: SoundManagerProtocol
+    private let pasteManager: PasteManagerProtocol
+    private let dataManager: DataManagerForSilentServiceProtocol
+    private let usageMetricsStore: UsageMetricsStoreProtocol
+    private let notificationCenter: NotificationCenter
+    private let pasteboard: NSPasteboard
 
     /// Current transcription task, allowing cancellation
     private var currentTask: Task<Void, Never>?
 
     // MARK: - Timing Constants
-    private static let clipboardReadyDelay: Duration = .milliseconds(100)
-    private static let appActivationDelay: Duration = .milliseconds(200)
+    internal static let clipboardReadyDelay: Duration = .milliseconds(100)
+    internal static let appActivationDelay: Duration = .milliseconds(200)
 
-    private init() {}
+    /// Default initializer using production dependencies
+    private convenience init() {
+        self.init(
+            speechService: SpeechToTextService(),
+            semanticCorrectionService: SemanticCorrectionService(),
+            soundManager: SoundManager(),
+            pasteManager: PasteManager(),
+            dataManager: DataManager.sharedInstance,
+            usageMetricsStore: UsageMetricsStore.shared,
+            notificationCenter: .default,
+            pasteboard: .general
+        )
+    }
+
+    /// Testable initializer with injectable dependencies
+    internal init(
+        speechService: SpeechToTextServiceProtocol,
+        semanticCorrectionService: SemanticCorrectionServiceProtocol,
+        soundManager: SoundManagerProtocol,
+        pasteManager: PasteManagerProtocol,
+        dataManager: DataManagerForSilentServiceProtocol,
+        usageMetricsStore: UsageMetricsStoreProtocol,
+        notificationCenter: NotificationCenter = .default,
+        pasteboard: NSPasteboard = .general
+    ) {
+        self.speechService = speechService
+        self.semanticCorrectionService = semanticCorrectionService
+        self.soundManager = soundManager
+        self.pasteManager = pasteManager
+        self.dataManager = dataManager
+        self.usageMetricsStore = usageMetricsStore
+        self.notificationCenter = notificationCenter
+        self.pasteboard = pasteboard
+    }
 
     /// Cancels any in-progress transcription
     func cancelCurrentTranscription() {
@@ -57,12 +94,12 @@ internal class SilentTranscriptionService {
             Logger.app.error("SilentTranscriptionService: Failed to get recording URL")
             NSSound.beep()
             // Notify that recording stopped (even on failure)
-            NotificationCenter.default.post(name: .recordingStopped, object: nil)
+            notificationCenter.post(name: .recordingStopped, object: nil)
             return
         }
 
         // NOW notify that recording has stopped (after it actually stopped)
-        NotificationCenter.default.post(name: .recordingStopped, object: nil)
+        notificationCenter.post(name: .recordingStopped, object: nil)
 
         let sessionDuration = audioRecorder.lastRecordingDuration
 
@@ -77,12 +114,8 @@ internal class SilentTranscriptionService {
             try Task.checkCancellation()
 
             // Transcribe the audio
-            let text: String
-            if transcriptionProvider == .local {
-                text = try await speechService.transcribeRaw(audioURL: audioURL, provider: transcriptionProvider, model: selectedWhisperModel)
-            } else {
-                text = try await speechService.transcribeRaw(audioURL: audioURL, provider: transcriptionProvider)
-            }
+            let model: WhisperModel? = (transcriptionProvider == .local) ? selectedWhisperModel : nil
+            let text = try await speechService.transcribeRaw(audioURL: audioURL, provider: transcriptionProvider, model: model)
 
             try Task.checkCancellation()
 
@@ -102,15 +135,15 @@ internal class SilentTranscriptionService {
             try Task.checkCancellation()
 
             // Copy to clipboard
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(finalText, forType: .string)
+            pasteboard.clearContents()
+            pasteboard.setString(finalText, forType: .string)
 
             // Calculate metrics (always, regardless of history setting)
             let wordCount = UsageMetricsStore.estimatedWordCount(for: finalText)
             let characterCount = finalText.count
 
             // Save to history if enabled
-            if DataManager.shared.isHistoryEnabled {
+            if dataManager.isHistoryEnabled {
                 let modelUsed: String? = (transcriptionProvider == .local) ? selectedWhisperModel.rawValue : nil
 
                 let sourceInfo: SourceAppInfo
@@ -131,11 +164,11 @@ internal class SilentTranscriptionService {
                     sourceAppName: sourceInfo.displayName,
                     sourceAppIconData: sourceInfo.iconData
                 )
-                await DataManager.shared.saveTranscriptionQuietly(record)
+                await dataManager.saveTranscriptionQuietly(record)
             }
 
             // Record usage metrics ALWAYS (outside history conditional)
-            UsageMetricsStore.shared.recordSession(
+            usageMetricsStore.recordSession(
                 duration: sessionDuration,
                 wordCount: wordCount,
                 characterCount: characterCount
@@ -205,6 +238,6 @@ internal class SilentTranscriptionService {
     }
 
     private func restoreFocusToPreviousApp() {
-        NotificationCenter.default.post(name: .restoreFocusToPreviousApp, object: nil)
+        notificationCenter.post(name: .restoreFocusToPreviousApp, object: nil)
     }
 }

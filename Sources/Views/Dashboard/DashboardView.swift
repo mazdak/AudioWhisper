@@ -224,15 +224,16 @@ internal struct DashboardView: View {
                     .font(.system(size: 13, weight: .regular))
                     .frame(width: 18)
                     .foregroundStyle(selectedNav == item ? DashboardTheme.sidebarLight : DashboardTheme.sidebarTextMuted)
-                
+
                 Text(item.rawValue)
                     .font(DashboardTheme.Fonts.sans(13, weight: selectedNav == item ? .medium : .regular))
                     .foregroundStyle(selectedNav == item ? DashboardTheme.sidebarText : DashboardTheme.sidebarTextMuted)
-                
+
                 Spacer()
             }
             .padding(.horizontal, DashboardTheme.Spacing.sm)
             .padding(.vertical, DashboardTheme.Spacing.sm + 2)
+            .contentShape(Rectangle())  // Makes entire row tappable, not just the text
             .background(
                 RoundedRectangle(cornerRadius: 6)
                     .fill(selectedNav == item ? DashboardTheme.sidebarAccentSubtle : Color.clear)
