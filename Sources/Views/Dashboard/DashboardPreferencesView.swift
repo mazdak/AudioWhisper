@@ -19,6 +19,7 @@ internal struct DashboardPreferencesView: View {
     @State private var loginItemError: String?
     @State private var excludedApps: [String] = []
     @State private var showAppSelectionError = false
+    @State private var smartPasteAdvancedExpanded = false
 
     private let storageOptions: [Double] = [1, 2, 5, 10, 20]
 
@@ -128,48 +129,63 @@ internal struct DashboardPreferencesView: View {
                 if enableSmartPaste {
                     Divider().background(DashboardTheme.rule)
 
-                    SettingsToggleRow(
-                        title: "Direct Typing Mode",
-                        subtitle: "For RustDesk and remote desktops. Types text character-by-character using your keyboard layout.",
-                        isOn: $useDirectTypingForPaste
-                    )
+                    // Advanced Settings disclosure
+                    DisclosureGroup(isExpanded: $smartPasteAdvancedExpanded) {
+                        VStack(alignment: .leading, spacing: 0) {
+                            SettingsToggleRow(
+                                title: "Direct Typing Mode",
+                                subtitle: "For RustDesk and remote desktops. Types text character-by-character.",
+                                isOn: $useDirectTypingForPaste
+                            )
 
-                    Divider().background(DashboardTheme.rule)
+                            Divider().background(DashboardTheme.rule)
 
-                    // Excluded Apps section
-                    VStack(alignment: .leading, spacing: 0) {
-                        HStack {
-                            Text("Excluded Apps")
-                                .font(DashboardTheme.Fonts.sans(11, weight: .semibold))
-                                .foregroundStyle(DashboardTheme.inkMuted)
-                                .tracking(0.5)
-                            Spacer()
-                        }
-                        .padding(.horizontal, DashboardTheme.Spacing.md)
-                        .padding(.top, DashboardTheme.Spacing.md)
-                        .padding(.bottom, DashboardTheme.Spacing.sm)
+                            // Excluded Apps section
+                            HStack {
+                                Text("Excluded Apps")
+                                    .font(DashboardTheme.Fonts.sans(11, weight: .semibold))
+                                    .foregroundStyle(DashboardTheme.inkMuted)
+                                    .tracking(0.5)
+                                Spacer()
+                            }
+                            .padding(.horizontal, DashboardTheme.Spacing.md)
+                            .padding(.top, DashboardTheme.Spacing.md)
+                            .padding(.bottom, DashboardTheme.Spacing.sm)
 
-                        if excludedApps.isEmpty {
-                            SettingsInfoRow(text: "No apps excluded. Add apps that don't work well with SmartPaste.")
-                        } else {
-                            ForEach(excludedApps, id: \.self) { bundleID in
-                                Divider().background(DashboardTheme.rule)
-                                ExcludedAppRow(bundleID: bundleID) {
-                                    removeExcludedApp(bundleID: bundleID)
+                            if excludedApps.isEmpty {
+                                SettingsInfoRow(text: "No apps excluded.")
+                            } else {
+                                ForEach(excludedApps, id: \.self) { bundleID in
+                                    Divider().background(DashboardTheme.rule)
+                                    ExcludedAppRow(bundleID: bundleID) {
+                                        removeExcludedApp(bundleID: bundleID)
+                                    }
                                 }
                             }
+
+                            Divider().background(DashboardTheme.rule)
+
+                            SettingsButtonRow(
+                                title: "Add App...",
+                                subtitle: "Exclude an app from SmartPaste",
+                                icon: "plus.circle"
+                            ) {
+                                showAddAppPicker()
+                            }
                         }
-
-                        Divider().background(DashboardTheme.rule)
-
-                        SettingsButtonRow(
-                            title: "Add App...",
-                            subtitle: "Select an application to exclude from SmartPaste",
-                            icon: "plus.circle"
-                        ) {
-                            showAddAppPicker()
+                    } label: {
+                        HStack {
+                            Text("Advanced Settings")
+                                .font(DashboardTheme.Fonts.sans(14, weight: .medium))
+                                .foregroundStyle(DashboardTheme.ink)
+                            Spacer()
+                            Text(smartPasteAdvancedSummary)
+                                .font(DashboardTheme.Fonts.sans(12, weight: .regular))
+                                .foregroundStyle(DashboardTheme.inkMuted)
                         }
                     }
+                    .disclosureGroupStyle(SettingsDisclosureStyle())
+                    .padding(DashboardTheme.Spacing.md)
                 }
 
                 Divider().background(DashboardTheme.rule)
@@ -346,6 +362,19 @@ internal struct DashboardPreferencesView: View {
         return "\(formattedValue) GB"
     }
 
+    // MARK: - SmartPaste Summary
+
+    private var smartPasteAdvancedSummary: String {
+        var parts: [String] = []
+        if useDirectTypingForPaste {
+            parts.append("Direct typing")
+        }
+        if !excludedApps.isEmpty {
+            parts.append("\(excludedApps.count) excluded")
+        }
+        return parts.isEmpty ? "" : parts.joined(separator: " · ")
+    }
+
     // MARK: - Excluded Apps Management
 
     private func loadExcludedApps() {
@@ -402,5 +431,36 @@ private extension View {
                 RoundedRectangle(cornerRadius: 2)
                     .stroke(DashboardTheme.rule, lineWidth: 1)
             )
+    }
+}
+
+// MARK: - Settings Disclosure Style
+private struct SettingsDisclosureStyle: DisclosureGroupStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    configuration.isExpanded.toggle()
+                }
+            } label: {
+                HStack {
+                    configuration.label
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(DashboardTheme.inkMuted)
+                        .rotationEffect(.degrees(configuration.isExpanded ? 90 : 0))
+                }
+            }
+            .buttonStyle(.plain)
+
+            if configuration.isExpanded {
+                Divider()
+                    .background(DashboardTheme.rule)
+                    .padding(.top, DashboardTheme.Spacing.sm)
+
+                configuration.content
+                    .padding(.top, DashboardTheme.Spacing.xs)
+            }
+        }
     }
 }
