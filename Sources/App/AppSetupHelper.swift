@@ -32,9 +32,45 @@ internal class AppSetupHelper {
     static func createMenuBarIcon() -> NSImage {
         let iconSize = getAdaptiveMenuBarIconSize()
         let config = NSImage.SymbolConfiguration(pointSize: iconSize, weight: .medium)
-        let image = NSImage(systemSymbolName: "microphone.circle", accessibilityDescription: LocalizedStrings.Accessibility.microphoneIcon)?.withSymbolConfiguration(config)
-        image?.isTemplate = true // This makes it adapt to menu bar appearance
-        return image ?? NSImage()
+
+        // Try SF Symbol first
+        if let image = NSImage(systemSymbolName: "microphone.circle", accessibilityDescription: LocalizedStrings.Accessibility.microphoneIcon)?.withSymbolConfiguration(config) {
+            image.isTemplate = true
+            return image
+        }
+
+        // Fallback: draw a simple microphone icon
+        let fallbackSize = NSSize(width: iconSize, height: iconSize)
+        let fallbackImage = NSImage(size: fallbackSize, flipped: false) { rect in
+            NSColor.black.setFill()
+
+            // Draw a simple microphone shape
+            let micWidth = rect.width * 0.4
+            let micHeight = rect.height * 0.5
+            let micX = (rect.width - micWidth) / 2
+            let micY = rect.height * 0.35
+
+            // Microphone body (rounded rect)
+            let micRect = NSRect(x: micX, y: micY, width: micWidth, height: micHeight)
+            let micPath = NSBezierPath(roundedRect: micRect, xRadius: micWidth / 2, yRadius: micWidth / 2)
+            micPath.fill()
+
+            // Stand
+            let standWidth: CGFloat = 2
+            let standX = (rect.width - standWidth) / 2
+            let standPath = NSBezierPath(rect: NSRect(x: standX, y: rect.height * 0.15, width: standWidth, height: rect.height * 0.2))
+            standPath.fill()
+
+            // Base
+            let baseWidth = rect.width * 0.4
+            let baseX = (rect.width - baseWidth) / 2
+            let basePath = NSBezierPath(rect: NSRect(x: baseX, y: rect.height * 0.1, width: baseWidth, height: 2))
+            basePath.fill()
+
+            return true
+        }
+        fallbackImage.isTemplate = true
+        return fallbackImage
     }
     
     // MARK: - Menu Bar Icon Constants

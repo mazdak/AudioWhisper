@@ -5,6 +5,13 @@ import UniformTypeIdentifiers
 internal extension AppDelegate {
     func makeStatusMenu() -> NSMenu {
         let menu = NSMenu()
+
+        // Version indicator at top for debugging
+        let versionItem = NSMenuItem(title: "AudioWhisper \(VersionInfo.displayVersion)", action: nil, keyEquivalent: "")
+        versionItem.isEnabled = false
+        menu.addItem(versionItem)
+        menu.addItem(NSMenuItem.separator())
+
         menu.addItem(NSMenuItem(title: LocalizedStrings.Menu.record, action: #selector(toggleRecordWindow), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: "Transcribe Audio File...", action: #selector(transcribeAudioFile), keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())

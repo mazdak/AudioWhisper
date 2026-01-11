@@ -1,19 +1,25 @@
 import SwiftUI
 import ServiceManagement
 import AppKit
+import UniformTypeIdentifiers
 import os.log
 
 internal struct DashboardPreferencesView: View {
     @AppStorage("startAtLogin") private var startAtLogin = true
     @AppStorage("immediateRecording") private var immediateRecording = false
+    @AppStorage("silentExpressMode") private var silentExpressMode = false
     @AppStorage("autoBoostMicrophoneVolume") private var autoBoostMicrophoneVolume = false
     @AppStorage("enableSmartPaste") private var enableSmartPaste = false
+    @AppStorage("useDirectTypingForPaste") private var useDirectTypingForPaste = false
     @AppStorage("playCompletionSound") private var playCompletionSound = true
     @AppStorage("transcriptionHistoryEnabled") private var transcriptionHistoryEnabled = false
     @AppStorage("transcriptionRetentionPeriod") private var transcriptionRetentionPeriodRaw = RetentionPeriod.oneMonth.rawValue
     @AppStorage("maxModelStorageGB") private var maxModelStorageGB = 5.0
 
     @State private var loginItemError: String?
+    @State private var excludedApps: [String] = []
+    @State private var showAppSelectionError = false
+    @State private var smartPasteAdvancedExpanded = false
 
     private let storageOptions: [Double] = [1, 2, 5, 10, 20]
 
@@ -36,6 +42,14 @@ internal struct DashboardPreferencesView: View {
             .padding(DashboardTheme.Spacing.xl)
         }
         .background(DashboardTheme.pageBg)
+        .onAppear {
+            loadExcludedApps()
+        }
+        .alert("Cannot Exclude App", isPresented: $showAppSelectionError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("The selected file is not a valid application or doesn't have a bundle identifier.")
+        }
     }
 
     // MARK: - Header
@@ -73,6 +87,22 @@ internal struct DashboardPreferencesView: View {
                     subtitle: "Hotkey immediately starts and stops recording",
                     isOn: $immediateRecording
                 )
+                .onChange(of: immediateRecording) { _, newValue in
+                    // Reset silent mode when Express Mode is disabled
+                    if !newValue {
+                        silentExpressMode = false
+                    }
+                }
+
+                if immediateRecording {
+                    Divider().background(DashboardTheme.rule)
+
+                    SettingsToggleRow(
+                        title: "Silent Express Mode",
+                        subtitle: "No popup window during transcription (prevents focus stealing)",
+                        isOn: $silentExpressMode
+                    )
+                }
 
                 Divider().background(DashboardTheme.rule)
 
@@ -89,6 +119,74 @@ internal struct DashboardPreferencesView: View {
                     subtitle: "Automatically paste finished transcripts",
                     isOn: $enableSmartPaste
                 )
+                .onChange(of: enableSmartPaste) { _, newValue in
+                    // Reset direct typing when Smart Paste is disabled
+                    if !newValue {
+                        useDirectTypingForPaste = false
+                    }
+                }
+
+                if enableSmartPaste {
+                    Divider().background(DashboardTheme.rule)
+
+                    // Advanced Settings disclosure
+                    DisclosureGroup(isExpanded: $smartPasteAdvancedExpanded) {
+                        VStack(alignment: .leading, spacing: 0) {
+                            SettingsToggleRow(
+                                title: "Direct Typing Mode",
+                                subtitle: "For RustDesk and remote desktops. Types text character-by-character.",
+                                isOn: $useDirectTypingForPaste
+                            )
+
+                            Divider().background(DashboardTheme.rule)
+
+                            // Excluded Apps section
+                            HStack {
+                                Text("Excluded Apps")
+                                    .font(DashboardTheme.Fonts.sans(11, weight: .semibold))
+                                    .foregroundStyle(DashboardTheme.inkMuted)
+                                    .tracking(0.5)
+                                Spacer()
+                            }
+                            .padding(.horizontal, DashboardTheme.Spacing.md)
+                            .padding(.top, DashboardTheme.Spacing.md)
+                            .padding(.bottom, DashboardTheme.Spacing.sm)
+
+                            if excludedApps.isEmpty {
+                                SettingsInfoRow(text: "No apps excluded.")
+                            } else {
+                                ForEach(excludedApps, id: \.self) { bundleID in
+                                    Divider().background(DashboardTheme.rule)
+                                    ExcludedAppRow(bundleID: bundleID) {
+                                        removeExcludedApp(bundleID: bundleID)
+                                    }
+                                }
+                            }
+
+                            Divider().background(DashboardTheme.rule)
+
+                            SettingsButtonRow(
+                                title: "Add App...",
+                                subtitle: "Exclude an app from SmartPaste",
+                                icon: "plus.circle"
+                            ) {
+                                showAddAppPicker()
+                            }
+                        }
+                    } label: {
+                        HStack {
+                            Text("Advanced Settings")
+                                .font(DashboardTheme.Fonts.sans(14, weight: .medium))
+                                .foregroundStyle(DashboardTheme.ink)
+                            Spacer()
+                            Text(smartPasteAdvancedSummary)
+                                .font(DashboardTheme.Fonts.sans(12, weight: .regular))
+                                .foregroundStyle(DashboardTheme.inkMuted)
+                        }
+                    }
+                    .disclosureGroupStyle(SettingsDisclosureStyle())
+                    .padding(DashboardTheme.Spacing.md)
+                }
 
                 Divider().background(DashboardTheme.rule)
 
@@ -263,6 +361,61 @@ internal struct DashboardPreferencesView: View {
             ?? value.formatted(.number.precision(.fractionLength(1)))
         return "\(formattedValue) GB"
     }
+
+    // MARK: - SmartPaste Summary
+
+    private var smartPasteAdvancedSummary: String {
+        var parts: [String] = []
+        if useDirectTypingForPaste {
+            parts.append("Direct typing")
+        }
+        if !excludedApps.isEmpty {
+            parts.append("\(excludedApps.count) excluded")
+        }
+        return parts.isEmpty ? "" : parts.joined(separator: " · ")
+    }
+
+    // MARK: - Excluded Apps Management
+
+    private func loadExcludedApps() {
+        excludedApps = UserDefaults.standard.stringArray(forKey: PasteManager.smartPasteExcludedAppsKey) ?? []
+    }
+
+    private func saveExcludedApps() {
+        UserDefaults.standard.set(excludedApps, forKey: PasteManager.smartPasteExcludedAppsKey)
+    }
+
+    private func addExcludedApp(bundleID: String) {
+        guard !excludedApps.contains(bundleID) else { return }
+        excludedApps.append(bundleID)
+        saveExcludedApps()
+    }
+
+    private func removeExcludedApp(bundleID: String) {
+        excludedApps.removeAll { $0 == bundleID }
+        saveExcludedApps()
+    }
+
+    private func showAddAppPicker() {
+        let panel = NSOpenPanel()
+        panel.title = "Select Application to Exclude"
+        panel.message = "Choose an app that doesn't work well with SmartPaste"
+        panel.prompt = "Exclude"
+        panel.allowedContentTypes = [.application]
+        panel.directoryURL = URL(fileURLWithPath: "/Applications")
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        panel.allowsMultipleSelection = false
+
+        if panel.runModal() == .OK, let appURL = panel.url {
+            if let bundle = Bundle(url: appURL),
+               let bundleID = bundle.bundleIdentifier {
+                addExcludedApp(bundleID: bundleID)
+            } else {
+                showAppSelectionError = true
+            }
+        }
+    }
 }
 
 // MARK: - Card Style
@@ -278,5 +431,36 @@ private extension View {
                 RoundedRectangle(cornerRadius: 2)
                     .stroke(DashboardTheme.rule, lineWidth: 1)
             )
+    }
+}
+
+// MARK: - Settings Disclosure Style
+private struct SettingsDisclosureStyle: DisclosureGroupStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    configuration.isExpanded.toggle()
+                }
+            } label: {
+                HStack {
+                    configuration.label
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(DashboardTheme.inkMuted)
+                        .rotationEffect(.degrees(configuration.isExpanded ? 90 : 0))
+                }
+            }
+            .buttonStyle(.plain)
+
+            if configuration.isExpanded {
+                Divider()
+                    .background(DashboardTheme.rule)
+                    .padding(.top, DashboardTheme.Spacing.sm)
+
+                configuration.content
+                    .padding(.top, DashboardTheme.Spacing.xs)
+            }
+        }
     }
 }

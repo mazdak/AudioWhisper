@@ -24,9 +24,11 @@ internal extension AppDelegate {
 
         audioRecorder = AudioRecorder()
 
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         if let button = statusItem?.button {
-            button.image = AppSetupHelper.createMenuBarIcon()
+            let icon = AppSetupHelper.createMenuBarIcon()
+            button.image = icon
+            button.imagePosition = .imageOnly
             button.action = #selector(toggleRecordWindow)
             button.target = self
         }

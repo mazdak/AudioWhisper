@@ -204,16 +204,91 @@ internal struct SettingsButtonRow: View {
 // MARK: - Info Row
 internal struct SettingsInfoRow: View {
     let text: String
-    
+
     var body: some View {
         HStack(spacing: DashboardTheme.Spacing.sm) {
             Image(systemName: "info.circle")
                 .font(.system(size: 12))
                 .foregroundStyle(DashboardTheme.inkFaint)
-            
+
             Text(text)
                 .font(DashboardTheme.Fonts.sans(12, weight: .regular))
                 .foregroundStyle(DashboardTheme.inkMuted)
+        }
+        .padding(DashboardTheme.Spacing.md)
+    }
+}
+
+// MARK: - Excluded App Row
+internal struct ExcludedAppRow: View {
+    let bundleID: String
+    let onRemove: () -> Void
+
+    // Cached values computed once at init
+    private let appName: String
+    private let appIcon: NSImage
+
+    init(bundleID: String, onRemove: @escaping () -> Void) {
+        self.bundleID = bundleID
+        self.onRemove = onRemove
+
+        // Compute app info once at initialization
+        if let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) {
+            let icon = NSWorkspace.shared.icon(forFile: appURL.path)
+            icon.size = NSSize(width: 32, height: 32)
+            self.appIcon = icon
+
+            // Try to get app name from bundle
+            if let bundle = Bundle(url: appURL) {
+                if let bundleName = bundle.infoDictionary?["CFBundleName"] as? String {
+                    self.appName = bundleName
+                } else if let displayName = bundle.infoDictionary?["CFBundleDisplayName"] as? String {
+                    self.appName = displayName
+                } else {
+                    self.appName = appURL.deletingPathExtension().lastPathComponent
+                }
+            } else {
+                self.appName = appURL.deletingPathExtension().lastPathComponent
+            }
+        } else {
+            // Fallback: generic app icon and bundle ID as name
+            let genericIcon = NSWorkspace.shared.icon(for: .application)
+            genericIcon.size = NSSize(width: 32, height: 32)
+            self.appIcon = genericIcon
+            self.appName = bundleID
+        }
+    }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: DashboardTheme.Spacing.md) {
+            // App icon
+            Image(nsImage: appIcon)
+                .resizable()
+                .frame(width: 32, height: 32)
+
+            // App name and bundle ID
+            VStack(alignment: .leading, spacing: 2) {
+                Text(appName)
+                    .font(DashboardTheme.Fonts.sans(14, weight: .medium))
+                    .foregroundStyle(DashboardTheme.ink)
+                    .lineLimit(1)
+
+                Text(bundleID)
+                    .font(DashboardTheme.Fonts.mono(11, weight: .regular))
+                    .foregroundStyle(DashboardTheme.inkMuted)
+                    .lineLimit(1)
+            }
+
+            Spacer()
+
+            // Remove button
+            Button(action: onRemove) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 16))
+                    .foregroundStyle(DashboardTheme.inkMuted)
+            }
+            .buttonStyle(.plain)
+            .help("Remove from excluded apps")
         }
         .padding(DashboardTheme.Spacing.md)
     }
