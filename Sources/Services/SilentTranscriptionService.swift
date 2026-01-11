@@ -81,7 +81,10 @@ internal class SilentTranscriptionService {
         }
         currentTask = task
         await task.value
-        currentTask = nil
+        // Only clear if this is still our task (avoid race with newer invocation)
+        if currentTask === task {
+            currentTask = nil
+        }
     }
 
     private func executeTranscription(
