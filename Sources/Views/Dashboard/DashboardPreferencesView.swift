@@ -6,6 +6,7 @@ import os.log
 internal struct DashboardPreferencesView: View {
     @AppStorage("startAtLogin") private var startAtLogin = true
     @AppStorage("immediateRecording") private var immediateRecording = false
+    @AppStorage("silentExpressMode") private var silentExpressMode = false
     @AppStorage("autoBoostMicrophoneVolume") private var autoBoostMicrophoneVolume = false
     @AppStorage("enableSmartPaste") private var enableSmartPaste = false
     @AppStorage("playCompletionSound") private var playCompletionSound = true
@@ -73,6 +74,22 @@ internal struct DashboardPreferencesView: View {
                     subtitle: "Hotkey immediately starts and stops recording",
                     isOn: $immediateRecording
                 )
+                .onChange(of: immediateRecording) { _, newValue in
+                    // Reset silent mode when Express Mode is disabled
+                    if !newValue {
+                        silentExpressMode = false
+                    }
+                }
+
+                if immediateRecording {
+                    Divider().background(DashboardTheme.rule)
+
+                    SettingsToggleRow(
+                        title: "Silent Express Mode",
+                        subtitle: "No popup window during transcription (prevents focus stealing)",
+                        isOn: $silentExpressMode
+                    )
+                }
 
                 Divider().background(DashboardTheme.rule)
 

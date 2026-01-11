@@ -55,6 +55,12 @@ internal extension AppDelegate {
             return
         }
 
+        // Store the current frontmost app for paste functionality in silent mode
+        let silentExpressMode = UserDefaults.standard.bool(forKey: "silentExpressMode")
+        if silentExpressMode {
+            storePreviousAppForPaste()
+        }
+
         if recorder.startRecording() {
             isHoldRecordingActive = true
             updateMenuBarIcon(isRecording: true)
@@ -73,7 +79,9 @@ internal extension AppDelegate {
     }
 
     private func stopRecordingFromPressAndHold() {
-        guard isHoldRecordingActive else { return }
+        guard isHoldRecordingActive else {
+            return
+        }
         guard let recorder = audioRecorder, recorder.isRecording else {
             isHoldRecordingActive = false
             return
@@ -82,9 +90,23 @@ internal extension AppDelegate {
         isHoldRecordingActive = false
         updateMenuBarIcon(isRecording: false)
 
-        showRecordingWindowForProcessing {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                NotificationCenter.default.post(name: .spaceKeyPressed, object: nil)
+        let silentExpressMode = UserDefaults.standard.bool(forKey: "silentExpressMode")
+
+        if silentExpressMode {
+            // Silent mode: use the direct transcription service without UI
+            let targetApp = WindowController.storedTargetApp
+            Task {
+                await SilentTranscriptionService.shared.performSilentTranscription(
+                    audioRecorder: recorder,
+                    targetApp: targetApp
+                )
+            }
+        } else {
+            // Normal mode: show the window for visual feedback
+            showRecordingWindowForProcessing {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                    NotificationCenter.default.post(name: .spaceKeyPressed, object: nil)
+                }
             }
         }
     }
@@ -95,6 +117,7 @@ internal extension AppDelegate {
         }
 
         let immediateRecording = UserDefaults.standard.bool(forKey: "immediateRecording")
+        let silentExpressMode = UserDefaults.standard.bool(forKey: "silentExpressMode")
 
         if immediateRecording {
             guard let recorder = audioRecorder else {
@@ -105,17 +128,35 @@ internal extension AppDelegate {
 
             if recorder.isRecording {
                 updateMenuBarIcon(isRecording: false)
-                if recordingWindow == nil || recordingWindow?.isVisible == false {
-                    toggleRecordWindow()
-                }
 
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                    NotificationCenter.default.post(name: .spaceKeyPressed, object: nil)
+                if silentExpressMode {
+                    // Silent mode: use the direct transcription service without UI
+                    let targetApp = WindowController.storedTargetApp
+                    Task {
+                        await SilentTranscriptionService.shared.performSilentTranscription(
+                            audioRecorder: recorder,
+                            targetApp: targetApp
+                        )
+                    }
+                } else {
+                    // Normal mode: show the window for visual feedback
+                    if recordingWindow == nil || recordingWindow?.isVisible == false {
+                        toggleRecordWindow()
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                        NotificationCenter.default.post(name: .spaceKeyPressed, object: nil)
+                    }
                 }
             } else {
                 if !recorder.hasPermission {
                     toggleRecordWindow()
                     return
+                }
+
+                // Store the current frontmost app before starting recording
+                // This is needed for paste functionality in silent mode
+                if silentExpressMode {
+                    storePreviousAppForPaste()
                 }
 
                 if recorder.startRecording() {
@@ -131,6 +172,14 @@ internal extension AppDelegate {
             }
         } else {
             toggleRecordWindow()
+        }
+    }
+
+    private func storePreviousAppForPaste() {
+        if let frontmostApp = NSWorkspace.shared.frontmostApplication,
+           frontmostApp.bundleIdentifier != Bundle.main.bundleIdentifier {
+            WindowController.storedTargetApp = frontmostApp
+            NotificationCenter.default.post(name: .targetAppStored, object: frontmostApp)
         }
     }
 

@@ -163,11 +163,19 @@ if [ -f "Sources/Resources/bin/uv" ]; then
   chmod +x AudioWhisper.app/Contents/Resources/bin/uv
   echo "Bundled uv binary (from repo)"
 else
+  UV_PATH=""
   if command -v uv >/dev/null 2>&1; then
     UV_PATH=$(command -v uv)
+  elif [ -f "$HOME/.local/bin/uv" ]; then
+    UV_PATH="$HOME/.local/bin/uv"
+  elif [ -f "/usr/local/bin/uv" ]; then
+    UV_PATH="/usr/local/bin/uv"
+  fi
+
+  if [ -n "$UV_PATH" ]; then
     cp "$UV_PATH" AudioWhisper.app/Contents/Resources/bin/uv
     chmod +x AudioWhisper.app/Contents/Resources/bin/uv
-    echo "Bundled uv binary (from system: $UV_PATH)"
+    echo "Bundled uv binary (from: $UV_PATH)"
   else
     echo "ℹ️ No bundled uv found and no system uv available; runtime will try PATH"
   fi
@@ -321,8 +329,24 @@ fi
 if [ -n "$SIGNING_IDENTITY" ]; then
   sign_app "$SIGNING_IDENTITY" "$SIGNING_NAME"
 else
-  echo "💡 No Developer ID found. App will be unsigned."
-  echo "💡 To sign the app, get a Developer ID certificate from Apple Developer Portal."
+  echo "💡 No Developer ID found. Using adhoc signing with stable identifier."
+  echo "💡 For distribution, get a Developer ID certificate from Apple Developer Portal."
+
+  # Sign uv binary if present (nested executable)
+  if [ -f "AudioWhisper.app/Contents/Resources/bin/uv" ]; then
+    codesign --force --sign - --identifier "com.audiowhisper.uv" --options runtime --entitlements AudioWhisper.entitlements AudioWhisper.app/Contents/Resources/bin/uv
+  fi
+
+  # Adhoc sign with stable identifier - critical for TCC permission persistence
+  codesign --force --deep --sign - --identifier "com.audiowhisper.app" --options runtime --entitlements AudioWhisper.entitlements AudioWhisper.app
+
+  if [ $? -eq 0 ]; then
+    echo "🔍 Verifying adhoc signature..."
+    codesign --verify --verbose AudioWhisper.app
+    echo "✅ App signed with adhoc signature (com.audiowhisper.app)"
+  else
+    echo "⚠️ Adhoc signing failed - permissions may not persist correctly"
+  fi
 fi
 
 # Clean up entitlements file
