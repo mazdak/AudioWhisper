@@ -6,25 +6,36 @@ import SwiftUI
 @MainActor
 final class MLXModelManagementViewTests: XCTestCase {
 
-    @State private var selectedModel = "mlx-community/Llama-3.2-1B-Instruct-4bit"
-
     func testViewCanBeCreated() {
+        var selectedModel = "mlx-community/Llama-3.2-1B-Instruct-4bit"
         let binding = Binding(
-            get: { self.selectedModel },
-            set: { self.selectedModel = $0 }
+            get: { selectedModel },
+            set: { selectedModel = $0 }
         )
         let view = MLXModelManagementView(selectedModelRepo: binding)
         XCTAssertNotNil(view)
     }
 
     func testViewBodyDoesNotCrash() {
+        var selectedModel = "mlx-community/Llama-3.2-1B-Instruct-4bit"
         let binding = Binding(
-            get: { self.selectedModel },
-            set: { self.selectedModel = $0 }
+            get: { selectedModel },
+            set: { selectedModel = $0 }
         )
         let view = MLXModelManagementView(selectedModelRepo: binding)
         let _ = view.body
         XCTAssertTrue(true, "Body should not crash")
+    }
+
+    func testSelectedModelBindingUpdates() {
+        var selectedModel = "mlx-community/Llama-3.2-1B-Instruct-4bit"
+        let binding = Binding(
+            get: { selectedModel },
+            set: { selectedModel = $0 }
+        )
+
+        binding.wrappedValue = "mlx-community/Other-Model"
+        XCTAssertEqual(selectedModel, "mlx-community/Other-Model")
     }
 }
 
