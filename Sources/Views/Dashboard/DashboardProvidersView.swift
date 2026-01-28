@@ -11,39 +11,108 @@ internal struct DashboardProvidersView: View {
     @AppStorage("openAIBaseURL") var openAIBaseURL = ""
     @AppStorage("geminiBaseURL") var geminiBaseURL = ""
     @AppStorage("maxModelStorageGB") var maxModelStorageGB = 5.0
-    
+
     // Persistent settings - Correction
     @AppStorage("semanticCorrectionMode") private var semanticCorrectionModeRaw = SemanticCorrectionMode.off.rawValue
     @AppStorage("semanticCorrectionModelRepo") private var semanticCorrectionModelRepo = "mlx-community/Qwen3-1.7B-4bit"
 
-    // UI state
-    @State var openAIKey = ""
-    @State var geminiKey = ""
-    @State var showOpenAIKey = false
-    @State var showGeminiKey = false
-    @State var showAdvancedAPISettings = false
-    @State var downloadError: String?
-    @State var parakeetVerifyMessage: String?
-    @State var envReady = false
-    @State var isCheckingEnv = false
-    @State var isVerifyingParakeet = false
-    @State var showSetupSheet = false
-    @State var isSettingUp = false
-    @State var setupLogs = ""
-    @State var setupStatus: String?
-    @State var totalModelsSize: Int64 = 0
-    @State var downloadedModels: [WhisperModel] = []
-    @State var modelDownloadStates: [WhisperModel: Bool] = [:]
-    @State var downloadStartTime: [WhisperModel: Date] = [:]
-    @State private var isLoaded = false
-    
-    // Correction UI state
-    @State private var mlxModelManager = MLXModelManager.shared
-    @State private var isRefreshingMLXModels = false
-    @State private var isVerifyingMLX = false
-    @State private var mlxVerifyMessage: String?
+    // Consolidated UI state container
+    @State private var state = ProviderSettingsState()
 
+    // Model managers
+    @State private var mlxModelManager = MLXModelManager.shared
     @State var modelManager = ModelManager.shared
+
+    // Computed properties for backward compatibility with extensions
+    var openAIKey: String {
+        get { state.openAIKey }
+        nonmutating set { state.openAIKey = newValue }
+    }
+    var geminiKey: String {
+        get { state.geminiKey }
+        nonmutating set { state.geminiKey = newValue }
+    }
+    var showOpenAIKey: Bool {
+        get { state.showOpenAIKey }
+        nonmutating set { state.showOpenAIKey = newValue }
+    }
+    var showGeminiKey: Bool {
+        get { state.showGeminiKey }
+        nonmutating set { state.showGeminiKey = newValue }
+    }
+    var showAdvancedAPISettings: Bool {
+        get { state.showAdvancedAPISettings }
+        nonmutating set { state.showAdvancedAPISettings = newValue }
+    }
+    var downloadError: String? {
+        get { state.downloadError }
+        nonmutating set { state.downloadError = newValue }
+    }
+    var parakeetVerifyMessage: String? {
+        get { state.parakeetVerifyMessage }
+        nonmutating set { state.parakeetVerifyMessage = newValue }
+    }
+    var envReady: Bool {
+        get { state.envReady }
+        nonmutating set { state.envReady = newValue }
+    }
+    var isCheckingEnv: Bool {
+        get { state.isCheckingEnv }
+        nonmutating set { state.isCheckingEnv = newValue }
+    }
+    var isVerifyingParakeet: Bool {
+        get { state.isVerifyingParakeet }
+        nonmutating set { state.isVerifyingParakeet = newValue }
+    }
+    var showSetupSheet: Bool {
+        get { state.showSetupSheet }
+        nonmutating set { state.showSetupSheet = newValue }
+    }
+    var isSettingUp: Bool {
+        get { state.isSettingUp }
+        nonmutating set { state.isSettingUp = newValue }
+    }
+    var setupLogs: String {
+        get { state.setupLogs }
+        nonmutating set { state.setupLogs = newValue }
+    }
+    var setupStatus: String? {
+        get { state.setupStatus }
+        nonmutating set { state.setupStatus = newValue }
+    }
+    var totalModelsSize: Int64 {
+        get { state.totalModelsSize }
+        nonmutating set { state.totalModelsSize = newValue }
+    }
+    var downloadedModels: [WhisperModel] {
+        get { state.downloadedModels }
+        nonmutating set { state.downloadedModels = newValue }
+    }
+    var modelDownloadStates: [WhisperModel: Bool] {
+        get { state.modelDownloadStates }
+        nonmutating set { state.modelDownloadStates = newValue }
+    }
+    var downloadStartTime: [WhisperModel: Date] {
+        get { state.downloadStartTime }
+        nonmutating set { state.downloadStartTime = newValue }
+    }
+    private var isRefreshingMLXModels: Bool {
+        get { state.isRefreshingMLXModels }
+        nonmutating set { state.isRefreshingMLXModels = newValue }
+    }
+    private var isVerifyingMLX: Bool {
+        get { state.isVerifyingMLX }
+        nonmutating set { state.isVerifyingMLX = newValue }
+    }
+    private var mlxVerifyMessage: String? {
+        get { state.mlxVerifyMessage }
+        nonmutating set { state.mlxVerifyMessage = newValue }
+    }
+    private var isLoaded: Bool {
+        get { state.isLoaded }
+        nonmutating set { state.isLoaded = newValue }
+    }
+
     let keychainService: KeychainServiceProtocol = KeychainService.shared
 
     var body: some View {

@@ -206,19 +206,9 @@ internal class SpeechToTextService {
         }
     }
 
-    // Helper to get MIME type from audio file extension
+    // Helper to get MIME type from audio file extension - uses centralized AudioMimeType
     private func audioMimeType(for url: URL) -> String {
-        let ext = url.pathExtension.lowercased()
-        switch ext {
-        case "m4a", "mp4", "aac": return "audio/mp4"
-        case "mp3": return "audio/mpeg"
-        case "wav": return "audio/wav"
-        case "aiff", "aif": return "audio/aiff"
-        case "caf": return "audio/x-caf"
-        case "flac": return "audio/flac"
-        case "ogg": return "audio/ogg"
-        default: return "audio/mp4" // Default fallback
-        }
+        AudioMimeType.mimeType(for: url)
     }
     
     private func transcribeWithGeminiFilesAPI(audioURL: URL, apiKey: String) async throws -> String {
@@ -495,32 +485,4 @@ internal class SpeechToTextService {
     
 }
 
-// Response models
-internal struct WhisperResponse: Codable {
-    let text: String
-}
-
-internal struct GeminiResponse: Codable {
-    let candidates: [GeminiCandidate]
-}
-
-internal struct GeminiCandidate: Codable {
-    let content: GeminiContent
-}
-
-internal struct GeminiContent: Codable {
-    let parts: [GeminiPart]
-}
-
-internal struct GeminiPart: Codable {
-    let text: String?
-}
-
-internal struct GeminiFileResponse: Codable {
-    let file: GeminiFile
-}
-
-internal struct GeminiFile: Codable {
-    let uri: String
-    let name: String
-}
+// Response models are defined in TranscriptionModels.swift

@@ -346,7 +346,7 @@ internal class ModelManager {
             try await UNUserNotificationCenter.current().add(request)
         } catch {
             // Silently fail if notifications aren't available (e.g., when running with swift run)
-            print("Failed to send notification: \(error.localizedDescription)")
+            Logger.modelManager.debug("Failed to send notification: \(error.localizedDescription)")
         }
     }
     

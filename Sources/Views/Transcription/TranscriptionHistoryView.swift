@@ -93,10 +93,7 @@ internal struct TranscriptionHistoryView: View {
     }
     
     private func copyToClipboard(_ text: String) {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
-        
-        // Brief visual feedback could be added here
+        PasteManager.copyToClipboard(text)
     }
     
     private func confirmDelete(_ record: TranscriptionRecord) {
