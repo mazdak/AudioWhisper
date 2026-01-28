@@ -9,6 +9,7 @@ on:
 jobs:
   build-and-test:
     runs-on: macos-14
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
@@ -19,13 +20,13 @@ jobs:
 
       - name: Select Xcode
         run: |
-          # Use Xcode 15.2 which is reliably available on macos-14 runners
-          if [ -d "/Applications/Xcode_15.2.app" ]; then
-            sudo xcode-select -s /Applications/Xcode_15.2.app/Contents/Developer
+          # Prefer newer Xcode versions for latest Swift/SDK support
+          if [ -d "/Applications/Xcode_15.4.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
           elif [ -d "/Applications/Xcode_15.3.app" ]; then
             sudo xcode-select -s /Applications/Xcode_15.3.app/Contents/Developer
-          elif [ -d "/Applications/Xcode_15.4.app" ]; then
-            sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
+          elif [ -d "/Applications/Xcode_15.2.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_15.2.app/Contents/Developer
           else
             echo "Using default Xcode"
             xcode-select -p
@@ -34,11 +35,27 @@ jobs:
       - name: Show Swift Version
         run: swift --version
 
+      - name: Cache Swift packages
+        uses: actions/cache@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-spm-${{ hashFiles('Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-
+
       - name: Build
         run: swift build
 
       - name: Run Tests
-        run: swift test --parallel -Xswiftc -DTESTING
+        run: |
+          # Run tests and filter out macOS system framework noise
+          # Use a temp file to preserve exit code while filtering output
+          set +e
+          swift test --parallel 2>&1 | tee /tmp/test_output.txt
+          TEST_EXIT_CODE=${PIPESTATUS[0]}
+          # Filter and display cleaned output
+          grep -v -E "(CNAccountCollection|ContactsPersistence|com\.apple\.contacts|NSXPCConnection|DetachedSignatures|FrontBoardServices|NSStatusItemScene|BSBlockSentinel|NSStatusItem|assertOnQueue)" /tmp/test_output.txt || true
+          exit $TEST_EXIT_CODE
         env:
           OS_ACTIVITY_MODE: disable
 
