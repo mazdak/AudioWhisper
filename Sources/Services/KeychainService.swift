@@ -95,10 +95,10 @@ internal class KeychainService: KeychainServiceProtocol {
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne
         ]
-        
+
         var dataTypeRef: AnyObject?
         let status = SecItemCopyMatching(query as CFDictionary, &dataTypeRef)
-        
+
         if status == errSecSuccess {
             guard let data = dataTypeRef as? Data else {
                 throw KeychainError.unexpectedItemFormat
@@ -106,7 +106,22 @@ internal class KeychainService: KeychainServiceProtocol {
             guard let string = String(data: data, encoding: .utf8) else {
                 throw KeychainError.invalidData
             }
-            return string
+            // Validate the retrieved key has reasonable characteristics
+            let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else {
+                Logger.keychain.warning("Retrieved empty API key for \(account, privacy: .public)")
+                return nil
+            }
+            // API keys typically have minimum lengths (OpenAI ~50 chars, Gemini ~40 chars)
+            // Log a warning for suspiciously short keys but don't reject them
+            if trimmed.count < 20 {
+                Logger.keychain.warning("Retrieved unusually short API key (\(trimmed.count) chars) for \(account, privacy: .public)")
+            }
+            // Warn about excessively long keys that might indicate corrupted data
+            if trimmed.count > 500 {
+                Logger.keychain.warning("Retrieved unusually long API key (\(trimmed.count) chars) for \(account, privacy: .public)")
+            }
+            return trimmed
         } else if status == errSecItemNotFound {
             return nil
         } else {

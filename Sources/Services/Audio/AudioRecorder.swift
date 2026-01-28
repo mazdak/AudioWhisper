@@ -42,8 +42,21 @@ internal class AudioRecorder: NSObject, ObservableObject, AudioRecording {
     }
 
     deinit {
-        // Ensure timer is invalidated if recorder is deallocated
+        // Comprehensive cleanup when recorder is deallocated
+        // 1. Stop recording if still active
+        if audioRecorder?.isRecording == true {
+            audioRecorder?.stop()
+        }
+        // 2. Clear delegate to prevent callbacks to deallocated object
+        audioRecorder?.delegate = nil
+        audioRecorder = nil
+        // 3. Invalidate timer to prevent callbacks
         levelUpdateTimer?.invalidate()
+        levelUpdateTimer = nil
+        // 4. Clear recording URL reference
+        recordingURL = nil
+        // Note: @Published properties (isRecording, audioLevel) are automatically cleaned up
+        // Note: Volume restoration should have been handled by stopRecording/cancelRecording
     }
     
     func startRecording() -> Bool {
