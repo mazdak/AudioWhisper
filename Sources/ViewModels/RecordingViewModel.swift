@@ -183,8 +183,7 @@ final class RecordingViewModel {
                 let wordCount = UsageMetricsStore.estimatedWordCount(for: finalText)
                 let characterCount = finalText.count
 
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(finalText, forType: .string)
+                PasteManager.copyToClipboard(finalText)
 
                 let shouldSave = DataManager.shared.isHistoryEnabled
                 if shouldSave {

@@ -87,15 +87,39 @@ internal enum PasteError: LocalizedError {
 @Observable
 @MainActor
 internal class PasteManager {
-    
+
     private let accessibilityManager: AccessibilityPermissionManager
-    
+
     init(accessibilityManager: AccessibilityPermissionManager = AccessibilityPermissionManager()) {
         self.accessibilityManager = accessibilityManager
     }
-    
+
+    // MARK: - Clipboard Operations
+
+    /// Copies text to the system clipboard.
+    /// This is the centralized method for all clipboard write operations.
+    /// - Parameter text: The text to copy to the clipboard.
+    static func copyToClipboard(_ text: String) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
+    }
+
+    /// Reads text from the system clipboard.
+    /// - Returns: The text from the clipboard, or nil if no text is available.
+    static func readFromClipboard() -> String? {
+        return NSPasteboard.general.string(forType: .string)
+    }
+
+    /// Clears the system clipboard contents.
+    static func clearClipboard() {
+        NSPasteboard.general.clearContents()
+    }
+
+    // MARK: - Paste Operations
+
     /// Attempts to paste text to the currently active application
-    /// Uses CGEvent to simulate ⌘V 
+    /// Uses CGEvent to simulate ⌘V
     func pasteToActiveApp() {
         let enableSmartPaste = UserDefaults.standard.bool(forKey: "enableSmartPaste")
         

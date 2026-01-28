@@ -71,8 +71,7 @@ internal extension ContentView {
                 let wordCount = UsageMetricsStore.estimatedWordCount(for: finalText)
                 let characterCount = finalText.count
 
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(finalText, forType: .string)
+                await MainActor.run { PasteManager.copyToClipboard(finalText) }
                 let shouldSave: Bool = await MainActor.run { DataManager.shared.isHistoryEnabled }
                 if shouldSave {
                     let modelUsed: String? = await MainActor.run { (transcriptionProvider == .local) ? self.selectedWhisperModel.rawValue : nil }
@@ -192,8 +191,7 @@ internal extension ContentView {
                     estimatedDuration = asset.duration.seconds
                 }
 
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(finalText, forType: .string)
+                await MainActor.run { PasteManager.copyToClipboard(finalText) }
                 let shouldSave: Bool = await MainActor.run { DataManager.shared.isHistoryEnabled }
                 if shouldSave {
                     let modelUsed: String? = await MainActor.run { (transcriptionProvider == .local) ? self.selectedWhisperModel.rawValue : nil }
@@ -346,9 +344,8 @@ internal extension ContentView {
                 }
                 
                 try Task.checkCancellation()
-                
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(text, forType: .string)
+
+                await MainActor.run { PasteManager.copyToClipboard(text) }
 
                 let enableSmartPaste = UserDefaults.standard.bool(forKey: "enableSmartPaste")
                 let modeRaw = UserDefaults.standard.string(forKey: "semanticCorrectionMode") ?? SemanticCorrectionMode.off.rawValue
@@ -393,8 +390,7 @@ internal extension ContentView {
                         await DataManager.shared.saveTranscriptionQuietly(record)
                     }
                     await MainActor.run {
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(corrected, forType: .string)
+                        PasteManager.copyToClipboard(corrected)
                         transcriptionStartTime = nil
                         isProcessing = false
                         showConfirmationAndPaste(text: corrected)
@@ -416,8 +412,7 @@ internal extension ContentView {
                     let wordCount = UsageMetricsStore.estimatedWordCount(for: finalText)
                     let characterCount = finalText.count
 
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(finalText, forType: .string)
+                    await MainActor.run { PasteManager.copyToClipboard(finalText) }
 
                     let shouldSave3: Bool = await MainActor.run { DataManager.shared.isHistoryEnabled }
                     if shouldSave3 {
