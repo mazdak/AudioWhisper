@@ -176,6 +176,315 @@ final class UISnapshotTests: SnapshotTestCase {
             colorScheme: .light
         )
     }
+
+    // MARK: - Dark Mode Snapshots
+
+    func testWelcomeViewDarkSnapshot() {
+        defaults.set(TranscriptionProvider.local.rawValue, forKey: "transcriptionProvider")
+        defaults.set(WhisperModel.base.rawValue, forKey: "selectedWhisperModel")
+
+        let view = WelcomeView()
+        assertSnapshot(
+            view,
+            named: "WelcomeView-dark",
+            size: LayoutMetrics.Welcome.windowSize,
+            colorScheme: .dark
+        )
+    }
+
+    func testDashboardViewDarkSnapshot() {
+        seedUsageMetrics()
+        seedSourceUsage()
+
+        let view = DashboardView()
+        assertSnapshot(
+            view,
+            named: "DashboardView-dark",
+            size: LayoutMetrics.DashboardWindow.previewSize,
+            colorScheme: .dark
+        )
+
+        UsageMetricsStore.shared.reset()
+        SourceUsageStore.shared.resetForTesting()
+    }
+
+    func testTranscriptionHistoryViewLightSnapshot() throws {
+        let container = try makePreviewContainer()
+        let view = TranscriptionHistoryView()
+            .modelContainer(container)
+
+        assertSnapshot(
+            view,
+            named: "TranscriptionHistoryView-light",
+            size: LayoutMetrics.TranscriptionHistory.previewSize,
+            colorScheme: .light
+        )
+    }
+
+    // MARK: - Waveform Style Snapshots
+
+    func testWaveformContainerClassicSnapshot() {
+        defaults.set(WaveformStyle.classic.rawValue, forKey: "waveformStyle")
+        defaults.set(VisualIntensity.balanced.rawValue, forKey: "visualIntensity")
+
+        let view = WaveformContainer(
+            status: .recording,
+            audioLevel: 0.6,
+            waveformSamples: [],
+            frequencyBands: Array(repeating: 0.5, count: 8),
+            onTap: {}
+        )
+        .frame(width: 280, height: 160)
+
+        assertSnapshot(
+            view,
+            named: "WaveformContainer-classic-recording",
+            size: CGSize(width: 320, height: 200),
+            colorScheme: .dark
+        )
+    }
+
+    func testWaveformContainerReadySnapshot() {
+        defaults.set(WaveformStyle.classic.rawValue, forKey: "waveformStyle")
+
+        let view = WaveformContainer(
+            status: .ready,
+            audioLevel: 0,
+            waveformSamples: [],
+            frequencyBands: Array(repeating: 0, count: 8),
+            onTap: {}
+        )
+        .frame(width: 280, height: 160)
+
+        assertSnapshot(
+            view,
+            named: "WaveformContainer-ready",
+            size: CGSize(width: 320, height: 200),
+            colorScheme: .dark
+        )
+    }
+
+    func testWaveformContainerSuccessSnapshot() {
+        defaults.set(WaveformStyle.classic.rawValue, forKey: "waveformStyle")
+
+        let view = WaveformContainer(
+            status: .success,
+            audioLevel: 0,
+            waveformSamples: [],
+            frequencyBands: [],
+            onTap: {}
+        )
+        .frame(width: 280, height: 160)
+
+        assertSnapshot(
+            view,
+            named: "WaveformContainer-success",
+            size: CGSize(width: 320, height: 200),
+            colorScheme: .dark
+        )
+    }
+
+    func testWaveformContainerProcessingSnapshot() {
+        defaults.set(WaveformStyle.classic.rawValue, forKey: "waveformStyle")
+
+        let view = WaveformContainer(
+            status: .processing(message: "Transcribing..."),
+            audioLevel: 0,
+            waveformSamples: [],
+            frequencyBands: [],
+            onTap: {}
+        )
+        .frame(width: 280, height: 160)
+
+        assertSnapshot(
+            view,
+            named: "WaveformContainer-processing",
+            size: CGSize(width: 320, height: 200),
+            colorScheme: .dark
+        )
+    }
+
+    func testWaveformContainerErrorSnapshot() {
+        defaults.set(WaveformStyle.classic.rawValue, forKey: "waveformStyle")
+
+        let view = WaveformContainer(
+            status: .error(message: "Failed"),
+            audioLevel: 0,
+            waveformSamples: [],
+            frequencyBands: [],
+            onTap: {}
+        )
+        .frame(width: 280, height: 160)
+
+        assertSnapshot(
+            view,
+            named: "WaveformContainer-error",
+            size: CGSize(width: 320, height: 200),
+            colorScheme: .dark
+        )
+    }
+
+    // MARK: - Visual Intensity Snapshots
+
+    func testWaveformContainerGlowIntensitySnapshot() {
+        defaults.set(WaveformStyle.classic.rawValue, forKey: "waveformStyle")
+        defaults.set(VisualIntensity.glow.rawValue, forKey: "visualIntensity")
+
+        let view = WaveformContainer(
+            status: .recording,
+            audioLevel: 0.5,
+            waveformSamples: [],
+            frequencyBands: Array(repeating: 0.5, count: 8),
+            onTap: {}
+        )
+        .frame(width: 280, height: 160)
+
+        assertSnapshot(
+            view,
+            named: "WaveformContainer-glow-intensity",
+            size: CGSize(width: 320, height: 200),
+            colorScheme: .dark
+        )
+    }
+
+    func testWaveformContainerBurstIntensitySnapshot() {
+        defaults.set(WaveformStyle.classic.rawValue, forKey: "waveformStyle")
+        defaults.set(VisualIntensity.burst.rawValue, forKey: "visualIntensity")
+
+        let view = WaveformContainer(
+            status: .recording,
+            audioLevel: 0.5,
+            waveformSamples: [],
+            frequencyBands: Array(repeating: 0.5, count: 8),
+            onTap: {}
+        )
+        .frame(width: 280, height: 160)
+
+        assertSnapshot(
+            view,
+            named: "WaveformContainer-burst-intensity",
+            size: CGSize(width: 320, height: 200),
+            colorScheme: .dark
+        )
+    }
+
+    // MARK: - Provider Selection Dark Mode Snapshots
+
+    func testDashboardProvidersViewGeminiDarkSnapshot() {
+        defaults.set(TranscriptionProvider.gemini.rawValue, forKey: "transcriptionProvider")
+
+        let view = DashboardProvidersView()
+        assertSnapshot(
+            view,
+            named: "DashboardProvidersView-gemini-dark",
+            size: CGSize(width: 750, height: 800),
+            colorScheme: .dark
+        )
+    }
+
+    // MARK: - Preferences View Snapshots
+
+    func testDashboardPreferencesViewSnapshot() {
+        let view = DashboardPreferencesView()
+        assertSnapshot(
+            view,
+            named: "DashboardPreferencesView-light",
+            size: CGSize(width: 750, height: 700),
+            colorScheme: .light
+        )
+    }
+
+    func testDashboardPreferencesViewDarkSnapshot() {
+        let view = DashboardPreferencesView()
+        assertSnapshot(
+            view,
+            named: "DashboardPreferencesView-dark",
+            size: CGSize(width: 750, height: 700),
+            colorScheme: .dark
+        )
+    }
+
+    // MARK: - Correction View Dark Mode Snapshots
+
+    func testDashboardCorrectionViewModeCloudSnapshot() {
+        defaults.set(SemanticCorrectionMode.cloud.rawValue, forKey: "semanticCorrectionMode")
+
+        let view = DashboardCorrectionView()
+        assertSnapshot(
+            view,
+            named: "DashboardCorrectionView-mode-cloud",
+            size: CGSize(width: 750, height: 600),
+            colorScheme: .light
+        )
+    }
+
+    func testDashboardCorrectionViewDarkSnapshot() {
+        defaults.set(SemanticCorrectionMode.localMLX.rawValue, forKey: "semanticCorrectionMode")
+
+        let view = DashboardCorrectionView()
+        assertSnapshot(
+            view,
+            named: "DashboardCorrectionView-dark",
+            size: CGSize(width: 750, height: 700),
+            colorScheme: .dark
+        )
+    }
+
+    // MARK: - Permission Modal Snapshots
+
+    func testPermissionEducationModalSnapshot() {
+        let view = PermissionEducationModal(
+            onProceed: {},
+            onCancel: {}
+        )
+        assertSnapshot(
+            view,
+            named: "PermissionEducationModal-light",
+            size: CGSize(width: 450, height: 350),
+            colorScheme: .light
+        )
+    }
+
+    func testPermissionRecoveryModalSnapshot() {
+        let view = PermissionRecoveryModal(
+            onOpenSettings: {},
+            onCancel: {}
+        )
+        assertSnapshot(
+            view,
+            named: "PermissionRecoveryModal-light",
+            size: CGSize(width: 450, height: 350),
+            colorScheme: .light
+        )
+    }
+
+    func testAccessibilityPermissionModalSnapshot() {
+        let view = AccessibilityPermissionModal(
+            onAllow: {},
+            onDontAllow: {}
+        )
+        assertSnapshot(
+            view,
+            named: "AccessibilityPermissionModal-light",
+            size: CGSize(width: 450, height: 400),
+            colorScheme: .light
+        )
+    }
+
+    // MARK: - Transcripts View Snapshots
+
+    func testDashboardTranscriptsViewSnapshot() throws {
+        let container = try makePreviewContainer()
+        let view = DashboardTranscriptsView()
+            .modelContainer(container)
+
+        assertSnapshot(
+            view,
+            named: "DashboardTranscriptsView-light",
+            size: CGSize(width: 750, height: 600),
+            colorScheme: .light
+        )
+    }
 }
 
 // MARK: - Helpers
