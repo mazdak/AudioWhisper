@@ -47,6 +47,22 @@ private final class CancelledFlag: @unchecked Sendable {
     }
 }
 
+/// Thread-safe flag to ensure continuation is resumed exactly once.
+/// Used to prevent double-resume when timeout and completion race.
+private final class ResumedFlag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _resumed = false
+
+    /// Attempts to resume. Returns true if this is the first call, false otherwise.
+    func tryResume() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        if _resumed { return false }
+        _resumed = true
+        return true
+    }
+}
+
 /// Errors that can occur during paste operations
 internal enum PasteError: LocalizedError {
     case accessibilityPermissionDenied
@@ -146,19 +162,37 @@ internal class PasteManager {
         }
     }
     
-    /// Performs paste with completion handler for proper coordination
+    /// Performs paste with completion handler for proper coordination.
+    /// Includes a timeout to prevent indefinite hangs if the completion is never called.
     @MainActor
     func pasteWithCompletionHandler() async {
         Logger.paste.debug("pasteWithCompletionHandler called")
-        await withCheckedContinuation { continuation in
+
+        // Use a thread-safe flag to ensure continuation is resumed exactly once
+        let resumedFlag = ResumedFlag()
+
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            // Set up a timeout to prevent indefinite hangs
+            // The paste operation should complete almost instantly, so 2 seconds is generous
+            let timeoutTask = Task {
+                try? await Task.sleep(for: .seconds(2))
+                if resumedFlag.tryResume() {
+                    Logger.paste.warning("pasteWithCompletionHandler: timed out waiting for paste completion")
+                    continuation.resume()
+                }
+            }
+
             pasteWithUserInteraction { result in
+                timeoutTask.cancel()
                 switch result {
                 case .success:
                     Logger.paste.debug("pasteWithCompletionHandler: paste succeeded")
                 case .failure(let error):
                     Logger.paste.error("pasteWithCompletionHandler: paste failed: \(error.localizedDescription, privacy: .public)")
                 }
-                continuation.resume()
+                if resumedFlag.tryResume() {
+                    continuation.resume()
+                }
             }
         }
     }

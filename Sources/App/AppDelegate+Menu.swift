@@ -44,7 +44,7 @@ internal extension AppDelegate {
             .mp3,
             .wav,
             .aiff,
-            .init(filenameExtension: "m4a")!,
+            .init(filenameExtension: "m4a") ?? .mpeg4Audio,
             .init(filenameExtension: "aac") ?? .mpeg4Audio,
             .init(filenameExtension: "flac") ?? .audio,
             .init(filenameExtension: "caf") ?? .audio

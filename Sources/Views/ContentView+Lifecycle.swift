@@ -28,6 +28,9 @@ internal extension ContentView {
         }
 
         // Space key - toggle recording
+        // Note: The await Task.sleep below does NOT block the main thread.
+        // Swift Concurrency suspends the async task while the main actor continues processing events.
+        // This implements a 1-second debounce to prevent rapid repeated triggers.
         notificationCoordinator.observeOnMainActor(.spaceKeyPressed) { _ in
             guard !isHandlingSpaceKey else { return }
             isHandlingSpaceKey = true
@@ -40,6 +43,7 @@ internal extension ContentView {
                 permissionManager.requestPermissionWithEducation()
             }
 
+            // Debounce: prevent rapid repeated space key triggers
             try? await Task.sleep(for: .seconds(1))
             isHandlingSpaceKey = false
         }

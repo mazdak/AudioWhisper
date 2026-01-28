@@ -62,9 +62,12 @@ internal class SoundManager: ObservableObject {
     }
     
     /// Test different completion sounds (for development/testing)
+    /// Plays each sound with a 1-second interval between them
     func testCompletionSounds() {
-        for soundType in CompletionSound.allCases {
-            DispatchQueue.main.asyncAfter(deadline: .now() + Double(soundType.hashValue)) { [weak self] in
+        for (index, soundType) in CompletionSound.allCases.enumerated() {
+            // Use deterministic index-based timing (1 second between each sound)
+            let delay = Double(index)
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
                 self?.soundProvider.sound(named: soundType.name)?.play()
             }
         }

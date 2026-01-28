@@ -76,6 +76,16 @@ internal class ParakeetService {
             var isDir: ObjCBool = false
             guard FileManager.default.fileExists(atPath: base.path, isDirectory: &isDir), isDir.boolValue else { return false }
             let refsMain = base.appendingPathComponent("refs/main")
+
+            // Validate file size before reading to prevent memory issues
+            // The refs/main file should be tiny (just a SHA hash, typically 40-64 bytes)
+            // If it's larger than 1KB, something is wrong - don't read it
+            let maxRefsFileSize: Int64 = 1024
+            guard let fileSize = try? FileManager.default.attributesOfItem(atPath: refsMain.path)[.size] as? Int64,
+                  fileSize <= maxRefsFileSize else {
+                return false
+            }
+
             guard let rev = try? String(contentsOf: refsMain, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines), !rev.isEmpty else {
                 return false
             }

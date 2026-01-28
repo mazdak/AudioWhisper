@@ -7,6 +7,11 @@ internal class AccessibilityPermissionManager {
     private let isTestEnvironment: Bool
     private let permissionCheck: () -> Bool
 
+    /// Tracks the current polling session to prevent parallel polling chains.
+    /// When a new request comes in, we cancel any existing polling.
+    private var currentPollingID: UUID?
+    private let pollingLock = NSLock()
+
     init(permissionCheck: @escaping () -> Bool = { AXIsProcessTrustedWithOptions(nil) }) {
         isTestEnvironment = NSClassFromString("XCTestCase") != nil
         self.permissionCheck = permissionCheck
@@ -20,6 +25,7 @@ internal class AccessibilityPermissionManager {
 
     /// Requests permission directly without showing explanation alerts.
     /// Opens System Settings and monitors for permission grant.
+    /// Cancels any existing polling before starting a new one.
     /// - Parameter completion: Called with the result of the permission request
     func requestPermissionDirect(completion: @escaping (Bool) -> Void) {
         // First check if already granted
@@ -37,7 +43,7 @@ internal class AccessibilityPermissionManager {
         // Open System Settings directly
         openAccessibilitySystemSettings()
 
-        // Monitor permission status
+        // Monitor permission status (cancels any existing polling)
         monitorPermissionStatus(completion: completion)
     }
 
@@ -46,13 +52,38 @@ internal class AccessibilityPermissionManager {
         requestPermissionDirect(completion: completion)
     }
 
-    /// Monitors permission status after opening System Settings
+    /// Cancels any ongoing permission polling
+    func cancelPolling() {
+        pollingLock.lock()
+        currentPollingID = nil
+        pollingLock.unlock()
+    }
+
+    /// Monitors permission status after opening System Settings.
+    /// Automatically cancels any previous polling to prevent parallel chains.
     private func monitorPermissionStatus(completion: @escaping (Bool) -> Void) {
         if isTestEnvironment { completion(false); return }
+
+        // Generate a new polling ID and cancel any existing polling
+        let pollingID = UUID()
+        pollingLock.lock()
+        currentPollingID = pollingID
+        pollingLock.unlock()
+
         var checkCount = 0
         let maxChecks = 60 // Check for up to 30 seconds (60 * 0.5s)
 
         func checkStatus() {
+            // Check if this polling session was cancelled
+            pollingLock.lock()
+            let isCancelled = currentPollingID != pollingID
+            pollingLock.unlock()
+
+            if isCancelled {
+                // Another request started - this polling chain should stop silently
+                return
+            }
+
             checkCount += 1
 
             if checkPermission() {

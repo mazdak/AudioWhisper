@@ -4,11 +4,11 @@ import os.log
 @MainActor
 internal class ErrorPresenter {
     static let shared = ErrorPresenter()
-    
+
     // Thread-safe properties with proper synchronization
     private let queue = DispatchQueue(label: "com.audiowhisper.errorpresenter", qos: .userInitiated)
     private var _isTestEnvironment: Bool = false
-    
+
     // Cached lowercased error patterns for efficient matching
     private let errorPatterns: [String: [String]] = [
         "api_key": ["api key"],
@@ -16,7 +16,30 @@ internal class ErrorPresenter {
         "connection": ["internet", "connection"],
         "transcription": ["transcription"]
     ]
-    
+
+    // Pre-compiled regex patterns for efficient sanitization
+    // These are compiled once at class load time instead of on every error
+    private static let sanitizationPatterns: [(regex: NSRegularExpression, replacement: String)] = {
+        var patterns: [(NSRegularExpression, String)] = []
+        // API keys (20+ alphanumeric characters)
+        if let regex = try? NSRegularExpression(pattern: "\\b[A-Za-z0-9]{20,}\\b", options: []) {
+            patterns.append((regex, "[REDACTED_API_KEY]"))
+        }
+        // File paths with usernames
+        if let regex = try? NSRegularExpression(pattern: "/Users/[^/\\s]+", options: []) {
+            patterns.append((regex, "/Users/[USER]"))
+        }
+        // IP addresses
+        if let regex = try? NSRegularExpression(pattern: "\\b(?:[0-9]{1,3}\\.){3}[0-9]{1,3}\\b", options: []) {
+            patterns.append((regex, "[REDACTED_IP]"))
+        }
+        // Email addresses
+        if let regex = try? NSRegularExpression(pattern: "\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Z|a-z]{2,}\\b", options: []) {
+            patterns.append((regex, "[REDACTED_EMAIL]"))
+        }
+        return patterns
+    }()
+
     // Logger for security and debugging
     private let logger = Logger(subsystem: "com.audiowhisper.app", category: "ErrorPresenter")
     
@@ -50,44 +73,28 @@ internal class ErrorPresenter {
     }
     
     // MARK: - Input Sanitization
-    
+
     private func sanitizeErrorMessage(_ message: String) -> String {
         var sanitized = message
-        
-        // Remove potential API keys (common patterns)
-        sanitized = sanitized.replacingOccurrences(
-            of: "\\b[A-Za-z0-9]{20,}\\b",
-            with: "[REDACTED_API_KEY]",
-            options: .regularExpression
-        )
-        
-        // Remove potential file paths containing user information
-        sanitized = sanitized.replacingOccurrences(
-            of: "/Users/[^/\\s]+",
-            with: "/Users/[USER]",
-            options: .regularExpression
-        )
-        
-        // Remove potential IP addresses
-        sanitized = sanitized.replacingOccurrences(
-            of: "\\b(?:[0-9]{1,3}\\.){3}[0-9]{1,3}\\b",
-            with: "[REDACTED_IP]",
-            options: .regularExpression
-        )
-        
-        // Remove potential email addresses
-        sanitized = sanitized.replacingOccurrences(
-            of: "\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Z|a-z]{2,}\\b",
-            with: "[REDACTED_EMAIL]",
-            options: .regularExpression
-        )
-        
+
+        // Use pre-compiled regex patterns for efficient sanitization
+        // This avoids recompiling patterns on every error message
+        for (regex, replacement) in Self.sanitizationPatterns {
+            let range = NSRange(sanitized.startIndex..., in: sanitized)
+            sanitized = regex.stringByReplacingMatches(
+                in: sanitized,
+                options: [],
+                range: range,
+                withTemplate: replacement
+            )
+        }
+
         // Truncate if too long to prevent memory issues
         let maxLength = 500
         if sanitized.count > maxLength {
             sanitized = String(sanitized.prefix(maxLength)) + "... [MESSAGE_TRUNCATED]"
         }
-        
+
         return sanitized
     }
     
