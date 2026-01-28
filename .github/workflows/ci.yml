@@ -2,18 +2,64 @@ name: CI
 
 on:
   push:
+    branches: [ main, 'claude/**' ]
   pull_request:
+    branches: [ main ]
 
 jobs:
-  macos-build-test:
-    runs-on: macos-latest
+  build-and-test:
+    runs-on: macos-14
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build
-        run: swift build --configuration release
+      - name: List available Xcode versions
+        run: ls /Applications | grep Xcode || true
 
-      - name: Test
-        run: swift test
+      - name: Select Xcode
+        run: |
+          # Use Xcode 15.2 which is reliably available on macos-14 runners
+          if [ -d "/Applications/Xcode_15.2.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_15.2.app/Contents/Developer
+          elif [ -d "/Applications/Xcode_15.3.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_15.3.app/Contents/Developer
+          elif [ -d "/Applications/Xcode_15.4.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
+          else
+            echo "Using default Xcode"
+            xcode-select -p
+          fi
+
+      - name: Show Swift Version
+        run: swift --version
+
+      - name: Build
+        run: swift build
+
+      - name: Run Tests
+        run: swift test --parallel -Xswiftc -DTESTING
+        env:
+          OS_ACTIVITY_MODE: disable
+
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check for debug print statements
+        run: |
+          echo "Checking for print statements in Swift source files..."
+          # Find print statements but exclude comments and Python files
+          if grep -rn "print(" Sources/ --include="*.swift" | grep -v "//.*print" | grep -v "\.py:"; then
+            echo "::warning::Found print statements that may need review"
+          else
+            echo "No problematic print statements found"
+          fi
+
+      - name: Check for TODO/FIXME comments
+        run: |
+          echo "Checking for TODO/FIXME comments..."
+          grep -rn "TODO\|FIXME" Sources/ --include="*.swift" || echo "No TODO/FIXME comments found"
