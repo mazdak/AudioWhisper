@@ -268,6 +268,8 @@ internal extension DashboardProvidersView {
                 process.standardOutput = out; process.standardError = err
 
                 let messageStore = VerificationMessageStore()
+                // Note: These handlers intentionally don't capture self or update @State directly
+                // to avoid retain cycles. State is updated after process completion using messageStore.
                 out.fileHandleForReading.readabilityHandler = { handle in
                     let data = handle.availableData
                     guard !data.isEmpty, let s = String(data: data, encoding: .utf8) else { return }
@@ -277,7 +279,6 @@ internal extension DashboardProvidersView {
                            let msg = j["message"] as? String {
                             Task {
                                 await messageStore.updateStdout(msg)
-                                await MainActor.run { parakeetVerifyMessage = msg }
                             }
                         }
                     }
@@ -288,7 +289,6 @@ internal extension DashboardProvidersView {
                     let trimmed = s.trimmingCharacters(in: .whitespacesAndNewlines)
                     Task {
                         await messageStore.updateStderr(trimmed)
-                        await MainActor.run { parakeetVerifyMessage = trimmed }
                     }
                 }
 

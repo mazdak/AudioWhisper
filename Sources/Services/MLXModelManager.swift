@@ -218,10 +218,11 @@ except Exception as e:
         process.standardOutput = outputPipe
         process.standardError = errorPipe
         
-        outputPipe.fileHandleForReading.readabilityHandler = { handle in
+        outputPipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
+            guard let self = self else { return }
             let data = handle.availableData
             guard !data.isEmpty else { return }
-            
+
             if let output = String(data: data, encoding: .utf8) {
                 self.logger.info("Python stdout: \(output)")
                 // Process each line separately as JSON might come in multiple lines
@@ -229,8 +230,9 @@ except Exception as e:
                 for line in lines {
                     let lineStr = String(line).trimmingCharacters(in: .whitespacesAndNewlines)
                     if lineStr.isEmpty { continue }
-                    
-                    Task { @MainActor in
+
+                    Task { @MainActor [weak self] in
+                        guard let self = self else { return }
                         // Try to parse as JSON
                         if let jsonData = lineStr.data(using: .utf8),
                            let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
@@ -264,32 +266,34 @@ except Exception as e:
         }
         
         // Collect all stderr for final error message
-        errorPipe.fileHandleForReading.readabilityHandler = { handle in
+        errorPipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
+            guard let self = self else { return }
             let data = handle.availableData
             guard !data.isEmpty else { return }
-            
+
             if let error = String(data: data, encoding: .utf8) {
                 // Check if this is actually an error or just progress info
                 let lowerError = error.lowercased()
-                let isRealError = (lowerError.contains("error") || 
-                                  lowerError.contains("exception") || 
+                let isRealError = (lowerError.contains("error") ||
+                                  lowerError.contains("exception") ||
                                   lowerError.contains("failed") ||
                                   lowerError.contains("traceback") ||
                                   lowerError.contains("no module") ||
                                   lowerError.contains("not found")) &&
                                  !lowerError.contains("process exited with status: 0") // Success message
-                
+
                 // Ignore common progress messages that go to stderr
-                let isProgress = error.contains("Fetching") || 
-                               error.contains("Downloading") || 
+                let isProgress = error.contains("Fetching") ||
+                               error.contains("Downloading") ||
                                error.contains("%") ||
                                error.contains("it/s") ||
                                error.contains("MB/s") ||
                                error.contains("GB/s")
-                
+
                 if isRealError && !isProgress {
                     self.logger.error("Python stderr: \(error)")
-                    Task { @MainActor in
+                    Task { @MainActor [weak self] in
+                        guard let self = self else { return }
                         // Show the actual error in the UI
                         let errorLines = error.split(separator: "\n").prefix(2).joined(separator: " ")
                         self.downloadProgress[repo] = "Error: \(errorLines)"
@@ -446,7 +450,8 @@ except Exception as e:
         process.standardOutput = outputPipe
         process.standardError = errorPipe
 
-        outputPipe.fileHandleForReading.readabilityHandler = { handle in
+        outputPipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
+            guard let self = self else { return }
             let data = handle.availableData
             guard !data.isEmpty else { return }
             if let line = String(data: data, encoding: .utf8),
@@ -454,7 +459,8 @@ except Exception as e:
                let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: String],
                let message = json["message"],
                let status = json["status"] {
-                Task { @MainActor in
+                Task { @MainActor [weak self] in
+                    guard let self = self else { return }
                     self.downloadProgress[repo] = message
                     if status == "complete" {
                         self.downloadedModels.insert(repo)
@@ -463,7 +469,8 @@ except Exception as e:
             }
         }
 
-        errorPipe.fileHandleForReading.readabilityHandler = { handle in
+        errorPipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
+            guard let self = self else { return }
             let data = handle.availableData
             guard !data.isEmpty else { return }
             if let err = String(data: data, encoding: .utf8) {

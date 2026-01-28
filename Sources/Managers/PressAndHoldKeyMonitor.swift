@@ -222,7 +222,11 @@ internal final class PressAndHoldKeyMonitor {
         guard event.type == .flagsChanged, event.keyCode == configuration.key.keyCode else { return }
 
         monitorQueue.async { [weak self] in
-            self?.processTransition(isKeyDownEvent: !(self?.isPressed ?? false))
+            guard let self = self else { return }
+            // Read isPressed once inside the queue to avoid race conditions
+            // with optional chaining that could access self multiple times
+            let currentlyPressed = self.isPressed
+            self.processTransition(isKeyDownEvent: !currentlyPressed)
         }
     }
 
