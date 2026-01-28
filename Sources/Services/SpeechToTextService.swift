@@ -65,15 +65,12 @@ internal class SpeechToTextService {
         }
     }
 
+    /// Convenience method that auto-selects provider based on UserDefaults.
+    /// Defaults to OpenAI if "useOpenAI" preference is not explicitly set to false.
     func transcribe(audioURL: URL) async throws -> String {
         let useOpenAI = UserDefaults.standard.bool(forKey: "useOpenAI")
-        if useOpenAI != false { // Default to OpenAI if not set
-            let text = try await transcribeWithOpenAI(audioURL: audioURL)
-            return await correctionService.correct(text: text, providerUsed: .openai)
-        } else {
-            let text = try await transcribeWithGemini(audioURL: audioURL)
-            return await correctionService.correct(text: text, providerUsed: .gemini)
-        }
+        let provider: TranscriptionProvider = (useOpenAI != false) ? .openai : .gemini
+        return try await transcribe(audioURL: audioURL, provider: provider, model: nil)
     }
     
     func transcribe(audioURL: URL, provider: TranscriptionProvider, model: WhisperModel? = nil) async throws -> String {
@@ -313,12 +310,22 @@ internal class SpeechToTextService {
                     .responseDecodable(of: GeminiResponse.self) { response in
                         switch response.result {
                         case .success(let geminiResponse):
-                            if let text = geminiResponse.candidates.first?.content.parts.first?.text {
-                                let cleanedText = Self.cleanTranscriptionText(text)
-                                resumeOnce(.success(cleanedText))
-                            } else {
-                                resumeOnce(.failure(SpeechToTextError.transcriptionFailed("No text in response")))
+                            // Validate response structure with specific error messages
+                            guard !geminiResponse.candidates.isEmpty else {
+                                resumeOnce(.failure(SpeechToTextError.transcriptionFailed("Gemini returned no candidates")))
+                                return
                             }
+                            guard let firstCandidate = geminiResponse.candidates.first,
+                                  !firstCandidate.content.parts.isEmpty else {
+                                resumeOnce(.failure(SpeechToTextError.transcriptionFailed("Gemini response has no content parts")))
+                                return
+                            }
+                            guard let text = firstCandidate.content.parts.first?.text, !text.isEmpty else {
+                                resumeOnce(.failure(SpeechToTextError.transcriptionFailed("Gemini response has no text content")))
+                                return
+                            }
+                            let cleanedText = Self.cleanTranscriptionText(text)
+                            resumeOnce(.success(cleanedText))
                         case .failure(let error):
                             resumeOnce(.failure(SpeechToTextError.transcriptionFailed(error.localizedDescription)))
                         }
@@ -387,12 +394,22 @@ internal class SpeechToTextService {
                     .responseDecodable(of: GeminiResponse.self) { response in
                         switch response.result {
                         case .success(let geminiResponse):
-                            if let text = geminiResponse.candidates.first?.content.parts.first?.text {
-                                let cleanedText = Self.cleanTranscriptionText(text)
-                                resumeOnce(.success(cleanedText))
-                            } else {
-                                resumeOnce(.failure(SpeechToTextError.transcriptionFailed("No text in response")))
+                            // Validate response structure with specific error messages
+                            guard !geminiResponse.candidates.isEmpty else {
+                                resumeOnce(.failure(SpeechToTextError.transcriptionFailed("Gemini returned no candidates")))
+                                return
                             }
+                            guard let firstCandidate = geminiResponse.candidates.first,
+                                  !firstCandidate.content.parts.isEmpty else {
+                                resumeOnce(.failure(SpeechToTextError.transcriptionFailed("Gemini response has no content parts")))
+                                return
+                            }
+                            guard let text = firstCandidate.content.parts.first?.text, !text.isEmpty else {
+                                resumeOnce(.failure(SpeechToTextError.transcriptionFailed("Gemini response has no text content")))
+                                return
+                            }
+                            let cleanedText = Self.cleanTranscriptionText(text)
+                            resumeOnce(.success(cleanedText))
                         case .failure(let error):
                             resumeOnce(.failure(SpeechToTextError.transcriptionFailed(error.localizedDescription)))
                         }

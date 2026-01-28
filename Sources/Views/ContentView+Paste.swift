@@ -163,6 +163,13 @@ internal extension ContentView {
         await waitForApplicationActivation(target)
     }
     
+    /// Waits for the target application to become active, with a timeout.
+    ///
+    /// Thread safety notes:
+    /// - ResumedFlag ensures the continuation is resumed exactly once (tryResume returns true only on first call)
+    /// - ObserverBox provides thread-safe storage for the observer reference
+    /// - Observer removal is idempotent, so multiple removal attempts are harmless
+    /// - Both timeout and notification paths clean up the observer before resuming
     func waitForApplicationActivation(_ target: NSRunningApplication) async {
         if target.isActive { return }
 
@@ -170,14 +177,20 @@ internal extension ContentView {
             let observerBox = ObserverBox()
             let resumedFlag = ResumedFlag()
 
-            let timeoutTask = Task {
-                try? await Task.sleep(for: .milliseconds(500))
+            // Helper to clean up observer and resume continuation exactly once
+            func cleanupAndResume() {
                 if let observer = observerBox.observer {
                     NotificationCenter.default.removeObserver(observer)
+                    observerBox.observer = nil  // Clear to prevent redundant removal attempts
                 }
                 if resumedFlag.tryResume() {
                     continuation.resume()
                 }
+            }
+
+            let timeoutTask = Task {
+                try? await Task.sleep(for: .milliseconds(500))
+                cleanupAndResume()
             }
 
             observerBox.observer = NotificationCenter.default.addObserver(
@@ -188,12 +201,7 @@ internal extension ContentView {
                 if let activatedApp = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
                    activatedApp.processIdentifier == target.processIdentifier {
                     timeoutTask.cancel()
-                    if let observer = observerBox.observer {
-                        NotificationCenter.default.removeObserver(observer)
-                    }
-                    if resumedFlag.tryResume() {
-                        continuation.resume()
-                    }
+                    cleanupAndResume()
                 }
             }
         }

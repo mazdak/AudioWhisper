@@ -50,3 +50,68 @@ let transcriptionNetworkTimeout: TimeInterval = 60
 
 /// Default timeout for semantic correction requests (30 seconds)
 let semanticCorrectionTimeout: TimeInterval = 30
+
+// MARK: - Callback Bridge Utilities
+
+/// A thread-safe wrapper that ensures a callback is only invoked once.
+/// Useful when bridging callback-based APIs (like Alamofire) to Swift Concurrency,
+/// where the callback might be called multiple times but continuation.resume() must only be called once.
+final class OnceCallback<T>: @unchecked Sendable {
+    private var hasBeenCalled = false
+    private let lock = NSLock()
+    private let handler: (Result<T, Error>) -> Void
+
+    init(handler: @escaping (Result<T, Error>) -> Void) {
+        self.handler = handler
+    }
+
+    /// Invokes the handler if it hasn't been called yet.
+    /// Thread-safe: only the first call will execute the handler.
+    func callOnce(_ result: Result<T, Error>) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !hasBeenCalled else { return }
+        hasBeenCalled = true
+        handler(result)
+    }
+
+    /// Convenience for success case
+    func success(_ value: T) {
+        callOnce(.success(value))
+    }
+
+    /// Convenience for failure case
+    func failure(_ error: Error) {
+        callOnce(.failure(error))
+    }
+}
+
+/// Bridges a callback-based operation to Swift Concurrency with timeout support.
+/// The callback wrapper ensures the continuation is resumed exactly once, even if
+/// the underlying API calls the callback multiple times.
+///
+/// - Parameters:
+///   - timeout: Maximum time to wait in seconds
+///   - operation: A closure that receives a OnceCallback to signal completion
+/// - Returns: The result from the callback
+/// - Throws: `AsyncTimeoutError.timedOut` if timeout expires, or any error from the callback
+func withCallbackBridge<T: Sendable>(
+    timeout: TimeInterval,
+    operation: @escaping (@escaping (Result<T, Error>) -> Void) -> Void
+) async throws -> T {
+    try await withTimeout(timeout) {
+        try await withCheckedThrowingContinuation { continuation in
+            let callback = OnceCallback<T> { result in
+                switch result {
+                case .success(let value):
+                    continuation.resume(returning: value)
+                case .failure(let error):
+                    continuation.resume(throwing: error)
+                }
+            }
+            operation { result in
+                callback.callOnce(result)
+            }
+        }
+    }
+}

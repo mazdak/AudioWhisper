@@ -1,10 +1,14 @@
 import AppKit
 
 internal extension AppDelegate {
+    /// Sets up notification observers for app-wide events.
+    ///
+    /// These observers use the target-selector pattern with `self` as the observer.
+    /// Cleanup is handled in AppDelegate.deinit via `NotificationCenter.default.removeObserver(self)`,
+    /// which removes all observers registered with this instance. This is safe because:
+    /// 1. AppDelegate lives for the entire app lifecycle
+    /// 2. The deinit handler provides explicit cleanup if the delegate is somehow deallocated early
     func setupNotificationObservers() {
-        // Note: These observers are automatically cleaned up when the app terminates.
-        // AppDelegate lives for the entire app lifecycle, so no explicit removal needed,
-        // but we use the block-based API for clarity and to avoid selector-based pitfalls.
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(showDashboard),

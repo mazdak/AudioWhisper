@@ -49,48 +49,58 @@ internal class AppSetupHelper {
     private static let NOTCHED_MIN_HEIGHT: CGFloat = 1900.0
     
     // Cache for icon size to avoid repeated calculations
+    // Thread-safe access via lock to prevent data races
+    private static let cacheLock = NSLock()
     private static var _cachedIconSize: CGFloat?
     private static var _lastMainScreenFrame: NSRect?
-    
+
     /// Reset the cached icon size - useful when display configuration changes
     static func resetIconSizeCache() {
+        cacheLock.lock()
+        defer { cacheLock.unlock() }
         _cachedIconSize = nil
         _lastMainScreenFrame = nil
     }
-    
+
     static func getAdaptiveMenuBarIconSize() -> CGFloat {
         // Check for user override first
         if let overrideSize = UserDefaults.standard.object(forKey: "menuBarIconSize") as? Double,
            overrideSize > 0 {
             return CGFloat(overrideSize)
         }
-        
+
         // For menu bar items, we should use the screen where the status item is located
         // not necessarily the main screen
         guard let statusItemScreen = getStatusItemScreen() else {
             // Fallback to standard size if we can't detect the screen
             return STANDARD_ICON_SIZE
         }
-        
+
         // Check if screen configuration has changed by comparing frame
         let currentFrame = statusItemScreen.frame
-        
-        if let cached = _cachedIconSize, 
+
+        // Thread-safe cache access
+        cacheLock.lock()
+        if let cached = _cachedIconSize,
            let lastFrame = _lastMainScreenFrame,
            NSEqualRects(lastFrame, currentFrame) {
+            cacheLock.unlock()
             return cached
         }
-        
+        cacheLock.unlock()
+
         // Detect if display has notch (taller menu bar) on the correct screen
         let hasNotch = detectDisplayNotchForScreen(statusItemScreen)
-        
+
         // Adaptive sizing based on menu bar height
         let iconSize: CGFloat = hasNotch ? NOTCHED_ICON_SIZE : STANDARD_ICON_SIZE
-        
-        // Cache the result
+
+        // Cache the result (thread-safe)
+        cacheLock.lock()
         _cachedIconSize = iconSize
         _lastMainScreenFrame = currentFrame
-        
+        cacheLock.unlock()
+
         return iconSize
     }
     

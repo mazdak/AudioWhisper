@@ -45,7 +45,7 @@ internal class ParakeetService {
 
     func transcribe(audioFileURL: URL, pythonPath _: String? = nil) async throws -> String {
         // Step 0: Do not download here; just verify model cache exists
-        guard isModelCached() else {
+        guard await isModelCached() else {
             throw ParakeetError.modelNotReady
         }
 
@@ -55,7 +55,7 @@ internal class ParakeetService {
             // Clean up the temporary PCM file
             try? FileManager.default.removeItem(at: pcmDataURL)
         }
-        
+
         // Step 2: Call Python with the raw PCM data instead of original audio
         return try await transcribeWithRawPCM(pcmDataURL: pcmDataURL)
     }
@@ -64,24 +64,39 @@ internal class ParakeetService {
         UserDefaults.standard.string(forKey: "selectedParakeetModel") ?? ParakeetModel.v3Multilingual.rawValue
     }
 
-    private func isModelCached() -> Bool {
+    /// Checks if the model is cached on disk.
+    /// This is an async function to avoid blocking the main thread with file I/O operations.
+    private func isModelCached() async -> Bool {
         let repo = selectedRepo
-        let escaped = repo.replacingOccurrences(of: "/", with: "--")
-        let base = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".cache/huggingface/hub/models--\(escaped)")
-        var isDir: ObjCBool = false
-        guard FileManager.default.fileExists(atPath: base.path, isDirectory: &isDir), isDir.boolValue else { return false }
-        let refsMain = base.appendingPathComponent("refs/main")
-        guard let rev = try? String(contentsOf: refsMain, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines), !rev.isEmpty else {
-            return false
-        }
-        let snap = base.appendingPathComponent("snapshots/\(rev)")
-        guard FileManager.default.fileExists(atPath: snap.path, isDirectory: &isDir), isDir.boolValue else { return false }
-        // Look for at least one weights file under snapshot or blobs
-        let snapFiles = (try? FileManager.default.contentsOfDirectory(atPath: snap.path)) ?? []
-        let blobsFiles = (try? FileManager.default.contentsOfDirectory(atPath: base.appendingPathComponent("blobs").path)) ?? []
-        let hasWeights = snapFiles.contains { $0.hasSuffix(".safetensors") } || blobsFiles.contains { $0.hasSuffix(".safetensors") }
-        return hasWeights
+        // Run file I/O on a background thread to avoid blocking main thread
+        return await Task.detached(priority: .userInitiated) {
+            let escaped = repo.replacingOccurrences(of: "/", with: "--")
+            let base = FileManager.default.homeDirectoryForCurrentUser
+                .appendingPathComponent(".cache/huggingface/hub/models--\(escaped)")
+            var isDir: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: base.path, isDirectory: &isDir), isDir.boolValue else { return false }
+            let refsMain = base.appendingPathComponent("refs/main")
+
+            // Validate file size before reading to prevent memory issues
+            // The refs/main file should be tiny (just a SHA hash, typically 40-64 bytes)
+            // If it's larger than 1KB, something is wrong - don't read it
+            let maxRefsFileSize: Int64 = 1024
+            guard let fileSize = try? FileManager.default.attributesOfItem(atPath: refsMain.path)[.size] as? Int64,
+                  fileSize <= maxRefsFileSize else {
+                return false
+            }
+
+            guard let rev = try? String(contentsOf: refsMain, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines), !rev.isEmpty else {
+                return false
+            }
+            let snap = base.appendingPathComponent("snapshots/\(rev)")
+            guard FileManager.default.fileExists(atPath: snap.path, isDirectory: &isDir), isDir.boolValue else { return false }
+            // Look for at least one weights file under snapshot or blobs
+            let snapFiles = (try? FileManager.default.contentsOfDirectory(atPath: snap.path)) ?? []
+            let blobsFiles = (try? FileManager.default.contentsOfDirectory(atPath: base.appendingPathComponent("blobs").path)) ?? []
+            let hasWeights = snapFiles.contains { $0.hasSuffix(".safetensors") } || blobsFiles.contains { $0.hasSuffix(".safetensors") }
+            return hasWeights
+        }.value
     }
     
     private func processAudioToRawPCM(audioFileURL: URL) async throws -> URL {
@@ -201,7 +216,7 @@ internal class ParakeetService {
     }
     
     func validateSetup(pythonPath _: String? = nil) async throws {
-        guard isModelCached() else {
+        guard await isModelCached() else {
             throw ParakeetError.modelNotReady
         }
 

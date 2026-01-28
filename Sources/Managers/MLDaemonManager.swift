@@ -150,7 +150,11 @@ internal actor MLDaemonManager {
                 }
             }
 
-            // Start timeout task
+            // Start timeout task.
+            // SAFETY: Race condition between timeout and response is handled by actor isolation.
+            // Since MLDaemonManager is an actor, all accesses to `pending` are serialized.
+            // Both the timeout task and handle(line:) use removeValue(forKey:) which returns
+            // nil if the key was already removed - ensuring exactly one caller resumes the continuation.
             Task {
                 try? await Task.sleep(nanoseconds: timeoutNanos)
                 // Atomically check-and-remove: only resume if WE removed it

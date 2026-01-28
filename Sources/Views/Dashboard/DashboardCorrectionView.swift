@@ -440,6 +440,8 @@ internal struct DashboardCorrectionView: View {
                 process.standardOutput = out; process.standardError = err
 
                 let messageStore = VerificationMessageStore()
+                // Note: These handlers intentionally don't capture self or update @State directly
+                // to avoid retain cycles. State is updated after process completion using messageStore.
                 out.fileHandleForReading.readabilityHandler = { handle in
                     let data = handle.availableData
                     guard !data.isEmpty, let s = String(data: data, encoding: .utf8) else { return }
@@ -449,7 +451,6 @@ internal struct DashboardCorrectionView: View {
                            let msg = j["message"] as? String {
                             Task {
                                 await messageStore.updateStdout(msg)
-                                await MainActor.run { mlxVerifyMessage = msg }
                             }
                         }
                     }
@@ -458,7 +459,9 @@ internal struct DashboardCorrectionView: View {
                     let data = handle.availableData
                     guard !data.isEmpty, let s = String(data: data, encoding: .utf8) else { return }
                     let msg = s.trimmingCharacters(in: .whitespacesAndNewlines)
-                    Task { @MainActor in mlxVerifyMessage = msg }
+                    Task {
+                        await messageStore.updateStderr(msg)
+                    }
                 }
 
                 try process.run()

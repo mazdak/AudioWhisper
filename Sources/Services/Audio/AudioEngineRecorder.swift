@@ -268,10 +268,16 @@ final class AudioEngineRecorder: NSObject, ObservableObject, AudioRecording {
         }
 
         // Use lock for thread-safe sampleBuffer access (called from audio thread)
+        // This implements a bounded circular buffer pattern:
+        // - Append new samples
+        // - If buffer exceeds max size, remove oldest samples to maintain fixed size
+        // - Maximum size is sampleBufferSize (2048 samples = ~128ms at 16kHz)
         sampleBufferLock.lock()
         sampleBuffer.append(contentsOf: monoSamples)
-        if sampleBuffer.count > sampleBufferSize {
-            sampleBuffer.removeFirst(sampleBuffer.count - sampleBufferSize)
+        let overflow = sampleBuffer.count - sampleBufferSize
+        if overflow > 0 {
+            // Use suffix to efficiently keep only the most recent samples
+            sampleBuffer = Array(sampleBuffer.suffix(sampleBufferSize))
         }
         let currentBuffer = sampleBuffer
         sampleBufferLock.unlock()

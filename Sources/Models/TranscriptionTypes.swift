@@ -69,11 +69,17 @@ internal enum WhisperModel: String, CaseIterable, Codable, Sendable {
 
     var downloadURL: URL {
         // Safe fallback version - returns base model URL if current model URL is invalid
+        // Note: These URLs are hardcoded constants and should never fail to parse,
+        // but we handle it gracefully without force unwrapping for safety.
         do {
             return try getDownloadURL()
         } catch {
             // Fallback to base model if there's an issue with the current model URL
-            return URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin")!
+            guard let fallbackURL = URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin") else {
+                // This should never happen with a valid hardcoded URL, but return a safe default
+                fatalError("Invalid hardcoded URL constant - this is a programming error")
+            }
+            return fallbackURL
         }
     }
 

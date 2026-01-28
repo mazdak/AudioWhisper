@@ -249,7 +249,11 @@ internal class ModelManager {
         guard let whisperKitPath = WhisperKitStorage.storageDirectory() else { return }
         
         // Create directory if it doesn't exist
-        try? FileManager.default.createDirectory(at: whisperKitPath, withIntermediateDirectories: true)
+        do {
+            try FileManager.default.createDirectory(at: whisperKitPath, withIntermediateDirectories: true)
+        } catch {
+            Logger.modelManager.error("Failed to create WhisperKit directory at \(whisperKitPath.path): \(error.localizedDescription)")
+        }
         
         let descriptor = open(whisperKitPath.path, O_EVTONLY)
         guard descriptor >= 0 else { return }
@@ -351,8 +355,10 @@ internal class ModelManager {
         await refreshDownloadedModels()
     }
     
-    nonisolated func isModelReady(_ model: WhisperModel) -> Bool {
-        return MainActor.assumeIsolated {
+    /// Check if a model is ready for use (downloaded and not currently downloading).
+    /// This is an async function to ensure thread-safe access to MainActor-isolated state.
+    nonisolated func isModelReady(_ model: WhisperModel) async -> Bool {
+        return await MainActor.run {
             downloadedModels.contains(model) && !downloadingModels.contains(model)
         }
     }

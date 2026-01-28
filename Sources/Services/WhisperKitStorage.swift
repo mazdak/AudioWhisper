@@ -1,4 +1,5 @@
 import Foundation
+import os.log
 
 internal enum WhisperKitStorage {
     private static func baseDirectory(fileManager: FileManager = .default) -> URL? {
@@ -22,7 +23,13 @@ internal enum WhisperKitStorage {
         let exists = fileManager.fileExists(atPath: modelDirectory.path, isDirectory: &isDirectory)
         guard exists, isDirectory.boolValue else { return false }
 
-        let contents = (try? fileManager.contentsOfDirectory(atPath: modelDirectory.path)) ?? []
+        let contents: [String]
+        do {
+            contents = try fileManager.contentsOfDirectory(atPath: modelDirectory.path)
+        } catch {
+            Logger.fileSystem.error("Failed to read model directory contents at \(modelDirectory.path): \(error.localizedDescription)")
+            return false
+        }
         return contents.contains { $0.hasSuffix(".json") || $0.hasSuffix(".bin") || $0.hasSuffix(".mlmodelc") }
     }
 
@@ -36,6 +43,10 @@ internal enum WhisperKitStorage {
 
     static func ensureBaseDirectoryExists(fileManager: FileManager = .default) {
         guard let baseDirectory = baseDirectory(fileManager: fileManager) else { return }
-        try? fileManager.createDirectory(at: baseDirectory, withIntermediateDirectories: true)
+        do {
+            try fileManager.createDirectory(at: baseDirectory, withIntermediateDirectories: true)
+        } catch {
+            Logger.fileSystem.error("Failed to create WhisperKit base directory at \(baseDirectory.path): \(error.localizedDescription)")
+        }
     }
 }

@@ -230,8 +230,14 @@ internal struct UvBootstrap {
             return ("", String(describing: error), 1)
         }
         p.waitUntilExit()
-        let out = String(data: outPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-        let err = String(data: errPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        // Read output before closing handles
+        let outData = outPipe.fileHandleForReading.readDataToEndOfFile()
+        let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
+        // Explicitly close file handles to ensure immediate resource cleanup
+        try? outPipe.fileHandleForReading.close()
+        try? errPipe.fileHandleForReading.close()
+        let out = String(data: outData, encoding: .utf8) ?? ""
+        let err = String(data: errData, encoding: .utf8) ?? ""
         return (out, err, p.terminationStatus)
     }
 
@@ -252,8 +258,14 @@ internal struct UvBootstrap {
             return ("", String(describing: error), 1)
         }
         p.waitUntilExit()
-        let out = String(data: outPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-        let err = String(data: errPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        // Read output before closing handles
+        let outData = outPipe.fileHandleForReading.readDataToEndOfFile()
+        let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
+        // Explicitly close file handles to ensure immediate resource cleanup
+        try? outPipe.fileHandleForReading.close()
+        try? errPipe.fileHandleForReading.close()
+        let out = String(data: outData, encoding: .utf8) ?? ""
+        let err = String(data: errData, encoding: .utf8) ?? ""
         return (out, err, p.terminationStatus)
     }
 
