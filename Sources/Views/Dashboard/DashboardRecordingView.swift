@@ -9,8 +9,6 @@ internal struct DashboardRecordingView: View {
     @AppStorage("pressAndHoldEnabled") private var pressAndHoldEnabled = PressAndHoldConfiguration.defaults.enabled
     @AppStorage("pressAndHoldKeyIdentifier") private var pressAndHoldKeyIdentifier = PressAndHoldConfiguration.defaults.key.rawValue
     @AppStorage("pressAndHoldMode") private var pressAndHoldModeRaw = PressAndHoldConfiguration.defaults.mode.rawValue
-    @AppStorage("waveformStyle") private var waveformStyleRaw = WaveformStyle.classic.rawValue
-    @AppStorage("visualIntensity") private var visualIntensityRaw = VisualIntensity.balanced.rawValue
 
     @State private var availableMicrophones: [AVCaptureDevice] = []
     @State private var isRecordingHotkey = false
@@ -24,7 +22,6 @@ internal struct DashboardRecordingView: View {
                 microphoneSection
                 hotkeySection
                 pressAndHoldSection
-                visualizationSection
             }
             .padding(DashboardTheme.Spacing.xl)
         }
@@ -35,11 +32,11 @@ internal struct DashboardRecordingView: View {
     // MARK: - Header
     private var pageHeader: some View {
         VStack(alignment: .leading, spacing: DashboardTheme.Spacing.xs) {
-            Text("Recording")
+            Text("Input")
                 .font(DashboardTheme.Fonts.serif(28, weight: .semibold))
                 .foregroundStyle(DashboardTheme.ink)
-            
-            Text("Configure your microphone, hotkey, and recording behavior")
+
+            Text("Configure your microphone and recording triggers")
                 .font(DashboardTheme.Fonts.sans(13, weight: .regular))
                 .foregroundStyle(DashboardTheme.inkMuted)
         }
@@ -200,106 +197,6 @@ internal struct DashboardRecordingView: View {
             .cardStyle()
         }
     }
-    
-    // MARK: - Visualization
-    private var visualizationSection: some View {
-        VStack(alignment: .leading, spacing: DashboardTheme.Spacing.md) {
-            sectionHeader("Visualization")
-
-            VStack(alignment: .leading, spacing: 0) {
-                settingsRow(title: "Waveform Style", subtitle: "Choose your recording visualization") {
-                    Picker("", selection: $waveformStyleRaw) {
-                        ForEach(WaveformStyle.allCases) { style in
-                            Text(style.rawValue).tag(style.rawValue)
-                        }
-                    }
-                    .labelsHidden()
-                    .frame(width: 140)
-                }
-                .onChange(of: waveformStyleRaw) { _, newValue in
-                    // Post notification so the app can switch recorder if needed
-                    NotificationCenter.default.post(
-                        name: .waveformStyleChanged,
-                        object: WaveformStyle(rawValue: newValue) ?? .classic
-                    )
-                }
-
-                Divider()
-                    .background(DashboardTheme.rule)
-
-                // Style description
-                HStack(spacing: DashboardTheme.Spacing.sm) {
-                    Image(systemName: styleIcon)
-                        .font(.system(size: 12))
-                        .foregroundStyle(DashboardTheme.accent)
-
-                    Text(currentStyleDescription)
-                        .font(DashboardTheme.Fonts.sans(12, weight: .regular))
-                        .foregroundStyle(DashboardTheme.inkMuted)
-                }
-                .padding(DashboardTheme.Spacing.md)
-
-                Divider()
-                    .background(DashboardTheme.rule)
-
-                // Celebration Style picker
-                settingsRow(title: "Celebration Style", subtitle: "Success feedback animation style") {
-                    Picker("", selection: $visualIntensityRaw) {
-                        ForEach(VisualIntensity.allCases) { intensity in
-                            Text(intensity.rawValue).tag(intensity.rawValue)
-                        }
-                    }
-                    .labelsHidden()
-                    .frame(width: 140)
-                }
-
-                Divider()
-                    .background(DashboardTheme.rule)
-
-                // Intensity description
-                HStack(spacing: DashboardTheme.Spacing.sm) {
-                    Image(systemName: currentIntensity.icon)
-                        .font(.system(size: 12))
-                        .foregroundStyle(DashboardTheme.accent)
-
-                    Text(currentIntensity.description)
-                        .font(DashboardTheme.Fonts.sans(12, weight: .regular))
-                        .foregroundStyle(DashboardTheme.inkMuted)
-                }
-                .padding(DashboardTheme.Spacing.md)
-            }
-            .cardStyle()
-        }
-    }
-
-    private var currentIntensity: VisualIntensity {
-        VisualIntensity(rawValue: visualIntensityRaw) ?? .balanced
-    }
-
-    private var currentStyle: WaveformStyle {
-        WaveformStyle(rawValue: waveformStyleRaw) ?? .classic
-    }
-
-    private var currentStyleDescription: String {
-        currentStyle.description
-    }
-
-    private var styleIcon: String {
-        switch currentStyle {
-        case .classic:
-            return "waveform"
-        case .neon:
-            return "sparkles"
-        case .spectrum:
-            return "chart.bar.fill"
-        case .circular:
-            return "sun.max.fill"
-        case .pulseRings:
-            return "dot.radiowaves.left.and.right"
-        case .particles:
-            return "sparkle"
-        }
-    }
 
     // MARK: - Helpers
     private func sectionHeader(_ title: String) -> some View {
@@ -414,34 +311,6 @@ internal struct PaperAccentButtonStyle: ButtonStyle {
 // MARK: - Testable Helpers
 
 extension DashboardRecordingView {
-    /// Gets the SF Symbol icon name for a waveform style
-    static func testableStyleIcon(for style: WaveformStyle) -> String {
-        switch style {
-        case .classic:
-            return "waveform"
-        case .neon:
-            return "sparkles"
-        case .spectrum:
-            return "chart.bar.fill"
-        case .circular:
-            return "sun.max.fill"
-        case .pulseRings:
-            return "dot.radiowaves.left.and.right"
-        case .particles:
-            return "sparkle"
-        }
-    }
-
-    /// Parses waveform style from raw string value
-    static func testableWaveformStyle(from rawValue: String) -> WaveformStyle {
-        WaveformStyle(rawValue: rawValue) ?? .classic
-    }
-
-    /// Parses visual intensity from raw string value
-    static func testableVisualIntensity(from rawValue: String) -> VisualIntensity {
-        VisualIntensity(rawValue: rawValue) ?? .balanced
-    }
-
     /// Parses press and hold mode from raw string value
     static func testablePressAndHoldMode(from rawValue: String) -> PressAndHoldMode {
         PressAndHoldMode(rawValue: rawValue) ?? PressAndHoldConfiguration.defaults.mode

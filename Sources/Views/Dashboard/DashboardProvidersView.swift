@@ -461,12 +461,12 @@ internal struct DashboardProvidersView: View {
                 .font(DashboardTheme.Fonts.serif(42, weight: .light))
                 .foregroundStyle(DashboardTheme.ink)
 
-            Text("Engines")
+            Text("Models")
                 .font(DashboardTheme.Fonts.serif(42, weight: .semibold))
                 .foregroundStyle(DashboardTheme.ink)
                 .padding(.top, -12)
 
-            Text("Choose how your voice becomes text")
+            Text("Choose your transcription engine and models")
                 .font(DashboardTheme.Fonts.sans(14, weight: .regular))
                 .foregroundStyle(DashboardTheme.inkMuted)
                 .padding(.top, DashboardTheme.Spacing.sm)

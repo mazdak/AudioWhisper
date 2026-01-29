@@ -41,11 +41,11 @@ internal struct DashboardPreferencesView: View {
     // MARK: - Header
     private var pageHeader: some View {
         VStack(alignment: .leading, spacing: DashboardTheme.Spacing.xs) {
-            Text("Preferences")
+            Text("General")
                 .font(DashboardTheme.Fonts.serif(28, weight: .semibold))
                 .foregroundStyle(DashboardTheme.ink)
-            
-            Text("General settings, history, and storage management")
+
+            Text("App behavior and storage settings")
                 .font(DashboardTheme.Fonts.sans(13, weight: .regular))
                 .foregroundStyle(DashboardTheme.inkMuted)
         }

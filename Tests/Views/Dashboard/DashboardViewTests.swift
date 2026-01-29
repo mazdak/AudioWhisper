@@ -157,9 +157,10 @@ final class DashboardNavItemTests: XCTestCase {
         XCTAssertEqual(DashboardNavItem.dashboard.icon, "square.text.square")
         XCTAssertEqual(DashboardNavItem.transcripts.icon, "doc.text")
         XCTAssertEqual(DashboardNavItem.categories.icon, "folder")
-        XCTAssertEqual(DashboardNavItem.recording.icon, "waveform")
-        XCTAssertEqual(DashboardNavItem.providers.icon, "cloud")
-        XCTAssertEqual(DashboardNavItem.preferences.icon, "slider.horizontal.3")
+        XCTAssertEqual(DashboardNavItem.recording.icon, "mic.fill")
+        XCTAssertEqual(DashboardNavItem.providers.icon, "cpu")
+        XCTAssertEqual(DashboardNavItem.visuals.icon, "paintpalette")
+        XCTAssertEqual(DashboardNavItem.preferences.icon, "gearshape")
         XCTAssertEqual(DashboardNavItem.permissions.icon, "lock")
     }
 
@@ -167,9 +168,10 @@ final class DashboardNavItemTests: XCTestCase {
         XCTAssertEqual(DashboardNavItem.dashboard.rawValue, "Overview")
         XCTAssertEqual(DashboardNavItem.transcripts.rawValue, "Transcripts")
         XCTAssertEqual(DashboardNavItem.categories.rawValue, "Categories")
-        XCTAssertEqual(DashboardNavItem.recording.rawValue, "Recording")
-        XCTAssertEqual(DashboardNavItem.providers.rawValue, "Providers")
-        XCTAssertEqual(DashboardNavItem.preferences.rawValue, "Preferences")
+        XCTAssertEqual(DashboardNavItem.recording.rawValue, "Input")
+        XCTAssertEqual(DashboardNavItem.providers.rawValue, "Models")
+        XCTAssertEqual(DashboardNavItem.visuals.rawValue, "Visuals")
+        XCTAssertEqual(DashboardNavItem.preferences.rawValue, "General")
         XCTAssertEqual(DashboardNavItem.permissions.rawValue, "Permissions")
     }
 
@@ -180,7 +182,7 @@ final class DashboardNavItemTests: XCTestCase {
     }
 
     func testNavItemCasesCount() {
-        XCTAssertEqual(DashboardNavItem.allCases.count, 7)
+        XCTAssertEqual(DashboardNavItem.allCases.count, 8)
     }
 
     func testNavItemConformsToIdentifiable() {
@@ -218,7 +220,7 @@ final class DashboardNavItemNavigationTests: XCTestCase {
     }
 
     func testSettingsSectionItems() {
-        let settingsItems: [DashboardNavItem] = [.recording, .providers, .preferences, .permissions]
+        let settingsItems: [DashboardNavItem] = [.recording, .providers, .visuals, .preferences, .permissions]
         for item in settingsItems {
             XCTAssertTrue(DashboardNavItem.allCases.contains(item))
         }

@@ -96,21 +96,23 @@ internal enum DashboardNavItem: String, CaseIterable, Identifiable {
     case dashboard = "Overview"
     case transcripts = "Transcripts"
     case categories = "Categories"
-    case recording = "Recording"
-    case providers = "Providers"
-    case preferences = "Preferences"
+    case recording = "Input"
+    case providers = "Models"
+    case visuals = "Visuals"
+    case preferences = "General"
     case permissions = "Permissions"
-    
+
     var id: String { rawValue }
-    
+
     var icon: String {
         switch self {
         case .dashboard: return "square.text.square"
         case .transcripts: return "doc.text"
         case .categories: return "folder"
-        case .recording: return "waveform"
-        case .providers: return "cloud"
-        case .preferences: return "slider.horizontal.3"
+        case .recording: return "mic.fill"
+        case .providers: return "cpu"
+        case .visuals: return "paintpalette"
+        case .preferences: return "gearshape"
         case .permissions: return "lock"
         }
     }
@@ -171,7 +173,7 @@ internal struct DashboardView: View {
                 sectionDivider("Settings")
                 
                 // Settings section
-                navSection(items: [.recording, .providers, .preferences, .permissions])
+                navSection(items: [.recording, .providers, .visuals, .preferences, .permissions])
             }
             .padding(.horizontal, DashboardTheme.Spacing.md)
             
@@ -292,6 +294,8 @@ internal struct DashboardView: View {
             DashboardRecordingView()
         case .providers:
             DashboardProvidersView()
+        case .visuals:
+            DashboardVisualsView()
         case .preferences:
             DashboardPreferencesView()
         case .permissions:
