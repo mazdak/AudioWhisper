@@ -8,15 +8,15 @@ final class TranscriptionRecordTests: XCTestCase {
         // Test basic initialization
         let record = TranscriptionRecord(
             text: "Hello, world!",
-            provider: .openai,
+            provider: .parakeet,
             duration: 5.5,
-            modelUsed: "whisper-1"
+            modelUsed: "parakeet-v2"
         )
-        
+
         XCTAssertEqual(record.text, "Hello, world!")
-        XCTAssertEqual(record.provider, "openai")
+        XCTAssertEqual(record.provider, "parakeet")
         XCTAssertEqual(record.duration, 5.5)
-        XCTAssertEqual(record.modelUsed, "whisper-1")
+        XCTAssertEqual(record.modelUsed, "parakeet-v2")
         XCTAssertNotNil(record.id)
         XCTAssertNotNil(record.date)
     }
@@ -51,9 +51,9 @@ final class TranscriptionRecordTests: XCTestCase {
     func testFormattedDateIsNotEmpty() {
         let record = TranscriptionRecord(
             text: "Test",
-            provider: .openai
+            provider: .local
         )
-        
+
         XCTAssertFalse(record.formattedDate.isEmpty)
     }
     
@@ -61,31 +61,31 @@ final class TranscriptionRecordTests: XCTestCase {
         // Test short duration (less than 1 minute)
         let shortRecord = TranscriptionRecord(
             text: "Short",
-            provider: .openai,
+            provider: .local,
             duration: 30.5
         )
         XCTAssertEqual(shortRecord.formattedDuration, "30.5s")
-        
+
         // Test medium duration (minutes)
         let mediumRecord = TranscriptionRecord(
             text: "Medium",
-            provider: .openai,
+            provider: .local,
             duration: 125.0 // 2 minutes 5 seconds
         )
         XCTAssertEqual(mediumRecord.formattedDuration, "2m 5s")
-        
+
         // Test long duration (hours)
         let longRecord = TranscriptionRecord(
             text: "Long",
-            provider: .openai,
+            provider: .parakeet,
             duration: 3900.0 // 1 hour 5 minutes
         )
         XCTAssertEqual(longRecord.formattedDuration, "1h 5m")
-        
+
         // Test nil duration
         let noDurationRecord = TranscriptionRecord(
             text: "No duration",
-            provider: .openai
+            provider: .parakeet
         )
         XCTAssertNil(noDurationRecord.formattedDuration)
     }
@@ -94,15 +94,15 @@ final class TranscriptionRecordTests: XCTestCase {
         // Test short text (no truncation)
         let shortRecord = TranscriptionRecord(
             text: "Short text",
-            provider: .openai
+            provider: .local
         )
         XCTAssertEqual(shortRecord.preview, "Short text")
-        
+
         // Test long text (should be truncated)
         let longText = String(repeating: "a", count: 150)
         let longRecord = TranscriptionRecord(
             text: longText,
-            provider: .openai
+            provider: .parakeet
         )
         XCTAssertTrue(longRecord.preview.hasSuffix("..."))
         XCTAssertTrue(longRecord.preview.count < longText.count)
@@ -111,25 +111,25 @@ final class TranscriptionRecordTests: XCTestCase {
     func testSearchMatching() {
         let record = TranscriptionRecord(
             text: "This is a test transcription about Swift programming",
-            provider: .openai,
-            modelUsed: "whisper-1"
+            provider: .local,
+            modelUsed: "small"
         )
-        
+
         // Test text matching
         XCTAssertTrue(record.matches(searchQuery: "Swift"))
         XCTAssertTrue(record.matches(searchQuery: "swift")) // Case insensitive
         XCTAssertTrue(record.matches(searchQuery: "test"))
-        
+
         // Test provider matching
-        XCTAssertTrue(record.matches(searchQuery: "openai"))
-        XCTAssertTrue(record.matches(searchQuery: "OpenAI")) // Case insensitive
-        
+        XCTAssertTrue(record.matches(searchQuery: "local"))
+        XCTAssertTrue(record.matches(searchQuery: "Local")) // Case insensitive
+
         // Test model matching
-        XCTAssertTrue(record.matches(searchQuery: "whisper"))
-        
+        XCTAssertTrue(record.matches(searchQuery: "small"))
+
         // Test no match
         XCTAssertFalse(record.matches(searchQuery: "Python"))
-        
+
         // Test empty query (should match all)
         XCTAssertTrue(record.matches(searchQuery: ""))
     }
@@ -138,14 +138,14 @@ final class TranscriptionRecordTests: XCTestCase {
         // Test valid provider
         let validRecord = TranscriptionRecord(
             text: "Test",
-            provider: .gemini
+            provider: .parakeet
         )
-        XCTAssertEqual(validRecord.transcriptionProvider, .gemini)
-        
+        XCTAssertEqual(validRecord.transcriptionProvider, .parakeet)
+
         // Test invalid provider (should return nil)
         let invalidRecord = TranscriptionRecord(
             text: "Test",
-            provider: .openai
+            provider: .local
         )
         // Manually set an invalid provider to test edge case
         invalidRecord.provider = "invalid_provider"
@@ -172,7 +172,7 @@ final class TranscriptionRecordTests: XCTestCase {
         // Test no model (should return nil)
         let noModelRecord = TranscriptionRecord(
             text: "Test",
-            provider: .openai
+            provider: .parakeet
         )
         XCTAssertNil(noModelRecord.whisperModel)
     }
@@ -183,7 +183,7 @@ final class TranscriptionRecordTests: XCTestCase {
         let text = "Hello world test"
         let record = TranscriptionRecord(
             text: text,
-            provider: .openai,
+            provider: .local,
             duration: 5.0,
             modelUsed: nil,
             wordCount: 3,
@@ -197,7 +197,7 @@ final class TranscriptionRecordTests: XCTestCase {
     func testTranscriptionRecordDefaultMetricsAreZero() {
         let record = TranscriptionRecord(
             text: "Test",
-            provider: .openai
+            provider: .parakeet
         )
 
         // Verify defaults are 0 (not nil)
@@ -208,7 +208,7 @@ final class TranscriptionRecordTests: XCTestCase {
     func testWordsPerMinuteCalculation() {
         let record = TranscriptionRecord(
             text: "Test",
-            provider: .openai,
+            provider: .local,
             duration: 60.0,  // 1 minute
             wordCount: 120,
             characterCount: 600
@@ -221,7 +221,7 @@ final class TranscriptionRecordTests: XCTestCase {
     func testWordsPerMinuteWithZeroWordCount() {
         let record = TranscriptionRecord(
             text: "",
-            provider: .openai,
+            provider: .parakeet,
             duration: 60.0,
             wordCount: 0,
             characterCount: 0
@@ -234,7 +234,7 @@ final class TranscriptionRecordTests: XCTestCase {
     func testWordsPerMinuteWithZeroDuration() {
         let record = TranscriptionRecord(
             text: "Test",
-            provider: .openai,
+            provider: .local,
             duration: 0.0,
             wordCount: 10,
             characterCount: 50
@@ -247,7 +247,7 @@ final class TranscriptionRecordTests: XCTestCase {
     func testWordsPerMinuteWithNilDuration() {
         let record = TranscriptionRecord(
             text: "Test",
-            provider: .openai,
+            provider: .parakeet,
             duration: nil,
             wordCount: 10,
             characterCount: 50

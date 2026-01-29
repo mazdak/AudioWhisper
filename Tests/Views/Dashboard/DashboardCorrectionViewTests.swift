@@ -34,9 +34,10 @@ final class DashboardCorrectionViewTests: XCTestCase {
         XCTAssertEqual(mode, .localMLX)
     }
 
-    func testParseModeCloud() {
+    func testParseModeCloudRemoved() {
+        // Cloud mode was removed
         let mode = DashboardCorrectionView.testableParseMode(from: "cloud")
-        XCTAssertEqual(mode, .cloud)
+        XCTAssertNil(mode)
     }
 
     func testParseModeInvalid() {
@@ -54,11 +55,6 @@ final class DashboardCorrectionViewTests: XCTestCase {
     func testViewTypeForModeLocalMLX() {
         let viewType = DashboardCorrectionView.testableViewTypeForMode("localMLX")
         XCTAssertEqual(viewType, "local_mlx_card")
-    }
-
-    func testViewTypeForModeCloud() {
-        let viewType = DashboardCorrectionView.testableViewTypeForMode("cloud")
-        XCTAssertEqual(viewType, "cloud_info")
     }
 
     func testViewTypeForModeInvalidDefaultsToDisabled() {
@@ -185,22 +181,19 @@ final class DashboardCorrectionViewTests: XCTestCase {
 
     func testSemanticCorrectionModeAllCases() {
         let allCases = SemanticCorrectionMode.allCases
-        XCTAssertEqual(allCases.count, 3)
+        XCTAssertEqual(allCases.count, 2)
         XCTAssertTrue(allCases.contains(.off))
         XCTAssertTrue(allCases.contains(.localMLX))
-        XCTAssertTrue(allCases.contains(.cloud))
     }
 
     func testSemanticCorrectionModeRawValues() {
         XCTAssertEqual(SemanticCorrectionMode.off.rawValue, "off")
         XCTAssertEqual(SemanticCorrectionMode.localMLX.rawValue, "localMLX")
-        XCTAssertEqual(SemanticCorrectionMode.cloud.rawValue, "cloud")
     }
 
     func testSemanticCorrectionModeDisplayNames() {
         XCTAssertFalse(SemanticCorrectionMode.off.displayName.isEmpty)
         XCTAssertFalse(SemanticCorrectionMode.localMLX.displayName.isEmpty)
-        XCTAssertFalse(SemanticCorrectionMode.cloud.displayName.isEmpty)
     }
 
     // MARK: - AppStorage Default Value Tests
@@ -411,17 +404,6 @@ final class DashboardCorrectionViewTests: XCTestCase {
 
         XCTAssertEqual(lastModeRaw, "localMLX")
         XCTAssertTrue(envCheckTriggered)
-    }
-
-    func testModeChangeToCloudDoesNotTriggerCheck() {
-        var envCheckTriggered = false
-
-        let newModeRaw = "cloud"
-        if SemanticCorrectionMode(rawValue: newModeRaw) == .localMLX {
-            envCheckTriggered = true
-        }
-
-        XCTAssertFalse(envCheckTriggered)
     }
 
     // MARK: - Model Download State Tests

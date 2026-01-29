@@ -350,7 +350,7 @@ internal extension ContentView {
                 let enableSmartPaste = UserDefaults.standard.bool(forKey: "enableSmartPaste")
                 let modeRaw = UserDefaults.standard.string(forKey: "semanticCorrectionMode") ?? SemanticCorrectionMode.off.rawValue
                 let mode = SemanticCorrectionMode(rawValue: modeRaw) ?? .off
-                let shouldAwaitSemanticForPaste = enableSmartPaste && ((mode == .localMLX) || (mode == .cloud && (transcriptionProvider == .openai || transcriptionProvider == .gemini)))
+                let shouldAwaitSemanticForPaste = enableSmartPaste && (mode == .localMLX)
 
                 if shouldAwaitSemanticForPaste {
                     await MainActor.run {

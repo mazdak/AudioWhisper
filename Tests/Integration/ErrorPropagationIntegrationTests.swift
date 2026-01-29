@@ -61,34 +61,19 @@ final class ErrorPropagationIntegrationTests: XCTestCase {
 
     // MARK: - API Key Error Tests
 
-    func testMissingAPIKeyErrorType() async {
-        // Given - No API keys
-        mockKeychain.clear()
-
+    func testLocalProviderTranscriptionErrorType() async {
+        // Given - Invalid audio file
         let audioURL = createInvalidAudioFile()
         defer { cleanupTempFile(audioURL) }
 
         // When/Then
         do {
-            _ = try await speechService.transcribe(audioURL: audioURL, provider: .openai)
+            _ = try await speechService.transcribe(audioURL: audioURL, provider: .local)
             XCTFail("Should throw error")
         } catch {
-            // Either audio validation fails first or API key missing
-            // Both are acceptable - we're testing error handling works
+            // Audio validation fails - we're testing error handling works
             XCTAssertNotNil(error)
         }
-    }
-
-    func testAPIKeyMissingErrorDescriptionContainsProviderName() {
-        // Given
-        let error = SpeechToTextError.apiKeyMissing("TestProvider")
-
-        // When
-        let description = error.errorDescription ?? ""
-
-        // Then - Error description should mention the provider
-        XCTAssertTrue(description.contains("TestProvider") || description.contains("API") || description.contains("key"),
-                      "Error should mention provider or API key")
     }
 
     // MARK: - SpeechToTextError Type Tests
@@ -97,10 +82,8 @@ final class ErrorPropagationIntegrationTests: XCTestCase {
         // Verify all error types have descriptions
         let errors: [SpeechToTextError] = [
             .invalidURL,
-            .apiKeyMissing("TestProvider"),
             .transcriptionFailed("Test failure"),
-            .localTranscriptionFailed(NSError(domain: "test", code: 1)),
-            .fileTooLarge
+            .localTranscriptionFailed(NSError(domain: "test", code: 1))
         ]
 
         for error in errors {
@@ -111,11 +94,6 @@ final class ErrorPropagationIntegrationTests: XCTestCase {
 
     func testInvalidURLError() {
         let error = SpeechToTextError.invalidURL
-        XCTAssertNotNil(error.errorDescription)
-    }
-
-    func testFileTooLargeError() {
-        let error = SpeechToTextError.fileTooLarge
         XCTAssertNotNil(error.errorDescription)
     }
 
@@ -330,7 +308,7 @@ final class ErrorPropagationIntegrationTests: XCTestCase {
 
         // When/Then - Should throw an error gracefully
         do {
-            _ = try await speechService.transcribe(audioURL: nonExistentURL, provider: .openai)
+            _ = try await speechService.transcribe(audioURL: nonExistentURL, provider: .local)
             XCTFail("Should throw error for non-existent file")
         } catch {
             // Expected - file doesn't exist

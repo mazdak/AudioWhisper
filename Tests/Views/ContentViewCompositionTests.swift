@@ -119,9 +119,9 @@ final class ContentViewCompositionTests: XCTestCase {
     // MARK: - AppStorage Default Values Tests
 
     func testDefaultTranscriptionProvider() {
-        // Default should be openai
-        let defaultProvider = TranscriptionProvider.openai
-        XCTAssertEqual(defaultProvider.rawValue, "openai")
+        // Default should be local
+        let defaultProvider = TranscriptionProvider.local
+        XCTAssertEqual(defaultProvider.rawValue, "local")
     }
 
     func testDefaultWhisperModel() {

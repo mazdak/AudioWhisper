@@ -1,7 +1,7 @@
 import XCTest
 @testable import AudioWhisper
 
-/// Integration tests for KeychainService -> SpeechToTextService provider routing
+/// Integration tests for provider selection and KeychainService
 @MainActor
 final class ProviderSelectionIntegrationTests: XCTestCase {
     var mockKeychain: MockKeychainService!
@@ -20,11 +20,6 @@ final class ProviderSelectionIntegrationTests: XCTestCase {
 
         // Create speech service with mock keychain
         speechService = SpeechToTextService(keychainService: mockKeychain)
-
-        // Clear any cached settings
-        testDefaults.removeObject(forKey: "openAIBaseURL")
-        testDefaults.removeObject(forKey: "geminiBaseURL")
-        testDefaults.removeObject(forKey: "useOpenAI")
     }
 
     override func tearDown() async throws {
@@ -58,89 +53,17 @@ final class ProviderSelectionIntegrationTests: XCTestCase {
         try? FileManager.default.removeItem(at: url)
     }
 
-    // MARK: - API Key Presence Tests
-
-    func testOpenAIKeyExistsInKeychain() {
-        // Given - Save OpenAI key
-        try! mockKeychain.save("sk-test-key-12345", service: "AudioWhisper", account: "OpenAI")
-
-        // When - Check for key
-        let key = mockKeychain.getQuietly(service: "AudioWhisper", account: "OpenAI")
-
-        // Then
-        XCTAssertNotNil(key)
-        XCTAssertEqual(key, "sk-test-key-12345")
-    }
-
-    func testGeminiKeyExistsInKeychain() {
-        // Given - Save Gemini key
-        try! mockKeychain.save("AIza-test-key", service: "AudioWhisper", account: "Gemini")
-
-        // When - Check for key
-        let key = mockKeychain.getQuietly(service: "AudioWhisper", account: "Gemini")
-
-        // Then
-        XCTAssertNotNil(key)
-        XCTAssertEqual(key, "AIza-test-key")
-    }
-
-    func testMissingOpenAIKeyThrowsError() async {
-        // Given - No OpenAI key in keychain
-        mockKeychain.clear()
-
-        let audioURL = createTempAudioFile()
-        defer { cleanupTempFile(audioURL) }
-
-        // When/Then - Attempting to transcribe should throw an error
-        // Note: Audio validation runs first, so we may get either audio validation
-        // or API key missing error depending on the order of operations
-        do {
-            _ = try await speechService.transcribe(audioURL: audioURL, provider: .openai)
-            XCTFail("Expected an error to be thrown")
-        } catch {
-            // Either audio validation or API key error is acceptable
-            // The important thing is that the flow fails appropriately
-            XCTAssertNotNil(error)
-        }
-    }
-
-    func testMissingGeminiKeyThrowsError() async {
-        // Given - No Gemini key
-        mockKeychain.clear()
-
-        let audioURL = createTempAudioFile()
-        defer { cleanupTempFile(audioURL) }
-
-        // When/Then
-        do {
-            _ = try await speechService.transcribe(audioURL: audioURL, provider: .gemini)
-            XCTFail("Expected apiKeyMissing error")
-        } catch let error as SpeechToTextError {
-            if case .apiKeyMissing(let provider) = error {
-                XCTAssertEqual(provider, "Gemini")
-            } else {
-                // Audio validation may fail first
-                XCTAssertTrue(true)
-            }
-        } catch {
-            // Audio validation may fail first
-            XCTAssertTrue(true)
-        }
-    }
-
     // MARK: - Local Provider Tests
 
     func testLocalProviderDoesNotRequireApiKey() {
         // Given - No API keys in keychain
         mockKeychain.clear()
 
-        // When - Check keychain for local-related accounts (there shouldn't be any)
-        let openAIKey = mockKeychain.getQuietly(service: "AudioWhisper", account: "OpenAI")
-        let geminiKey = mockKeychain.getQuietly(service: "AudioWhisper", account: "Gemini")
+        // When - Check keychain (there should be no keys)
+        let anyKey = mockKeychain.getQuietly(service: "AudioWhisper", account: "TestKey")
 
         // Then - No keys, but local should still work (doesn't need keychain)
-        XCTAssertNil(openAIKey)
-        XCTAssertNil(geminiKey)
+        XCTAssertNil(anyKey)
         // Local provider validation is separate - no keychain dependency
     }
 
@@ -191,10 +114,15 @@ final class ProviderSelectionIntegrationTests: XCTestCase {
     }
 
     func testProviderRawValues() {
-        XCTAssertEqual(TranscriptionProvider.openai.rawValue, "openai")
-        XCTAssertEqual(TranscriptionProvider.gemini.rawValue, "gemini")
         XCTAssertEqual(TranscriptionProvider.local.rawValue, "local")
         XCTAssertEqual(TranscriptionProvider.parakeet.rawValue, "parakeet")
+    }
+
+    func testProviderCount() {
+        let allProviders = TranscriptionProvider.allCases
+        XCTAssertEqual(allProviders.count, 2)
+        XCTAssertTrue(allProviders.contains(.local))
+        XCTAssertTrue(allProviders.contains(.parakeet))
     }
 
     // MARK: - Error Handling Integration

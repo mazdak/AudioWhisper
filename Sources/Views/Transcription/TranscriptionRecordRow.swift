@@ -7,10 +7,10 @@ internal struct TranscriptionRecordRow: View {
     let onToggleExpand: () -> Void
     let onCopy: () -> Void
     let onDelete: () -> Void
-    
+
     @State private var isHovered = false
     @State private var hoveredButton: String? = nil
-    
+
     var body: some View {
         Button(action: onToggleExpand) {
             VStack(alignment: .leading, spacing: 0) {
@@ -24,15 +24,15 @@ internal struct TranscriptionRecordRow: View {
                                 .rotationEffect(.degrees(isExpanded ? 90 : 0))
                                 .animation(.easeInOut(duration: 0.2), value: isExpanded)
                                 .frame(width: 12)
-                            
+
                             Text(record.formattedDate)
                                 .font(.footnote)
                                 .fontWeight(.medium)
                                 .foregroundStyle(.primary)
-                            
+
                             HStack(spacing: 8) {
                                 providerBadge
-                                
+
                                 if let duration = record.formattedDuration {
                                     HStack(spacing: 3) {
                                         Image(systemName: "clock")
@@ -42,16 +42,16 @@ internal struct TranscriptionRecordRow: View {
                                     }
                                     .foregroundStyle(.secondary)
                                 }
-                                
+
                                 if let modelUsed = record.modelUsed {
                                     Text(modelUsed)
                                         .font(.caption2)
                                         .foregroundStyle(.secondary)
                                 }
                             }
-                            
+
                             Spacer()
-                            
+
                             HStack(spacing: 4) {
                                 Button(action: { onCopy() }) {
                                     Image(systemName: "doc.on.doc")
@@ -68,7 +68,7 @@ internal struct TranscriptionRecordRow: View {
                                 .onHover { isHovering in
                                     hoveredButton = isHovering ? "copy" : nil
                                 }
-                                
+
                                 Button(action: { onDelete() }) {
                                     Image(systemName: "trash")
                                         .font(.caption)
@@ -88,7 +88,7 @@ internal struct TranscriptionRecordRow: View {
                             .opacity(isHovered ? 1 : 0)
                             .animation(.easeInOut(duration: 0.15), value: isHovered)
                         }
-                        
+
                         Text(record.text)
                             .font(.body)
                             .foregroundStyle(isExpanded ? .primary : .secondary)
@@ -124,7 +124,7 @@ internal struct TranscriptionRecordRow: View {
         .accessibilityLabel("Transcription from \(record.formattedDate), using \(record.provider)")
         .accessibilityHint("Tap to expand or collapse. Use action buttons to copy or delete.")
     }
-    
+
     @ViewBuilder
     private var providerBadge: some View {
         if let provider = record.transcriptionProvider {
@@ -147,17 +147,13 @@ internal struct TranscriptionRecordRow: View {
                 .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
         }
     }
-    
+
     private var backgroundFill: Color {
         isHovered ? Color(NSColor.controlBackgroundColor) : Color.clear
     }
-    
+
     private func providerColor(for provider: TranscriptionProvider) -> Color {
         switch provider {
-        case .openai:
-            return .green
-        case .gemini:
-            return .blue
         case .local:
             return .purple
         case .parakeet:

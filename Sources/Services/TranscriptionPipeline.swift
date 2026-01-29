@@ -73,8 +73,6 @@ internal class TranscriptionPipeline {
 
     private func performTranscription(audioURL: URL, config: TranscriptionPipelineConfig) async throws -> String {
         switch config.provider {
-        case .openai, .gemini:
-            return try await speechService.transcribeRaw(audioURL: audioURL, provider: config.provider)
         case .local:
             guard let model = config.whisperModel else {
                 throw SpeechToTextError.transcriptionFailed("Whisper model required for local transcription")

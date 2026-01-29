@@ -91,34 +91,6 @@ final class ErrorRecoveryIntegrationTests: XCTestCase {
         await fulfillment(of: [expectation], timeout: 2.0)
     }
 
-    // MARK: - API Key Error Recovery Tests
-
-    func testRecoveryFromInvalidAPIKeyError() async throws {
-        // Given - An invalid API key error
-        let apiKeyError = TranscriptionError.invalidAPIKey(provider: "OpenAI")
-
-        // When - Error is presented (in test mode, this opens dashboard)
-        ErrorPresenter.shared.showError(apiKeyError.userMessage)
-
-        await waitForAsyncOperation()
-
-        // Then - No crash, dashboard would be shown in real scenario
-        XCTAssertTrue(true)
-    }
-
-    func testRecoveryFromMissingAPIKeyError() async throws {
-        // Given - A missing API key error
-        let missingKeyError = TranscriptionError.missingAPIKey(provider: "Gemini")
-
-        // When - Error is presented
-        ErrorPresenter.shared.showError(missingKeyError.userMessage)
-
-        await waitForAsyncOperation()
-
-        // Then - Dashboard should be triggered to add key
-        XCTAssertTrue(true)
-    }
-
     // MARK: - Microphone Permission Error Recovery Tests
 
     func testRecoveryFromMicrophonePermissionDenied() async throws {
@@ -214,7 +186,7 @@ final class ErrorRecoveryIntegrationTests: XCTestCase {
         // Given - Existing transcription records
         let existingRecord = TranscriptionRecord(
             text: "Existing transcription before error",
-            provider: .openai,
+            provider: .local,
             duration: 5.0
         )
         modelContext.insert(existingRecord)

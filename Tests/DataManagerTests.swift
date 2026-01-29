@@ -28,46 +28,46 @@ final class DataManagerTests: XCTestCase {
     
     func testSaveTranscriptionWhenHistoryEnabled() async throws {
         dataManager.isHistoryEnabled = true
-        
+
         let record = TranscriptionRecord(
             text: "Test transcription",
-            provider: .openai,
+            provider: .local,
             duration: 5.0,
-            modelUsed: "whisper-1"
+            modelUsed: "small"
         )
-        
+
         try await dataManager.saveTranscription(record)
-        
+
         let records = try await dataManager.fetchAllRecords()
         XCTAssertEqual(records.count, 1)
         XCTAssertEqual(records.first?.text, "Test transcription")
-        XCTAssertEqual(records.first?.provider, "openai")
+        XCTAssertEqual(records.first?.provider, "local")
     }
-    
+
     func testSaveTranscriptionWhenHistoryDisabled() async throws {
         dataManager.isHistoryEnabled = false
-        
+
         let record = TranscriptionRecord(
             text: "Test transcription",
-            provider: .openai
+            provider: .parakeet
         )
-        
+
         try await dataManager.saveTranscription(record)
-        
+
         let records = try await dataManager.fetchAllRecords()
         XCTAssertEqual(records.count, 0)
     }
-    
+
     func testSaveTranscriptionQuietly() async {
         dataManager.isHistoryEnabled = true
-        
+
         let record = TranscriptionRecord(
             text: "Test transcription",
-            provider: .openai
+            provider: .local
         )
-        
+
         await dataManager.saveTranscriptionQuietly(record)
-        
+
         let records = await dataManager.fetchAllRecordsQuietly()
         XCTAssertEqual(records.count, 1)
         XCTAssertEqual(records.first?.text, "Test transcription")
@@ -82,28 +82,28 @@ final class DataManagerTests: XCTestCase {
     
     func testFetchAllRecordsWithData() async throws {
         dataManager.isHistoryEnabled = true
-        
+
         // Add multiple records
-        let record1 = TranscriptionRecord(text: "First", provider: .openai)
-        let record2 = TranscriptionRecord(text: "Second", provider: .gemini)
-        
+        let record1 = TranscriptionRecord(text: "First", provider: .local)
+        let record2 = TranscriptionRecord(text: "Second", provider: .parakeet)
+
         try await dataManager.saveTranscription(record1)
         try await dataManager.saveTranscription(record2)
-        
+
         let records = try await dataManager.fetchAllRecords()
         XCTAssertEqual(records.count, 2)
-        
+
         // Should be sorted by date (newest first)
         XCTAssertEqual(records.first?.text, "Second")
         XCTAssertEqual(records.last?.text, "First")
     }
-    
+
     func testFetchAllRecordsQuietly() async {
         dataManager.isHistoryEnabled = true
-        
-        let record = TranscriptionRecord(text: "Test", provider: .openai)
+
+        let record = TranscriptionRecord(text: "Test", provider: .local)
         await dataManager.saveTranscriptionQuietly(record)
-        
+
         let records = await dataManager.fetchAllRecordsQuietly()
         XCTAssertEqual(records.count, 1)
     }
@@ -112,27 +112,27 @@ final class DataManagerTests: XCTestCase {
     
     func testFetchRecordsWithSearchQuery() async throws {
         dataManager.isHistoryEnabled = true
-        
-        let record1 = TranscriptionRecord(text: "Meeting notes about Swift programming", provider: .openai)
-        let record2 = TranscriptionRecord(text: "Python tutorial transcript", provider: .gemini)
+
+        let record1 = TranscriptionRecord(text: "Meeting notes about Swift programming", provider: .local)
+        let record2 = TranscriptionRecord(text: "Python tutorial transcript", provider: .parakeet)
         let record3 = TranscriptionRecord(text: "Swift development discussion", provider: .local)
-        
+
         try await dataManager.saveTranscription(record1)
         try await dataManager.saveTranscription(record2)
         try await dataManager.saveTranscription(record3)
-        
+
         // Search for Swift-related records
         let swiftRecords = try await dataManager.fetchRecords(matching: "Swift")
         XCTAssertEqual(swiftRecords.count, 2)
-        
+
         // Search for Python-related records
         let pythonRecords = try await dataManager.fetchRecords(matching: "Python")
         XCTAssertEqual(pythonRecords.count, 1)
-        
+
         // Search for non-existent term
         let noResults = try await dataManager.fetchRecords(matching: "JavaScript")
         XCTAssertEqual(noResults.count, 0)
-        
+
         // Empty query should return all records
         let allRecords = try await dataManager.fetchRecords(matching: "")
         XCTAssertEqual(allRecords.count, 3)
@@ -142,39 +142,39 @@ final class DataManagerTests: XCTestCase {
     
     func testDeleteSingleRecord() async throws {
         dataManager.isHistoryEnabled = true
-        
-        let record1 = TranscriptionRecord(text: "First", provider: .openai)
-        let record2 = TranscriptionRecord(text: "Second", provider: .gemini)
-        
+
+        let record1 = TranscriptionRecord(text: "First", provider: .local)
+        let record2 = TranscriptionRecord(text: "Second", provider: .parakeet)
+
         try await dataManager.saveTranscription(record1)
         try await dataManager.saveTranscription(record2)
-        
+
         var records = try await dataManager.fetchAllRecords()
         XCTAssertEqual(records.count, 2)
-        
+
         // Delete one record
         try await dataManager.deleteRecord(record1)
-        
+
         records = try await dataManager.fetchAllRecords()
         XCTAssertEqual(records.count, 1)
         XCTAssertEqual(records.first?.text, "Second")
     }
-    
+
     func testDeleteAllRecords() async throws {
         dataManager.isHistoryEnabled = true
-        
-        let record1 = TranscriptionRecord(text: "First", provider: .openai)
-        let record2 = TranscriptionRecord(text: "Second", provider: .gemini)
-        
+
+        let record1 = TranscriptionRecord(text: "First", provider: .local)
+        let record2 = TranscriptionRecord(text: "Second", provider: .parakeet)
+
         try await dataManager.saveTranscription(record1)
         try await dataManager.saveTranscription(record2)
-        
+
         var records = try await dataManager.fetchAllRecords()
         XCTAssertEqual(records.count, 2)
-        
+
         // Delete all records
         try await dataManager.deleteAllRecords()
-        
+
         records = try await dataManager.fetchAllRecords()
         XCTAssertEqual(records.count, 0)
     }
@@ -201,54 +201,54 @@ final class DataManagerTests: XCTestCase {
     func testCleanupExpiredRecordsWithForeverRetention() async throws {
         dataManager.retentionPeriod = .forever
         dataManager.isHistoryEnabled = true
-        
+
         // Create an old record
-        let oldRecord = TranscriptionRecord(text: "Old record", provider: .openai)
+        let oldRecord = TranscriptionRecord(text: "Old record", provider: .local)
         try await dataManager.saveTranscription(oldRecord)
-        
+
         // Cleanup should not remove anything
         try await dataManager.cleanupExpiredRecords()
-        
+
         let records = try await dataManager.fetchAllRecords()
         XCTAssertEqual(records.count, 1)
     }
-    
+
     func testCleanupExpiredRecordsWithTimeBasedRetention() async throws {
         dataManager.retentionPeriod = .oneWeek
         dataManager.isHistoryEnabled = true
-        
+
         // Create records with different dates
-        let recentRecord = TranscriptionRecord(text: "Recent", provider: .openai)
-        let oldRecord = TranscriptionRecord(text: "Old", provider: .gemini)
-        
+        let recentRecord = TranscriptionRecord(text: "Recent", provider: .local)
+        let oldRecord = TranscriptionRecord(text: "Old", provider: .parakeet)
+
         // Manually set an old date for testing
         let oneMonthAgo = Date().addingTimeInterval(-30 * 24 * 60 * 60)
         oldRecord.date = oneMonthAgo
-        
+
         try await dataManager.saveTranscription(recentRecord)
         try await dataManager.saveTranscription(oldRecord)
-        
+
         var records = try await dataManager.fetchAllRecords()
         XCTAssertEqual(records.count, 2)
-        
+
         // Cleanup should remove the old record
         try await dataManager.cleanupExpiredRecords()
-        
+
         records = try await dataManager.fetchAllRecords()
         XCTAssertEqual(records.count, 1)
         XCTAssertEqual(records.first?.text, "Recent")
     }
-    
+
     func testCleanupExpiredRecordsQuietly() async {
         dataManager.retentionPeriod = .oneWeek
         dataManager.isHistoryEnabled = true
-        
-        let record = TranscriptionRecord(text: "Test", provider: .openai)
+
+        let record = TranscriptionRecord(text: "Test", provider: .local)
         await dataManager.saveTranscriptionQuietly(record)
-        
+
         // Should not throw
         await dataManager.cleanupExpiredRecordsQuietly()
-        
+
         let records = await dataManager.fetchAllRecordsQuietly()
         XCTAssertEqual(records.count, 1)
     }
@@ -279,20 +279,20 @@ final class DataManagerTests: XCTestCase {
     
     func testConcurrentOperations() async throws {
         dataManager.isHistoryEnabled = true
-        
+
         // Perform multiple concurrent saves
         await withTaskGroup(of: Void.self) { group in
             for i in 0..<10 {
                 group.addTask {
                     let record = TranscriptionRecord(
                         text: "Concurrent record \(i)",
-                        provider: .openai
+                        provider: .local
                     )
                     await self.dataManager.saveTranscriptionQuietly(record)
                 }
             }
         }
-        
+
         let records = try await dataManager.fetchAllRecords()
         XCTAssertEqual(records.count, 10)
     }
@@ -338,35 +338,35 @@ final class DataManagerTests: XCTestCase {
     func testFullWorkflow() async throws {
         dataManager.isHistoryEnabled = true
         dataManager.retentionPeriod = .oneMonth
-        
+
         // Save multiple transcriptions
-        let record1 = TranscriptionRecord(text: "Meeting notes", provider: .openai, duration: 120.0)
-        let record2 = TranscriptionRecord(text: "Voice memo", provider: .gemini, duration: 30.0)
+        let record1 = TranscriptionRecord(text: "Meeting notes", provider: .local, duration: 120.0)
+        let record2 = TranscriptionRecord(text: "Voice memo", provider: .parakeet, duration: 30.0)
         let record3 = TranscriptionRecord(text: "Interview transcript", provider: .local, modelUsed: "small")
-        
+
         try await dataManager.saveTranscription(record1)
         try await dataManager.saveTranscription(record2)
         try await dataManager.saveTranscription(record3)
-        
+
         // Verify all saved
         var allRecords = try await dataManager.fetchAllRecords()
         XCTAssertEqual(allRecords.count, 3)
-        
+
         // Search for specific content
         let meetingRecords = try await dataManager.fetchRecords(matching: "meeting")
         XCTAssertEqual(meetingRecords.count, 1)
         XCTAssertEqual(meetingRecords.first?.text, "Meeting notes")
-        
+
         // Delete one record
         try await dataManager.deleteRecord(record2)
         allRecords = try await dataManager.fetchAllRecords()
         XCTAssertEqual(allRecords.count, 2)
-        
+
         // Cleanup (should not remove recent records)
         try await dataManager.cleanupExpiredRecords()
         allRecords = try await dataManager.fetchAllRecords()
         XCTAssertEqual(allRecords.count, 2)
-        
+
         // Clear all
         try await dataManager.deleteAllRecords()
         allRecords = try await dataManager.fetchAllRecords()

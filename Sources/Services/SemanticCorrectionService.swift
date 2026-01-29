@@ -1,26 +1,24 @@
 import Foundation
-import Alamofire
 
 import os.log
 
 internal final class SemanticCorrectionService {
     private let mlxService = MLXCorrectionService()
-    private let keychainService: KeychainServiceProtocol
     private let logger = Logger(subsystem: "com.audiowhisper.app", category: "SemanticCorrection")
-    
+
     // Chunking configuration for 32k context window
     // 32k tokens ≈ 24k words (0.75 ratio) ≈ 120k chars
     // Use conservative 6k words to leave room for system prompt
     private static let chunkSizeWords = 6000
     private static let overlapSizeWords = 200 // Small overlap for context continuity
-    
+
     private func categoryFor(bundleId: String?) -> CategoryDefinition {
         guard let id = bundleId else { return CategoryDefinition.fallback }
         return AppCategoryManager.shared.category(for: id)
     }
 
     init(keychainService: KeychainServiceProtocol = KeychainService.shared) {
-        self.keychainService = keychainService
+        // keychainService parameter kept for API compatibility but no longer used
     }
 
     func correct(text: String, providerUsed: TranscriptionProvider, sourceAppBundleId: String? = nil) async -> String {
@@ -29,7 +27,7 @@ internal final class SemanticCorrectionService {
 
         let category = categoryFor(bundleId: sourceAppBundleId)
         logger.info("Correction category: \(category.id) for bundleId: \(sourceAppBundleId ?? "nil")")
-        
+
         switch mode {
         case .off:
             return text
@@ -37,16 +35,6 @@ internal final class SemanticCorrectionService {
             // Allow local MLX correction regardless of STT provider
             logger.info("Running local MLX correction")
             return await correctLocallyWithMLX(text: text, category: category)
-        case .cloud:
-            switch providerUsed {
-            case .openai:
-                logger.info("Running cloud correction: OpenAI")
-                return await correctWithOpenAI(text: text, category: category)
-            case .gemini:
-                logger.info("Running cloud correction: Gemini")
-                return await correctWithGemini(text: text, category: category)
-            case .local, .parakeet: return text // don't send local text to cloud
-            }
         }
     }
 
@@ -71,133 +59,12 @@ internal final class SemanticCorrectionService {
         }
     }
 
-    // MARK: - Cloud (OpenAI)
-    private func correctWithOpenAI(text: String, category: CategoryDefinition) async -> String {
-        guard let apiKey = keychainService.getQuietly(service: "AudioWhisper", account: "OpenAI") else {
-            return text
-        }
-        let prompt = loadPrompt(for: category)
-        let url = "https://api.openai.com/v1/chat/completions"
-        let headers: HTTPHeaders = [
-            "Authorization": "Bearer \(apiKey)",
-            "Content-Type": "application/json"
-        ]
-        let body: [String: Any] = [
-            "model": "gpt-4o-mini",
-            "messages": [
-                ["role": "system", "content": prompt],
-                ["role": "user", "content": text]
-            ],
-            "temperature": 0.3,
-            "max_completion_tokens": 8192
-        ]
-
-        do {
-            let result = try await withTimeout(semanticCorrectionTimeout) {
-                try await withCheckedThrowingContinuation { (cont: CheckedContinuation<String, Error>) in
-                    // Use a flag to prevent double-resume if Alamofire calls the handler multiple times
-                    var hasResumed = false
-                    let resumeOnce: (Result<String, Error>) -> Void = { result in
-                        guard !hasResumed else { return }
-                        hasResumed = true
-                        switch result {
-                        case .success(let text):
-                            cont.resume(returning: text)
-                        case .failure(let error):
-                            cont.resume(throwing: error)
-                        }
-                    }
-
-                    AF.request(url, method: .post, parameters: body, encoding: JSONEncoding.default, headers: headers)
-                        .responseDecodable(of: OpenAIChatResponse.self) { response in
-                            switch response.result {
-                            case .success(let r):
-                                let content = r.choices.first?.message.content ?? text
-                                resumeOnce(.success(content))
-                            case .failure(let err):
-                                resumeOnce(.failure(err))
-                            }
-                        }
-                }
-            }
-            return Self.safeMerge(original: text, corrected: result, maxChangeRatio: 0.25)
-        } catch {
-            logger.error("OpenAI correction failed: \(error.localizedDescription)")
-            return text
-        }
-    }
-
-    // MARK: - Cloud (Gemini)
-    private var geminiBaseURL: String {
-        let custom = UserDefaults.standard.string(forKey: "geminiBaseURL") ?? ""
-        if custom.isEmpty {
-            return "https://generativelanguage.googleapis.com"
-        }
-        return custom.hasSuffix("/") ? String(custom.dropLast()) : custom
-    }
-
-    private func correctWithGemini(text: String, category: CategoryDefinition) async -> String {
-        guard let apiKey = keychainService.getQuietly(service: "AudioWhisper", account: "Gemini") else {
-            return text
-        }
-        let url = "\(geminiBaseURL)/v1beta/models/gemini-2.5-flash-lite:generateContent"
-        let headers: HTTPHeaders = [
-            "X-Goog-Api-Key": apiKey,
-            "Content-Type": "application/json"
-        ]
-        let prompt = loadPrompt(for: category)
-        let body: [String: Any] = [
-            "contents": [[
-                "parts": [[
-                    "text": "\(prompt)\n\n\(text)"
-                ]]
-            ]],
-            "generationConfig": [
-                "temperature": 0.3,
-                "maxOutputTokens": 8192  // Standardized limit
-            ]
-        ]
-        do {
-            let result = try await withTimeout(semanticCorrectionTimeout) {
-                try await withCheckedThrowingContinuation { (cont: CheckedContinuation<String, Error>) in
-                    // Use a flag to prevent double-resume if Alamofire calls the handler multiple times
-                    var hasResumed = false
-                    let resumeOnce: (Result<String, Error>) -> Void = { result in
-                        guard !hasResumed else { return }
-                        hasResumed = true
-                        switch result {
-                        case .success(let text):
-                            cont.resume(returning: text)
-                        case .failure(let error):
-                            cont.resume(throwing: error)
-                        }
-                    }
-
-                    AF.request(url, method: .post, parameters: body, encoding: JSONEncoding.default, headers: headers)
-                        .responseDecodable(of: GeminiResponse.self) { response in
-                            switch response.result {
-                            case .success(let r):
-                                let content = r.candidates.first?.content.parts.first?.text ?? text
-                                resumeOnce(.success(content))
-                            case .failure(let err):
-                                resumeOnce(.failure(err))
-                            }
-                        }
-                }
-            }
-            return Self.safeMerge(original: text, corrected: result, maxChangeRatio: 0.25)
-        } catch {
-            logger.error("Gemini correction failed: \(error.localizedDescription)")
-            return text
-        }
-    }
-
     // MARK: - Prompt file helpers
     private func promptsBaseDir() -> URL? {
         return try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
             .appendingPathComponent("AudioWhisper/prompts", isDirectory: true)
     }
-    
+
     private func loadPrompt(for category: CategoryDefinition) -> String {
         // First try user-customized prompt file
         if let base = promptsBaseDir() {
@@ -255,11 +122,4 @@ internal final class SemanticCorrectionService {
         let denom = max(m, n)
         return Double(dist) / Double(denom)
     }
-}
-
-// MARK: - Response Models
-internal struct OpenAIChatResponse: Codable {
-    struct Choice: Codable { let message: Message }
-    struct Message: Codable { let role: String; let content: String }
-    let choices: [Choice]
 }

@@ -224,7 +224,7 @@ final class MockDataManager: DataManagerProtocol {
     static func makeTestRecord(
         text: String = "Test transcription",
         duration: TimeInterval? = 5.0,
-        provider: TranscriptionProvider = .openai,
+        provider: TranscriptionProvider = .local,
         sourceAppBundleId: String? = "com.apple.Notes",
         sourceAppName: String? = "Notes"
     ) -> TranscriptionRecord {

@@ -32,7 +32,7 @@ final class DataManagerIntegrationTests: XCTestCase {
     
     private func createSampleRecord(
         text: String = "Sample transcription",
-        provider: TranscriptionProvider = .openai,
+        provider: TranscriptionProvider = .local,
         duration: TimeInterval? = 10.5,
         modelUsed: String? = nil
     ) -> TranscriptionRecord {
@@ -68,7 +68,7 @@ final class DataManagerIntegrationTests: XCTestCase {
         // Test full save workflow with DataManager
         let record = createSampleRecord(
             text: "DataManager integration test",
-            provider: .gemini,
+            provider: .parakeet,
             duration: 25.5,
             modelUsed: "advanced"
         )
@@ -84,7 +84,7 @@ final class DataManagerIntegrationTests: XCTestCase {
         
         let savedRecord = savedRecords[0]
         XCTAssertEqual(savedRecord.text, "DataManager integration test")
-        XCTAssertEqual(savedRecord.provider, "gemini")
+        XCTAssertEqual(savedRecord.provider, "parakeet")
         XCTAssertEqual(savedRecord.duration, 25.5)
         XCTAssertEqual(savedRecord.modelUsed, "advanced")
     }
@@ -108,7 +108,7 @@ final class DataManagerIntegrationTests: XCTestCase {
     func testFetchRecordsIntegration() async throws {
         // Given - Multiple records
         let records = [
-            createSampleRecord(text: "First record for fetch test", provider: .openai),
+            createSampleRecord(text: "First record for fetch test", provider: .local),
             createSampleRecord(text: "Second record for fetch test", provider: .local),
             createSampleRecord(text: "Third record for fetch test", provider: .parakeet)
         ]
@@ -134,8 +134,8 @@ final class DataManagerIntegrationTests: XCTestCase {
     func testSearchIntegration() async throws {
         // Given - Records with searchable content
         let records = [
-            createSampleRecord(text: "Meeting about Swift development", provider: .openai),
-            createSampleRecord(text: "Python tutorial for beginners", provider: .gemini),
+            createSampleRecord(text: "Meeting about Swift development", provider: .local),
+            createSampleRecord(text: "Python tutorial for beginners", provider: .parakeet),
             createSampleRecord(text: "Swift programming best practices", provider: .local),
             createSampleRecord(text: "Database design principles", provider: .parakeet)
         ]
@@ -149,12 +149,12 @@ final class DataManagerIntegrationTests: XCTestCase {
         // Test various search scenarios
         let swiftResults = try await dataManager.fetchRecords(matching: "Swift")
         XCTAssertEqual(swiftResults.count, 2, "Should find 2 Swift-related records")
-        
+
         let pythonResults = try await dataManager.fetchRecords(matching: "Python")
         XCTAssertEqual(pythonResults.count, 1, "Should find 1 Python-related record")
-        
-        let openaiResults = try await dataManager.fetchRecords(matching: "openai")
-        XCTAssertEqual(openaiResults.count, 1, "Should find 1 OpenAI record")
+
+        let localResults = try await dataManager.fetchRecords(matching: "local")
+        XCTAssertEqual(localResults.count, 2, "Should find 2 local records")
         
         let noResults = try await dataManager.fetchRecords(matching: "JavaScript")
         XCTAssertEqual(noResults.count, 0, "Should find no JavaScript records")
@@ -166,8 +166,8 @@ final class DataManagerIntegrationTests: XCTestCase {
     func testDeleteRecordIntegration() async throws {
         // Given - Multiple records
         let records = [
-            createSampleRecord(text: "Keep this record", provider: .openai),
-            createSampleRecord(text: "Delete this record", provider: .gemini),
+            createSampleRecord(text: "Keep this record", provider: .local),
+            createSampleRecord(text: "Delete this record", provider: .parakeet),
             createSampleRecord(text: "Keep this one too", provider: .local)
         ]
         
@@ -199,8 +199,8 @@ final class DataManagerIntegrationTests: XCTestCase {
     func testDeleteAllRecordsIntegration() async throws {
         // Given - Multiple records
         let records = [
-            createSampleRecord(text: "Record 1", provider: .openai),
-            createSampleRecord(text: "Record 2", provider: .gemini),
+            createSampleRecord(text: "Record 1", provider: .local),
+            createSampleRecord(text: "Record 2", provider: .parakeet),
             createSampleRecord(text: "Record 3", provider: .local)
         ]
         
@@ -230,10 +230,10 @@ final class DataManagerIntegrationTests: XCTestCase {
         let oldDate = Date().addingTimeInterval(-40 * 24 * 60 * 60) // 40 days ago
         let recentDate = Date().addingTimeInterval(-5 * 24 * 60 * 60) // 5 days ago
         
-        let oldRecord = createSampleRecord(text: "Old record", provider: .openai)
+        let oldRecord = createSampleRecord(text: "Old record", provider: .local)
         oldRecord.date = oldDate
         
-        let recentRecord = createSampleRecord(text: "Recent record", provider: .gemini)
+        let recentRecord = createSampleRecord(text: "Recent record", provider: .parakeet)
         recentRecord.date = recentDate
         
         try await dataManager.saveTranscription(oldRecord)
@@ -259,7 +259,7 @@ final class DataManagerIntegrationTests: XCTestCase {
         // Create old records
         let veryOldDate = Date().addingTimeInterval(-365 * 24 * 60 * 60) // 1 year ago
         
-        let veryOldRecord = createSampleRecord(text: "Very old record", provider: .openai)
+        let veryOldRecord = createSampleRecord(text: "Very old record", provider: .local)
         veryOldRecord.date = veryOldDate
         
         try await dataManager.saveTranscription(veryOldRecord)
@@ -378,7 +378,7 @@ final class DataManagerIntegrationTests: XCTestCase {
         
         // First, add some initial data
         for i in 0..<20 {
-            let record = createSampleRecord(text: "Initial record \(i)", provider: .openai)
+            let record = createSampleRecord(text: "Initial record \(i)", provider: .local)
             try await dataManager.saveTranscription(record)
         }
         
@@ -389,7 +389,7 @@ final class DataManagerIntegrationTests: XCTestCase {
             // Add new records
             for i in 0..<10 {
                 group.addTask {
-                    let record = await self.createSampleRecord(text: "New record \(i)", provider: .gemini)
+                    let record = await self.createSampleRecord(text: "New record \(i)", provider: .parakeet)
                     await self.dataManager.saveTranscriptionQuietly(record)
                 }
             }
@@ -482,7 +482,7 @@ final class DataManagerIntegrationTests: XCTestCase {
     
     func testDataManagerSettingsIntegration() async throws {
         // Test history enabled/disabled behavior
-        let testRecord = createSampleRecord(text: "Settings test", provider: .openai)
+        let testRecord = createSampleRecord(text: "Settings test", provider: .local)
         
         // Enable history and save
         UserDefaults.standard.set(true, forKey: "transcriptionHistoryEnabled")
@@ -496,7 +496,7 @@ final class DataManagerIntegrationTests: XCTestCase {
         UserDefaults.standard.set(false, forKey: "transcriptionHistoryEnabled")
         dataManager.isHistoryEnabled = false
         
-        let anotherRecord = createSampleRecord(text: "Should not save", provider: .gemini)
+        let anotherRecord = createSampleRecord(text: "Should not save", provider: .parakeet)
         try await dataManager.saveTranscription(anotherRecord)
         
         records = try await dataManager.fetchAllRecords()
@@ -541,11 +541,11 @@ final class DataManagerIntegrationTests: XCTestCase {
         
         // Step 2: User creates multiple transcriptions over time
         let transcriptions = [
-            ("Meeting notes from team standup", TranscriptionProvider.openai, 450.0),
+            ("Meeting notes from team standup", TranscriptionProvider.local, 450.0),
             ("Voice memo about vacation plans", TranscriptionProvider.local, 30.0),
-            ("Interview with job candidate", TranscriptionProvider.gemini, 1800.0),
+            ("Interview with job candidate", TranscriptionProvider.parakeet, 1800.0),
             ("Conference call recording", TranscriptionProvider.parakeet, 2700.0),
-            ("Quick reminder note", TranscriptionProvider.openai, 15.0)
+            ("Quick reminder note", TranscriptionProvider.local, 15.0)
         ]
         
         for (text, provider, duration) in transcriptions {
@@ -562,8 +562,8 @@ final class DataManagerIntegrationTests: XCTestCase {
         let interviewResults = try await dataManager.fetchRecords(matching: "interview")
         XCTAssertEqual(interviewResults.count, 1, "Should find interview")
         
-        let openaiResults = try await dataManager.fetchRecords(matching: "openai")
-        XCTAssertEqual(openaiResults.count, 2, "Should find OpenAI transcriptions")
+        let parakeetResults = try await dataManager.fetchRecords(matching: "parakeet")
+        XCTAssertEqual(parakeetResults.count, 2, "Should find Parakeet transcriptions")
         
         // Step 4: User deletes some old records
         let allRecords = try await dataManager.fetchAllRecords()
@@ -647,8 +647,8 @@ final class DataManagerIntegrationTests: XCTestCase {
         XCTAssertEqual(uppercaseResults.count, 10, "Case-insensitive search should work")
         
         // Test search in provider field
-        let openaiResults = try await dataManager.fetchRecords(matching: "openai", limit: nil, offset: nil)
-        XCTAssertGreaterThan(openaiResults.count, 0, "Should find records by provider name")
+        let parakeetResults = try await dataManager.fetchRecords(matching: "parakeet", limit: nil, offset: nil)
+        XCTAssertGreaterThan(parakeetResults.count, 0, "Should find records by provider name")
         
         // Test search in modelUsed field
         let tinyResults = try await dataManager.fetchRecords(matching: "tiny", limit: nil, offset: nil)

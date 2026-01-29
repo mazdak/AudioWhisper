@@ -204,11 +204,11 @@ final class ContentViewLifecycleTests: XCTestCase {
     // MARK: - Transcription Provider Loading Tests
 
     func testLoadStoredTranscriptionProvider() {
-        testDefaults.set("openai", forKey: "transcriptionProvider")
+        testDefaults.set("local", forKey: "transcriptionProvider")
 
         if let storedProvider = testDefaults.string(forKey: "transcriptionProvider"),
            let provider = TranscriptionProvider(rawValue: storedProvider) {
-            XCTAssertEqual(provider, .openai)
+            XCTAssertEqual(provider, .local)
         } else {
             XCTFail("Should load stored provider")
         }

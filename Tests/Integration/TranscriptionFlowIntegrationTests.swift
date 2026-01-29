@@ -87,9 +87,9 @@ final class TranscriptionFlowIntegrationTests: XCTestCase {
         // When - Create and save a record with this duration
         let record = TranscriptionRecord(
             text: transcribedText,
-            provider: .openai,
+            provider: .local,
             duration: duration,
-            modelUsed: "whisper-1"
+            modelUsed: "base"
         )
 
         modelContext.insert(record)
@@ -113,7 +113,7 @@ final class TranscriptionFlowIntegrationTests: XCTestCase {
         // When - Flow through the system
         let record = TranscriptionRecord(
             text: originalText,
-            provider: .gemini,
+            provider: .parakeet,
             duration: 5.0
         )
 
@@ -128,7 +128,7 @@ final class TranscriptionFlowIntegrationTests: XCTestCase {
 
         XCTAssertEqual(savedRecords.count, 1)
         XCTAssertEqual(savedRecords[0].text, originalText)
-        XCTAssertEqual(savedRecords[0].transcriptionProvider, .gemini)
+        XCTAssertEqual(savedRecords[0].transcriptionProvider, .parakeet)
     }
 
     func testCancelledRecordingDoesNotCreateRecord() async throws {
@@ -155,7 +155,7 @@ final class TranscriptionFlowIntegrationTests: XCTestCase {
         // When - Save the corrected text (simulating post-correction)
         let record = TranscriptionRecord(
             text: correctedText,
-            provider: .openai,
+            provider: .local,
             duration: 8.0
         )
 
@@ -176,8 +176,8 @@ final class TranscriptionFlowIntegrationTests: XCTestCase {
     func testMultipleTranscriptionsAccumulateCorrectly() async throws {
         // Given - Multiple transcription sessions
         let sessions = [
-            ("First session text", 5.0, TranscriptionProvider.openai),
-            ("Second session with more words here", 10.0, TranscriptionProvider.gemini),
+            ("First session text", 5.0, TranscriptionProvider.local),
+            ("Second session with more words here", 10.0, TranscriptionProvider.parakeet),
             ("Third session text", 3.0, TranscriptionProvider.local)
         ]
 
@@ -204,9 +204,8 @@ final class TranscriptionFlowIntegrationTests: XCTestCase {
 
         // Verify provider diversity
         let providers = Set(savedRecords.map { $0.transcriptionProvider })
-        XCTAssertTrue(providers.contains(.openai))
-        XCTAssertTrue(providers.contains(.gemini))
         XCTAssertTrue(providers.contains(.local))
+        XCTAssertTrue(providers.contains(.parakeet))
     }
 
     // MARK: - Text Cleaning Integration
@@ -247,8 +246,8 @@ final class TranscriptionFlowIntegrationTests: XCTestCase {
     // MARK: - Provider Flow Tests
 
     func testAllProvidersCreateValidRecords() async throws {
-        // Test that all four providers create valid records
-        let providers: [TranscriptionProvider] = [.openai, .gemini, .local, .parakeet]
+        // Test that all providers create valid records
+        let providers: [TranscriptionProvider] = [.local, .parakeet]
 
         for provider in providers {
             let record = TranscriptionRecord(
@@ -266,7 +265,7 @@ final class TranscriptionFlowIntegrationTests: XCTestCase {
         let descriptor = FetchDescriptor<TranscriptionRecord>()
         let savedRecords = try modelContext.fetch(descriptor)
 
-        XCTAssertEqual(savedRecords.count, 4)
+        XCTAssertEqual(savedRecords.count, 2)
 
         for record in savedRecords {
             XCTAssertFalse(record.text.isEmpty)
@@ -304,7 +303,7 @@ final class TranscriptionFlowIntegrationTests: XCTestCase {
         // Given - Record without duration (possible edge case)
         let record = TranscriptionRecord(
             text: "Quick recording without duration tracking",
-            provider: .openai,
+            provider: .local,
             duration: nil
         )
 
@@ -326,7 +325,7 @@ final class TranscriptionFlowIntegrationTests: XCTestCase {
         // Given - Empty transcription (edge case)
         let record = TranscriptionRecord(
             text: "",
-            provider: .openai,
+            provider: .parakeet,
             duration: 1.0
         )
 

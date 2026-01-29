@@ -46,14 +46,6 @@ internal struct ProviderSelectionCard: View {
     @ViewBuilder
     private var providerIcon: some View {
         switch provider {
-        case .openai:
-            Image(systemName: "brain")
-                .font(.system(size: 18))
-                .foregroundStyle(DashboardTheme.accent)
-        case .gemini:
-            Image(systemName: "sparkles")
-                .font(.system(size: 18))
-                .foregroundStyle(.purple)
         case .local:
             Image(systemName: "desktopcomputer")
                 .font(.system(size: 18))
@@ -83,8 +75,6 @@ internal struct ProviderSelectionCard: View {
 extension TranscriptionProvider {
     var subtitle: String {
         switch self {
-        case .openai: return "Cloud API"
-        case .gemini: return "Cloud API"
         case .local: return "On-Device"
         case .parakeet: return "Apple Silicon"
         }

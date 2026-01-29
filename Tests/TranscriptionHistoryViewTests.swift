@@ -29,7 +29,7 @@ final class TranscriptionHistoryViewTests: XCTestCase {
     
     private func createSampleRecord(
         text: String = "Sample transcription",
-        provider: TranscriptionProvider = .openai,
+        provider: TranscriptionProvider = .local,
         duration: TimeInterval? = 10.5,
         modelUsed: String? = nil
     ) -> TranscriptionRecord {
@@ -106,8 +106,8 @@ final class TranscriptionHistoryViewTests: XCTestCase {
     
     func testProviderBadgeColors() {
         // Test that different providers get different colors
-        let providers: [TranscriptionProvider] = [.openai, .gemini, .local, .parakeet]
-        
+        let providers: [TranscriptionProvider] = [.local, .parakeet]
+
         for provider in providers {
             let record = createSampleRecord(provider: provider)
             let view = TranscriptionRecordRow(
@@ -117,7 +117,7 @@ final class TranscriptionHistoryViewTests: XCTestCase {
                 onCopy: {},
                 onDelete: {}
             )
-            
+
             // Verify the record has the correct provider
             XCTAssertEqual(record.transcriptionProvider, provider)
             XCTAssertNotNil(view)
@@ -129,24 +129,24 @@ final class TranscriptionHistoryViewTests: XCTestCase {
     func testRecordSearchFunctionality() {
         // Given
         let records = [
-            createSampleRecord(text: "Hello world from OpenAI", provider: .openai),
-            createSampleRecord(text: "Goodbye world from Gemini", provider: .gemini),
-            createSampleRecord(text: "Testing local whisper", provider: .local)
+            createSampleRecord(text: "Hello world from local whisper", provider: .local),
+            createSampleRecord(text: "Goodbye world from parakeet", provider: .parakeet),
+            createSampleRecord(text: "Testing local whisper base", provider: .local)
         ]
-        
+
         // Test text search
         XCTAssertTrue(records[0].matches(searchQuery: "hello"))
-        XCTAssertTrue(records[0].matches(searchQuery: "OpenAI"))
+        XCTAssertTrue(records[0].matches(searchQuery: "local"))
         XCTAssertFalse(records[0].matches(searchQuery: "goodbye"))
-        
+
         // Test provider search
-        XCTAssertTrue(records[1].matches(searchQuery: "gemini"))
+        XCTAssertTrue(records[1].matches(searchQuery: "parakeet"))
         XCTAssertTrue(records[2].matches(searchQuery: "local"))
-        
+
         // Test case insensitive search
         XCTAssertTrue(records[0].matches(searchQuery: "HELLO"))
-        XCTAssertTrue(records[0].matches(searchQuery: "openai"))
-        
+        XCTAssertTrue(records[0].matches(searchQuery: "LOCAL"))
+
         // Test empty search returns true
         XCTAssertTrue(records[0].matches(searchQuery: ""))
     }
@@ -157,26 +157,26 @@ final class TranscriptionHistoryViewTests: XCTestCase {
         // Given
         let originalRecord = TranscriptionRecord(
             text: "Integration test transcription",
-            provider: .openai,
+            provider: .local,
             duration: 5.5,
             modelUsed: nil
         )
-        
+
         // When
         modelContext.insert(originalRecord)
         try modelContext.save()
-        
+
         // Fetch records
         let descriptor = FetchDescriptor<TranscriptionRecord>(
             sortBy: [SortDescriptor(\.date, order: .reverse)]
         )
         let fetchedRecords = try modelContext.fetch(descriptor)
-        
+
         // Then
         XCTAssertEqual(fetchedRecords.count, 1)
         let fetchedRecord = fetchedRecords[0]
         XCTAssertEqual(fetchedRecord.text, "Integration test transcription")
-        XCTAssertEqual(fetchedRecord.provider, "openai")
+        XCTAssertEqual(fetchedRecord.provider, "local")
         XCTAssertEqual(fetchedRecord.duration, 5.5)
         XCTAssertNil(fetchedRecord.modelUsed)
     }
@@ -281,8 +281,8 @@ final class TranscriptionHistoryViewTests: XCTestCase {
     
     func testTranscriptionProviderFromRecord() {
         // Test that records correctly return their provider enum
-        let providers: [TranscriptionProvider] = [.openai, .gemini, .local, .parakeet]
-        
+        let providers: [TranscriptionProvider] = [.local, .parakeet]
+
         for provider in providers {
             let record = createSampleRecord(provider: provider)
             XCTAssertEqual(record.transcriptionProvider, provider)

@@ -7,13 +7,6 @@ import Observation
 @Observable
 @MainActor
 final class ProviderSettingsState {
-    // MARK: - API Key State
-    var openAIKey = ""
-    var geminiKey = ""
-    var showOpenAIKey = false
-    var showGeminiKey = false
-    var showAdvancedAPISettings = false
-
     // MARK: - Environment State
     var envReady = false
     var isCheckingEnv = false
@@ -43,48 +36,16 @@ final class ProviderSettingsState {
     // MARK: - Animation State
     var isLoaded = false
 
-    // MARK: - Keychain Service
-    private let keychainService: KeychainServiceProtocol
-
     // MARK: - Initialization
 
     init(keychainService: KeychainServiceProtocol = KeychainService.shared) {
-        self.keychainService = keychainService
-    }
-
-    // MARK: - API Key Management
-
-    func loadAPIKeys() {
-        openAIKey = keychainService.getQuietly(service: "AudioWhisper", account: "OpenAI") ?? ""
-        geminiKey = keychainService.getQuietly(service: "AudioWhisper", account: "Gemini") ?? ""
-    }
-
-    func saveOpenAIKey() {
-        let trimmed = openAIKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty {
-            keychainService.deleteQuietly(service: "AudioWhisper", account: "OpenAI")
-        } else {
-            keychainService.saveQuietly(trimmed, service: "AudioWhisper", account: "OpenAI")
-        }
-    }
-
-    func saveGeminiKey() {
-        let trimmed = geminiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty {
-            keychainService.deleteQuietly(service: "AudioWhisper", account: "Gemini")
-        } else {
-            keychainService.saveQuietly(trimmed, service: "AudioWhisper", account: "Gemini")
-        }
+        // keychainService parameter kept for API compatibility but no longer used
     }
 
     // MARK: - Status Helpers
 
     func statusInfo(for provider: TranscriptionProvider) -> (text: String, isReady: Bool) {
         switch provider {
-        case .openai:
-            return openAIKey.isEmpty ? ("Setup", false) : ("Ready", true)
-        case .gemini:
-            return geminiKey.isEmpty ? ("Setup", false) : ("Ready", true)
         case .local:
             return downloadedModels.isEmpty ? ("Setup", false) : ("Ready", true)
         case .parakeet:
@@ -150,11 +111,6 @@ final class ProviderSettingsState {
     // MARK: - Reset
 
     func reset() {
-        openAIKey = ""
-        geminiKey = ""
-        showOpenAIKey = false
-        showGeminiKey = false
-        showAdvancedAPISettings = false
         envReady = false
         isCheckingEnv = false
         showSetupSheet = false

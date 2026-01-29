@@ -89,7 +89,7 @@ final class TranscriptionRecordEdgeCaseTests: XCTestCase {
     func testRecordWithEmptyText() {
         let record = TranscriptionRecord(
             text: "",
-            provider: .openai,
+            provider: .local,
             duration: 5.0
         )
         XCTAssertNotNil(record)
@@ -100,7 +100,7 @@ final class TranscriptionRecordEdgeCaseTests: XCTestCase {
         let longText = String(repeating: "Test ", count: 10000)
         let record = TranscriptionRecord(
             text: longText,
-            provider: .openai,
+            provider: .parakeet,
             duration: 300.0
         )
         XCTAssertNotNil(record)
@@ -110,7 +110,7 @@ final class TranscriptionRecordEdgeCaseTests: XCTestCase {
     func testRecordWithZeroDuration() {
         let record = TranscriptionRecord(
             text: "Test",
-            provider: .openai,
+            provider: .local,
             duration: 0.0
         )
         XCTAssertNotNil(record)
@@ -120,7 +120,7 @@ final class TranscriptionRecordEdgeCaseTests: XCTestCase {
     func testRecordWithNegativeDuration() {
         let record = TranscriptionRecord(
             text: "Test",
-            provider: .openai,
+            provider: .parakeet,
             duration: -5.0
         )
         XCTAssertNotNil(record)
@@ -143,7 +143,7 @@ final class TranscriptionRecordEdgeCaseTests: XCTestCase {
         let specialText = "Test with émojis 🎤 and special chars: <>&\"'"
         let record = TranscriptionRecord(
             text: specialText,
-            provider: .openai,
+            provider: .local,
             duration: 5.0
         )
         XCTAssertNotNil(record)
@@ -154,7 +154,7 @@ final class TranscriptionRecordEdgeCaseTests: XCTestCase {
         let unicodeText = "日本語テスト 中文测试 العربية"
         let record = TranscriptionRecord(
             text: unicodeText,
-            provider: .gemini,
+            provider: .parakeet,
             duration: 10.0
         )
         XCTAssertNotNil(record)

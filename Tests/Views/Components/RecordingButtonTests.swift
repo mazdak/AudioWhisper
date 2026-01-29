@@ -21,7 +21,7 @@ final class RecordingButtonTests: XCTestCase {
             hasPermission: true,
             isProcessing: false,
             showSuccess: false,
-            transcriptionProvider: .openai,
+            transcriptionProvider: .local,
             onTap: {},
             onHover: { _ in }
         )
@@ -34,7 +34,7 @@ final class RecordingButtonTests: XCTestCase {
             hasPermission: true,
             isProcessing: false,
             showSuccess: false,
-            transcriptionProvider: .openai,
+            transcriptionProvider: .local,
             onTap: {},
             onHover: { _ in }
         )
@@ -442,9 +442,11 @@ final class RecordingButtonProviderTests: XCTestCase {
     }
 
     func testProviderDisplayNames() {
-        XCTAssertEqual(TranscriptionProvider.openai.displayName, "OpenAI Whisper (Cloud)")
-        XCTAssertEqual(TranscriptionProvider.gemini.displayName, "Google Gemini (Cloud)")
         XCTAssertEqual(TranscriptionProvider.local.displayName, "Local Whisper")
         XCTAssertEqual(TranscriptionProvider.parakeet.displayName, "Parakeet (Advanced)")
+    }
+
+    func testAllCasesCount() {
+        XCTAssertEqual(TranscriptionProvider.allCases.count, 2, "Should have exactly 2 providers: local and parakeet")
     }
 }

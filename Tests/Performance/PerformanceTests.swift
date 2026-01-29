@@ -10,7 +10,7 @@ final class DataManagerPerformanceTests: XCTestCase {
             for i in 0..<1000 {
                 let record = TranscriptionRecord(
                     text: "Test transcription text \(i)",
-                    provider: .openai,
+                    provider: .local,
                     duration: Double(i) * 0.5
                 )
                 _ = record

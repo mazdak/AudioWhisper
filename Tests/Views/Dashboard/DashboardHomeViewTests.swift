@@ -147,31 +147,25 @@ final class DashboardHomeViewTests: XCTestCase {
 
     func testProviderStatsAggregation() {
         let records = [
-            makeTestRecord(provider: "openai", wordCount: 100),
-            makeTestRecord(provider: "openai", wordCount: 50),
-            makeTestRecord(provider: "gemini", wordCount: 200),
-            makeTestRecord(provider: "local", wordCount: 75),
+            makeTestRecord(provider: "local", wordCount: 100),
+            makeTestRecord(provider: "local", wordCount: 50),
+            makeTestRecord(provider: "parakeet", wordCount: 200),
         ]
 
         let stats = DashboardHomeView.testableCalculateProviderStats(from: records)
 
-        XCTAssertEqual(stats.count, 3, "Should have 3 providers")
+        XCTAssertEqual(stats.count, 2, "Should have 2 providers")
 
         // Check sorting (highest first)
-        XCTAssertEqual(stats[0].provider, "gemini", "Gemini should be first with 200 words")
+        XCTAssertEqual(stats[0].provider, "parakeet", "Parakeet should be first with 200 words")
         XCTAssertEqual(stats[0].words, 200)
 
-        XCTAssertEqual(stats[1].provider, "openai", "OpenAI should be second with 150 words")
+        XCTAssertEqual(stats[1].provider, "local", "Local should be second with 150 words")
         XCTAssertEqual(stats[1].words, 150)
-
-        XCTAssertEqual(stats[2].provider, "local", "Local should be third with 75 words")
-        XCTAssertEqual(stats[2].words, 75)
     }
 
     func testProviderStatsIconMapping() {
         let records = [
-            makeTestRecord(provider: "openai", wordCount: 100),
-            makeTestRecord(provider: "gemini", wordCount: 100),
             makeTestRecord(provider: "local", wordCount: 100),
             makeTestRecord(provider: "parakeet", wordCount: 100),
         ]
@@ -179,8 +173,6 @@ final class DashboardHomeViewTests: XCTestCase {
         let stats = DashboardHomeView.testableCalculateProviderStats(from: records)
         let iconsByProvider = Dictionary(uniqueKeysWithValues: stats.map { ($0.provider, $0.icon) })
 
-        XCTAssertEqual(iconsByProvider["openai"], "cloud")
-        XCTAssertEqual(iconsByProvider["gemini"], "sparkles")
         XCTAssertEqual(iconsByProvider["local"], "laptopcomputer")
         XCTAssertEqual(iconsByProvider["parakeet"], "bird")
     }
@@ -299,7 +291,7 @@ final class DashboardHomeViewTests: XCTestCase {
     ) -> TranscriptionRecord {
         TranscriptionRecord(
             text: String(repeating: "word ", count: wordCount),
-            provider: TranscriptionProvider(rawValue: provider) ?? .openai,
+            provider: TranscriptionProvider(rawValue: provider) ?? .local,
             duration: 5.0,
             wordCount: wordCount,
             characterCount: wordCount * 5,

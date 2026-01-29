@@ -3,13 +3,11 @@ import AppKit
 
 internal struct DashboardProvidersView: View {
     // Persistent settings - Transcription
-    @AppStorage("transcriptionProvider") var transcriptionProvider = TranscriptionProvider.openai
+    @AppStorage("transcriptionProvider") var transcriptionProvider = TranscriptionProvider.parakeet
     @AppStorage("selectedWhisperModel") var selectedWhisperModel = WhisperModel.base
     @AppStorage("selectedParakeetModel") var selectedParakeetModel = ParakeetModel.v3Multilingual
     @AppStorage("hasSetupParakeet") var hasSetupParakeet = false
     @AppStorage("hasSetupLocalLLM") var hasSetupLocalLLM = false
-    @AppStorage("openAIBaseURL") var openAIBaseURL = ""
-    @AppStorage("geminiBaseURL") var geminiBaseURL = ""
     @AppStorage("maxModelStorageGB") var maxModelStorageGB = 5.0
 
     // Persistent settings - Correction
@@ -24,26 +22,6 @@ internal struct DashboardProvidersView: View {
     @State var modelManager = ModelManager.shared
 
     // Computed properties for backward compatibility with extensions
-    var openAIKey: String {
-        get { state.openAIKey }
-        nonmutating set { state.openAIKey = newValue }
-    }
-    var geminiKey: String {
-        get { state.geminiKey }
-        nonmutating set { state.geminiKey = newValue }
-    }
-    var showOpenAIKey: Bool {
-        get { state.showOpenAIKey }
-        nonmutating set { state.showOpenAIKey = newValue }
-    }
-    var showGeminiKey: Bool {
-        get { state.showGeminiKey }
-        nonmutating set { state.showGeminiKey = newValue }
-    }
-    var showAdvancedAPISettings: Bool {
-        get { state.showAdvancedAPISettings }
-        nonmutating set { state.showAdvancedAPISettings = newValue }
-    }
     var downloadError: String? {
         get { state.downloadError }
         nonmutating set { state.downloadError = newValue }
@@ -113,14 +91,12 @@ internal struct DashboardProvidersView: View {
         nonmutating set { state.isLoaded = newValue }
     }
 
-    let keychainService: KeychainServiceProtocol = KeychainService.shared
-
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 // Hero header
                 headerSection
-                
+
                 // Main content
                 VStack(alignment: .leading, spacing: DashboardTheme.Spacing.xxl) {
                     // Engine selection - the star of the show
@@ -128,17 +104,13 @@ internal struct DashboardProvidersView: View {
                         .opacity(isLoaded ? 1 : 0)
                         .offset(y: isLoaded ? 0 : 20)
                         .animation(.easeOut(duration: 0.4).delay(0.1), value: isLoaded)
-                    
+
                     // Conditional detail sections
                     Group {
-                        if transcriptionProvider == .openai || transcriptionProvider == .gemini {
-                            credentialsSection
-                        }
-                        
                         if transcriptionProvider == .parakeet {
                             parakeetCard
                         }
-                        
+
                         if transcriptionProvider == .local {
                             localWhisperCard
                         }
@@ -146,7 +118,7 @@ internal struct DashboardProvidersView: View {
                     .opacity(isLoaded ? 1 : 0)
                     .offset(y: isLoaded ? 0 : 20)
                     .animation(.easeOut(duration: 0.4).delay(0.2), value: isLoaded)
-                    
+
                     // Correction section
                     correctionSection
                         .opacity(isLoaded ? 1 : 0)
@@ -168,9 +140,8 @@ internal struct DashboardProvidersView: View {
             )
         }
         .onAppear {
-            loadAPIKeys()
-            loadModelStates()
-            checkEnvReady()
+            state.loadModelStates(from: modelManager)
+            state.checkEnvReady()
             Task {
                 isRefreshingMLXModels = true
                 await mlxModelManager.refreshModelList()
@@ -179,36 +150,31 @@ internal struct DashboardProvidersView: View {
             withAnimation { isLoaded = true }
         }
     }
-    
+
     // MARK: - Correction Section
     private var correctionSection: some View {
         VStack(alignment: .leading, spacing: DashboardTheme.Spacing.lg) {
             // Section label
             HStack(spacing: DashboardTheme.Spacing.sm) {
-                Text("03")
+                Text("02")
                     .font(DashboardTheme.Fonts.mono(11, weight: .medium))
                     .foregroundStyle(DashboardTheme.accent)
-                
+
                 Text("POST-PROCESSING")
                     .font(DashboardTheme.Fonts.sans(11, weight: .semibold))
                     .foregroundStyle(DashboardTheme.inkMuted)
                     .tracking(1.5)
             }
-            
+
             VStack(spacing: 0) {
                 // Mode selection
                 correctionModeSection
-                
+
                 let mode = SemanticCorrectionMode(rawValue: semanticCorrectionModeRaw) ?? .off
-                
+
                 if mode == .localMLX {
                     Divider().background(DashboardTheme.rule)
                     correctionMLXSection
-                }
-                
-                if mode == .cloud {
-                    Divider().background(DashboardTheme.rule)
-                    correctionCloudInfo
                 }
             }
             .background(
@@ -221,19 +187,19 @@ internal struct DashboardProvidersView: View {
             )
         }
     }
-    
+
     private var correctionModeSection: some View {
         VStack(alignment: .leading, spacing: DashboardTheme.Spacing.md) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Semantic Correction")
                     .font(DashboardTheme.Fonts.sans(15, weight: .semibold))
                     .foregroundStyle(DashboardTheme.ink)
-                
+
                 Text("Clean up grammar, punctuation, and filler words after transcription")
                     .font(DashboardTheme.Fonts.sans(12, weight: .regular))
                     .foregroundStyle(DashboardTheme.inkMuted)
             }
-            
+
             HStack(alignment: .center, spacing: DashboardTheme.Spacing.sm) {
                 Text("Mode")
                     .font(DashboardTheme.Fonts.sans(12, weight: .medium))
@@ -252,7 +218,7 @@ internal struct DashboardProvidersView: View {
         }
         .padding(DashboardTheme.Spacing.lg)
     }
-    
+
     private var correctionMLXSection: some View {
         VStack(alignment: .leading, spacing: DashboardTheme.Spacing.md) {
             // Environment status (shares with Parakeet)
@@ -260,13 +226,13 @@ internal struct DashboardProvidersView: View {
                 Image(systemName: envReady ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
                     .font(.system(size: 14))
                     .foregroundStyle(envReady ? DashboardTheme.success : DashboardTheme.accent)
-                
+
                 Text(envReady ? "Environment ready" : "Setup required")
                     .font(DashboardTheme.Fonts.sans(12, weight: .medium))
                     .foregroundStyle(envReady ? DashboardTheme.success : DashboardTheme.accent)
-                
+
                 Spacer()
-                
+
                 if !envReady {
                     Button("Install") {
                         runCorrectionSetup()
@@ -274,22 +240,22 @@ internal struct DashboardProvidersView: View {
                     .buttonStyle(PaperAccentButtonStyle())
                 }
             }
-            
+
             if envReady {
                 // Model list header
                 HStack {
                     Text("Correction Model")
                         .font(DashboardTheme.Fonts.sans(13, weight: .medium))
                         .foregroundStyle(DashboardTheme.ink)
-                    
+
                     Spacer()
-                    
+
                     if mlxModelManager.totalCacheSize > 0 {
                         Text(mlxModelManager.formatBytes(mlxModelManager.totalCacheSize))
                             .font(DashboardTheme.Fonts.mono(10, weight: .medium))
                             .foregroundStyle(DashboardTheme.inkMuted)
                     }
-                    
+
                     Button {
                         isRefreshingMLXModels = true
                         Task {
@@ -307,12 +273,12 @@ internal struct DashboardProvidersView: View {
                     .buttonStyle(.plain)
                     .foregroundStyle(DashboardTheme.inkMuted)
                 }
-                
+
                 // Model rows
                 VStack(spacing: 0) {
                     ForEach(MLXModelManager.recommendedModels, id: \.repo) { model in
                         correctionModelRow(model)
-                        
+
                         if model.repo != MLXModelManager.recommendedModels.last?.repo {
                             Divider().background(DashboardTheme.rule)
                         }
@@ -324,15 +290,15 @@ internal struct DashboardProvidersView: View {
                     RoundedRectangle(cornerRadius: 6)
                         .stroke(DashboardTheme.rule, lineWidth: 1)
                 )
-                
+
                 // Footer
                 HStack {
                     Text("~/.cache/huggingface/hub")
                         .font(DashboardTheme.Fonts.mono(10, weight: .regular))
                         .foregroundStyle(DashboardTheme.inkFaint)
-                    
+
                     Spacer()
-                    
+
                     if mlxModelManager.unusedModelCount > 0 {
                         Button {
                             Task { await mlxModelManager.cleanupUnusedModels() }
@@ -347,34 +313,34 @@ internal struct DashboardProvidersView: View {
         }
         .padding(DashboardTheme.Spacing.md)
     }
-    
+
     private func correctionModelRow(_ model: MLXModel) -> some View {
         let isSelected = semanticCorrectionModelRepo == model.repo
         let isDownloaded = mlxModelManager.downloadedModels.contains(model.repo)
         let isDownloading = mlxModelManager.isDownloading[model.repo] ?? false
         let isRecommended = model.repo == "mlx-community/Qwen3-1.7B-4bit"
-        
+
         return HStack(spacing: DashboardTheme.Spacing.sm) {
             // Selection
             ZStack {
                 Circle()
                     .stroke(isSelected ? DashboardTheme.accent : DashboardTheme.rule, lineWidth: 1.5)
                     .frame(width: 16, height: 16)
-                
+
                 if isSelected {
                     Circle()
                         .fill(DashboardTheme.accent)
                         .frame(width: 8, height: 8)
                 }
             }
-            
+
             // Info
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Text(model.displayName)
                         .font(DashboardTheme.Fonts.mono(11, weight: .medium))
                         .foregroundStyle(DashboardTheme.ink)
-                    
+
                     if isRecommended {
                         Text("REC")
                             .font(DashboardTheme.Fonts.sans(8, weight: .bold))
@@ -385,19 +351,19 @@ internal struct DashboardProvidersView: View {
                             .clipShape(RoundedRectangle(cornerRadius: 2))
                     }
                 }
-                
+
                 Text(model.description)
                     .font(DashboardTheme.Fonts.sans(10, weight: .regular))
                     .foregroundStyle(DashboardTheme.inkMuted)
             }
-            
+
             Spacer()
-            
+
             // Size
             Text(mlxModelManager.modelSizes[model.repo].map { mlxModelManager.formatBytes($0) } ?? model.estimatedSize)
                 .font(DashboardTheme.Fonts.mono(10, weight: .regular))
                 .foregroundStyle(DashboardTheme.inkMuted)
-            
+
             // Action
             if isDownloading {
                 ProgressView().controlSize(.small)
@@ -406,7 +372,7 @@ internal struct DashboardProvidersView: View {
                     Image(systemName: "checkmark")
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(DashboardTheme.success)
-                    
+
                     Button {
                         Task { await mlxModelManager.deleteModel(model.repo) }
                     } label: {
@@ -451,20 +417,7 @@ internal struct DashboardProvidersView: View {
             }
         }
     }
-    
-    private var correctionCloudInfo: some View {
-        HStack(spacing: DashboardTheme.Spacing.sm) {
-            Image(systemName: "cloud")
-                .font(.system(size: 14))
-                .foregroundStyle(DashboardTheme.inkMuted)
-            
-            Text("Uses your selected cloud provider for post-processing")
-                .font(DashboardTheme.Fonts.sans(12, weight: .regular))
-                .foregroundStyle(DashboardTheme.inkMuted)
-        }
-        .padding(DashboardTheme.Spacing.md)
-    }
-    
+
     private func runCorrectionSetup() {
         setupStatus = "Installing correction dependencies…"
         setupLogs = ""
@@ -494,7 +447,7 @@ internal struct DashboardProvidersView: View {
             }
         }
     }
-    
+
     // MARK: - Hero Header
     private var headerSection: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -503,16 +456,16 @@ internal struct DashboardProvidersView: View {
                 .fill(DashboardTheme.accent)
                 .frame(width: 40, height: 3)
                 .padding(.bottom, DashboardTheme.Spacing.md)
-            
+
             Text("Speech")
                 .font(DashboardTheme.Fonts.serif(42, weight: .light))
                 .foregroundStyle(DashboardTheme.ink)
-            
+
             Text("Engines")
                 .font(DashboardTheme.Fonts.serif(42, weight: .semibold))
                 .foregroundStyle(DashboardTheme.ink)
                 .padding(.top, -12)
-            
+
             Text("Choose how your voice becomes text")
                 .font(DashboardTheme.Fonts.sans(14, weight: .regular))
                 .foregroundStyle(DashboardTheme.inkMuted)
@@ -522,7 +475,7 @@ internal struct DashboardProvidersView: View {
         .padding(DashboardTheme.Spacing.xl)
         .padding(.top, DashboardTheme.Spacing.md)
     }
-    
+
     // MARK: - Engine Selection Grid
     private var engineSection: some View {
         VStack(alignment: .leading, spacing: DashboardTheme.Spacing.lg) {
@@ -531,14 +484,14 @@ internal struct DashboardProvidersView: View {
                 Text("01")
                     .font(DashboardTheme.Fonts.mono(11, weight: .medium))
                     .foregroundStyle(DashboardTheme.accent)
-                
+
                 Text("SELECT ENGINE")
                     .font(DashboardTheme.Fonts.sans(11, weight: .semibold))
                     .foregroundStyle(DashboardTheme.inkMuted)
                     .tracking(1.5)
             }
-            
-            // Provider grid - 2x2
+
+            // Provider grid - 1x2
             LazyVGrid(columns: [
                 GridItem(.flexible(), spacing: DashboardTheme.Spacing.md),
                 GridItem(.flexible(), spacing: DashboardTheme.Spacing.md)
@@ -549,11 +502,11 @@ internal struct DashboardProvidersView: View {
             }
         }
     }
-    
+
     private func engineCard(_ provider: TranscriptionProvider) -> some View {
         let isSelected = transcriptionProvider == provider
         let config = engineConfig(for: provider)
-        
+
         return Button {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                 transcriptionProvider = provider
@@ -567,33 +520,33 @@ internal struct DashboardProvidersView: View {
                         RoundedRectangle(cornerRadius: 8)
                             .fill(isSelected ? DashboardTheme.accent : DashboardTheme.cardBgAlt)
                             .frame(width: 40, height: 40)
-                        
+
                         Image(systemName: config.icon)
                             .font(.system(size: 18, weight: .medium))
                             .foregroundStyle(isSelected ? .white : DashboardTheme.inkMuted)
                     }
-                    
+
                     Spacer()
-                    
+
                     // Status indicator
                     statusBadge(for: provider)
                 }
-                
+
                 Spacer()
-                
+
                 // Bottom section with name and description
                 VStack(alignment: .leading, spacing: 4) {
                     Text(provider.displayName)
                         .font(DashboardTheme.Fonts.sans(16, weight: .semibold))
                         .foregroundStyle(DashboardTheme.ink)
-                    
+
                     Text(config.tagline)
                         .font(DashboardTheme.Fonts.sans(12, weight: .regular))
                         .foregroundStyle(DashboardTheme.inkMuted)
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                
+
                 // Selection indicator line
                 Rectangle()
                     .fill(isSelected ? DashboardTheme.accent : Color.clear)
@@ -614,34 +567,30 @@ internal struct DashboardProvidersView: View {
         }
         .buttonStyle(.plain)
     }
-    
+
     private struct EngineConfig {
         let icon: String
         let tagline: String
     }
-    
+
     private func engineConfig(for provider: TranscriptionProvider) -> EngineConfig {
         switch provider {
-        case .openai:
-            return EngineConfig(icon: "waveform.circle", tagline: "Industry-leading accuracy via cloud")
-        case .gemini:
-            return EngineConfig(icon: "sparkles", tagline: "Google's multimodal intelligence")
         case .local:
             return EngineConfig(icon: "desktopcomputer", tagline: "WhisperKit on Apple Silicon")
         case .parakeet:
             return EngineConfig(icon: "bird", tagline: "NVIDIA's neural speech engine")
         }
     }
-    
+
     @ViewBuilder
     private func statusBadge(for provider: TranscriptionProvider) -> some View {
         let (text, isReady) = statusInfo(for: provider)
-        
+
         HStack(spacing: 4) {
             Circle()
                 .fill(isReady ? DashboardTheme.success : DashboardTheme.accent)
                 .frame(width: 6, height: 6)
-            
+
             Text(text)
                 .font(DashboardTheme.Fonts.sans(10, weight: .medium))
                 .foregroundStyle(isReady ? DashboardTheme.success : DashboardTheme.accent)
@@ -653,232 +602,16 @@ internal struct DashboardProvidersView: View {
                 .fill((isReady ? DashboardTheme.success : DashboardTheme.accent).opacity(0.1))
         )
     }
-    
+
     private func statusInfo(for provider: TranscriptionProvider) -> (String, Bool) {
         switch provider {
-        case .openai:
-            return openAIKey.isEmpty ? ("Setup", false) : ("Ready", true)
-        case .gemini:
-            return geminiKey.isEmpty ? ("Setup", false) : ("Ready", true)
         case .local:
             return downloadedModels.isEmpty ? ("Setup", false) : ("Ready", true)
         case .parakeet:
             return envReady ? ("Ready", true) : ("Setup", false)
         }
     }
-    
-    // MARK: - Credentials Section
-    private var credentialsSection: some View {
-        VStack(alignment: .leading, spacing: DashboardTheme.Spacing.lg) {
-            // Section label
-            HStack(spacing: DashboardTheme.Spacing.sm) {
-                Text("02")
-                    .font(DashboardTheme.Fonts.mono(11, weight: .medium))
-                    .foregroundStyle(DashboardTheme.accent)
-                
-                Text("API CREDENTIALS")
-                    .font(DashboardTheme.Fonts.sans(11, weight: .semibold))
-                    .foregroundStyle(DashboardTheme.inkMuted)
-                    .tracking(1.5)
-            }
-            
-            VStack(spacing: 0) {
-                // Show relevant key based on provider
-                if transcriptionProvider == .openai {
-                    apiKeyField(
-                        provider: "OpenAI",
-                        hint: "Get your key at platform.openai.com",
-                        key: $state.openAIKey,
-                        isShowing: $state.showOpenAIKey,
-                        placeholder: "sk-..."
-                    ) {
-                        saveAPIKey(openAIKey, service: "AudioWhisper", account: "OpenAI")
-                    }
-                }
 
-                if transcriptionProvider == .gemini {
-                    apiKeyField(
-                        provider: "Gemini",
-                        hint: "Get your key at aistudio.google.com",
-                        key: $state.geminiKey,
-                        isShowing: $state.showGeminiKey,
-                        placeholder: "AIza..."
-                    ) {
-                        saveAPIKey(geminiKey, service: "AudioWhisper", account: "Gemini")
-                    }
-                }
-                
-                // Advanced settings
-                advancedSection
-            }
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(DashboardTheme.cardBg)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(DashboardTheme.rule, lineWidth: 1)
-            )
-        }
-    }
-    
-    private func apiKeyField(
-        provider: String,
-        hint: String,
-        key: Binding<String>,
-        isShowing: Binding<Bool>,
-        placeholder: String,
-        onSave: @escaping () -> Void
-    ) -> some View {
-        VStack(alignment: .leading, spacing: DashboardTheme.Spacing.md) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: DashboardTheme.Spacing.sm) {
-                        Text(provider)
-                            .font(DashboardTheme.Fonts.sans(15, weight: .semibold))
-                            .foregroundStyle(DashboardTheme.ink)
-                        
-                        if !key.wrappedValue.isEmpty {
-                            Image(systemName: "checkmark.circle.fill")
-                                .font(.system(size: 14))
-                                .foregroundStyle(DashboardTheme.success)
-                        }
-                    }
-                    
-                    Text(hint)
-                        .font(DashboardTheme.Fonts.sans(12, weight: .regular))
-                        .foregroundStyle(DashboardTheme.inkMuted)
-                }
-                
-                Spacer()
-            }
-            
-            // Key input field
-            HStack(spacing: DashboardTheme.Spacing.sm) {
-                HStack(spacing: 0) {
-                    Group {
-                        if isShowing.wrappedValue {
-                            TextField(placeholder, text: key)
-                        } else {
-                            SecureField(placeholder, text: key)
-                        }
-                    }
-                    .textFieldStyle(.plain)
-                    .font(DashboardTheme.Fonts.mono(13, weight: .regular))
-                    
-                    Button {
-                        isShowing.wrappedValue.toggle()
-                    } label: {
-                        Image(systemName: isShowing.wrappedValue ? "eye.slash" : "eye")
-                            .font(.system(size: 13))
-                            .foregroundStyle(DashboardTheme.inkMuted)
-                    }
-                    .buttonStyle(.plain)
-                }
-                .padding(.horizontal, DashboardTheme.Spacing.md)
-                .padding(.vertical, DashboardTheme.Spacing.sm + 2)
-                .background(
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(DashboardTheme.pageBg)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6)
-                        .stroke(DashboardTheme.rule, lineWidth: 1)
-                )
-                
-                Button(action: onSave) {
-                    Text("Save")
-                        .font(DashboardTheme.Fonts.sans(13, weight: .medium))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, DashboardTheme.Spacing.md)
-                        .padding(.vertical, DashboardTheme.Spacing.sm + 2)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6)
-                                .fill(DashboardTheme.accent)
-                        )
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(DashboardTheme.Spacing.lg)
-    }
-    
-    private var advancedSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Divider().background(DashboardTheme.rule)
-            
-            Button {
-                withAnimation(.easeOut(duration: 0.2)) {
-                    showAdvancedAPISettings.toggle()
-                }
-            } label: {
-                HStack {
-                    Text("Advanced")
-                        .font(DashboardTheme.Fonts.sans(13, weight: .medium))
-                        .foregroundStyle(DashboardTheme.inkLight)
-                    
-                    Spacer()
-                    
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(DashboardTheme.inkMuted)
-                        .rotationEffect(.degrees(showAdvancedAPISettings ? 90 : 0))
-                }
-                .padding(DashboardTheme.Spacing.md)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            
-            if showAdvancedAPISettings {
-                VStack(alignment: .leading, spacing: DashboardTheme.Spacing.md) {
-                    Text("Custom base URLs for enterprise proxies")
-                        .font(DashboardTheme.Fonts.sans(12, weight: .regular))
-                        .foregroundStyle(DashboardTheme.inkMuted)
-                    
-                    VStack(alignment: .leading, spacing: DashboardTheme.Spacing.xs) {
-                        Text("OpenAI")
-                            .font(DashboardTheme.Fonts.sans(11, weight: .medium))
-                            .foregroundStyle(DashboardTheme.inkMuted)
-                        
-                        TextField("https://api.openai.com/v1", text: $openAIBaseURL)
-                            .textFieldStyle(.plain)
-                            .font(DashboardTheme.Fonts.mono(12, weight: .regular))
-                            .padding(DashboardTheme.Spacing.sm)
-                            .background(
-                                RoundedRectangle(cornerRadius: 4)
-                                    .fill(DashboardTheme.pageBg)
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 4)
-                                    .stroke(DashboardTheme.rule, lineWidth: 1)
-                            )
-                    }
-                    
-                    VStack(alignment: .leading, spacing: DashboardTheme.Spacing.xs) {
-                        Text("Gemini")
-                            .font(DashboardTheme.Fonts.sans(11, weight: .medium))
-                            .foregroundStyle(DashboardTheme.inkMuted)
-                        
-                        TextField("https://generativelanguage.googleapis.com", text: $geminiBaseURL)
-                            .textFieldStyle(.plain)
-                            .font(DashboardTheme.Fonts.mono(12, weight: .regular))
-                            .padding(DashboardTheme.Spacing.sm)
-                            .background(
-                                RoundedRectangle(cornerRadius: 4)
-                                    .fill(DashboardTheme.pageBg)
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 4)
-                                    .stroke(DashboardTheme.rule, lineWidth: 1)
-                            )
-                    }
-                }
-                .padding(DashboardTheme.Spacing.md)
-                .padding(.top, 0)
-            }
-        }
-    }
-    
     // MARK: - Helpers
     func sectionHeader(_ title: String) -> some View {
         Text(title)
@@ -887,7 +620,6 @@ internal struct DashboardProvidersView: View {
             .tracking(0.8)
             .textCase(.uppercase)
     }
-
 }
 
 // MARK: - Testable Helpers
@@ -896,16 +628,10 @@ extension DashboardProvidersView {
     /// Used for testing status badge logic
     static func testableStatusInfo(
         for provider: TranscriptionProvider,
-        openAIKey: String,
-        geminiKey: String,
         downloadedModels: [WhisperModel],
         envReady: Bool
     ) -> (String, Bool) {
         switch provider {
-        case .openai:
-            return openAIKey.isEmpty ? ("Setup", false) : ("Ready", true)
-        case .gemini:
-            return geminiKey.isEmpty ? ("Setup", false) : ("Ready", true)
         case .local:
             return downloadedModels.isEmpty ? ("Setup", false) : ("Ready", true)
         case .parakeet:
@@ -917,10 +643,6 @@ extension DashboardProvidersView {
     /// Used for testing engine card configuration
     static func testableEngineConfig(for provider: TranscriptionProvider) -> (icon: String, tagline: String) {
         switch provider {
-        case .openai:
-            return ("waveform.circle", "Industry-leading accuracy via cloud")
-        case .gemini:
-            return ("sparkles", "Google's multimodal intelligence")
         case .local:
             return ("desktopcomputer", "WhisperKit on Apple Silicon")
         case .parakeet:
@@ -937,11 +659,5 @@ extension DashboardProvidersView {
     static func testableShowsMLXSection(modeRaw: String) -> Bool {
         let mode = SemanticCorrectionMode(rawValue: modeRaw) ?? .off
         return mode == .localMLX
-    }
-
-    /// Returns whether cloud info should be shown based on correction mode
-    static func testableShowsCloudInfo(modeRaw: String) -> Bool {
-        let mode = SemanticCorrectionMode(rawValue: modeRaw) ?? .off
-        return mode == .cloud
     }
 }

@@ -61,7 +61,7 @@ final class UsageMetricsStoreTests: XCTestCase {
 
         let record = TranscriptionRecord(
             text: "Hello world",
-            provider: .openai,
+            provider: .local,
             duration: 12,
             modelUsed: nil,
             wordCount: 2
@@ -81,7 +81,7 @@ final class UsageMetricsStoreTests: XCTestCase {
         let mockDataManager = TestDataManager()
         mockDataManager.isHistoryEnabled = true
         mockDataManager.records = [
-            TranscriptionRecord(text: "ignored", provider: .openai, duration: 30, modelUsed: nil, wordCount: 5)
+            TranscriptionRecord(text: "ignored", provider: .local, duration: 30, modelUsed: nil, wordCount: 5)
         ]
 
         await store.bootstrapIfNeeded(dataManager: mockDataManager)

@@ -10,7 +10,7 @@ internal struct ContentView: View {
 
     // MARK: - Persisted Settings (AppStorage)
 
-    @AppStorage("transcriptionProvider") var transcriptionProvider = TranscriptionProvider.openai
+    @AppStorage("transcriptionProvider") var transcriptionProvider = TranscriptionProvider.parakeet
     @AppStorage("selectedWhisperModel") var selectedWhisperModel = WhisperModel.base
     @AppStorage("immediateRecording") var immediateRecording = true
     @AppStorage("hasShownFirstModelUseHint") var hasShownFirstModelUseHint = false

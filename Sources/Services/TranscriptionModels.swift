@@ -1,38 +1,5 @@
 import Foundation
 
-// MARK: - OpenAI Response Models
-
-internal struct WhisperResponse: Codable {
-    let text: String
-}
-
-// MARK: - Gemini Response Models
-
-internal struct GeminiResponse: Codable {
-    let candidates: [GeminiCandidate]
-}
-
-internal struct GeminiCandidate: Codable {
-    let content: GeminiContent
-}
-
-internal struct GeminiContent: Codable {
-    let parts: [GeminiPart]
-}
-
-internal struct GeminiPart: Codable {
-    let text: String?
-}
-
-internal struct GeminiFileResponse: Codable {
-    let file: GeminiFile
-}
-
-internal struct GeminiFile: Codable {
-    let uri: String
-    let name: String
-}
-
 // MARK: - Transcription Pipeline Configuration
 
 /// Configuration for the transcription pipeline.

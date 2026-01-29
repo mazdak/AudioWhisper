@@ -67,35 +67,11 @@ final class MultiProviderSwitchingTests: XCTestCase {
     }
 
     private func getProvider() -> TranscriptionProvider {
-        let rawValue = testDefaults.string(forKey: "transcriptionProvider") ?? TranscriptionProvider.openai.rawValue
-        return TranscriptionProvider(rawValue: rawValue) ?? .openai
+        let rawValue = testDefaults.string(forKey: "transcriptionProvider") ?? TranscriptionProvider.local.rawValue
+        return TranscriptionProvider(rawValue: rawValue) ?? .local
     }
 
     // MARK: - Provider Switching Tests
-
-    func testSwitchFromOpenAIToGemini() {
-        // Given - OpenAI is selected
-        setProvider(.openai)
-        XCTAssertEqual(getProvider(), .openai)
-
-        // When - Switch to Gemini
-        setProvider(.gemini)
-
-        // Then - Provider is updated
-        XCTAssertEqual(getProvider(), .gemini)
-    }
-
-    func testSwitchFromGeminiToLocal() {
-        // Given - Gemini is selected
-        setProvider(.gemini)
-        XCTAssertEqual(getProvider(), .gemini)
-
-        // When - Switch to Local
-        setProvider(.local)
-
-        // Then - Provider is updated
-        XCTAssertEqual(getProvider(), .local)
-    }
 
     func testSwitchFromLocalToParakeet() {
         // Given - Local is selected
@@ -109,16 +85,16 @@ final class MultiProviderSwitchingTests: XCTestCase {
         XCTAssertEqual(getProvider(), .parakeet)
     }
 
-    func testSwitchFromParakeetToOpenAI() {
+    func testSwitchFromParakeetToLocal() {
         // Given - Parakeet is selected
         setProvider(.parakeet)
         XCTAssertEqual(getProvider(), .parakeet)
 
-        // When - Switch to OpenAI
-        setProvider(.openai)
+        // When - Switch to Local
+        setProvider(.local)
 
         // Then - Provider is updated
-        XCTAssertEqual(getProvider(), .openai)
+        XCTAssertEqual(getProvider(), .local)
     }
 
     // MARK: - Provider Switch Error Handling Tests
@@ -145,25 +121,25 @@ final class MultiProviderSwitchingTests: XCTestCase {
         XCTAssertEqual(getProvider(), .parakeet)
     }
 
-    func testSwitchToCloudWithMissingAPIKey() async throws {
-        // Given - No API key is stored
-        mockKeychain.clear()
+    func testSwitchToParakeetWithoutPythonConfigured() async throws {
+        // Given - Switch to Parakeet provider
+        setProvider(.parakeet)
 
-        // When - Switch to OpenAI
-        setProvider(.openai)
+        // When - Python may not be configured
+        // The system should handle this gracefully
 
-        // Then - Provider is set but transcription would fail without key
-        XCTAssertEqual(getProvider(), .openai)
+        // Then - No crash, provider is set (appropriate error would be shown during transcription)
+        XCTAssertEqual(getProvider(), .parakeet)
     }
 
     // MARK: - Rapid Switching Tests
 
     func testRapidProviderSwitching() {
-        // Given - Start with OpenAI
-        setProvider(.openai)
+        // Given - Start with Local
+        setProvider(.local)
 
         // When - Rapidly switch between providers
-        let providers: [TranscriptionProvider] = [.gemini, .local, .parakeet, .openai, .gemini, .local]
+        let providers: [TranscriptionProvider] = [.parakeet, .local, .parakeet, .local, .parakeet, .local]
 
         for provider in providers {
             setProvider(provider)
@@ -177,7 +153,7 @@ final class MultiProviderSwitchingTests: XCTestCase {
         // Given - Existing records
         let initialRecord = TranscriptionRecord(
             text: "Initial transcription",
-            provider: .openai,
+            provider: .local,
             duration: 5.0
         )
         modelContext.insert(initialRecord)
@@ -185,8 +161,6 @@ final class MultiProviderSwitchingTests: XCTestCase {
 
         // When - Rapidly switch providers
         for _ in 0..<10 {
-            setProvider(.openai)
-            setProvider(.gemini)
             setProvider(.local)
             setProvider(.parakeet)
         }
@@ -207,25 +181,25 @@ final class MultiProviderSwitchingTests: XCTestCase {
         // This is a conceptual test - in practice, switching mid-transcription
         // should complete the current transcription with the original provider
 
-        // Given - Transcription in progress with OpenAI
-        let openAIRecord = TranscriptionRecord(
-            text: "Transcription started with OpenAI",
-            provider: .openai,
+        // Given - Transcription in progress with Local
+        let localRecord = TranscriptionRecord(
+            text: "Transcription started with Local",
+            provider: .local,
             duration: 10.0
         )
-        modelContext.insert(openAIRecord)
+        modelContext.insert(localRecord)
         try modelContext.save()
 
-        // When - Provider is changed to Gemini
-        setProvider(.gemini)
+        // When - Provider is changed to Parakeet
+        setProvider(.parakeet)
 
         // Then - Existing record maintains original provider
         let descriptor = FetchDescriptor<TranscriptionRecord>()
         let records = try modelContext.fetch(descriptor)
 
         XCTAssertEqual(records.count, 1)
-        XCTAssertEqual(records.first?.transcriptionProvider, .openai)
-        XCTAssertEqual(getProvider(), .gemini)
+        XCTAssertEqual(records.first?.transcriptionProvider, .local)
+        XCTAssertEqual(getProvider(), .parakeet)
     }
 
     // MARK: - History Preservation Tests
@@ -233,9 +207,9 @@ final class MultiProviderSwitchingTests: XCTestCase {
     func testProviderSwitchPreservesHistory() async throws {
         // Given - Records from multiple providers
         let records = [
-            TranscriptionRecord(text: "OpenAI text", provider: .openai, duration: 5.0),
-            TranscriptionRecord(text: "Gemini text", provider: .gemini, duration: 6.0),
-            TranscriptionRecord(text: "Local text", provider: .local, duration: 7.0)
+            TranscriptionRecord(text: "Local text", provider: .local, duration: 5.0),
+            TranscriptionRecord(text: "Parakeet text", provider: .parakeet, duration: 6.0),
+            TranscriptionRecord(text: "Another local text", provider: .local, duration: 7.0)
         ]
 
         for record in records {
@@ -245,8 +219,8 @@ final class MultiProviderSwitchingTests: XCTestCase {
 
         // When - Switch between providers
         setProvider(.parakeet)
-        setProvider(.openai)
-        setProvider(.gemini)
+        setProvider(.local)
+        setProvider(.parakeet)
 
         await waitForAsyncOperation()
 
@@ -257,20 +231,19 @@ final class MultiProviderSwitchingTests: XCTestCase {
         XCTAssertEqual(savedRecords.count, 3)
 
         let providers = Set(savedRecords.map { $0.transcriptionProvider })
-        XCTAssertTrue(providers.contains(.openai))
-        XCTAssertTrue(providers.contains(.gemini))
         XCTAssertTrue(providers.contains(.local))
+        XCTAssertTrue(providers.contains(.parakeet))
     }
 
     // MARK: - Provider Configuration Tests
 
     func testProviderSwitchUpdatesUsageMetrics() async throws {
         // Given - Records from different providers
-        let openAIRecord = TranscriptionRecord(text: "Five words are here now", provider: .openai, duration: 5.0)
-        let geminiRecord = TranscriptionRecord(text: "Three words here", provider: .gemini, duration: 3.0)
+        let localRecord = TranscriptionRecord(text: "Five words are here now", provider: .local, duration: 5.0)
+        let parakeetRecord = TranscriptionRecord(text: "Three words here", provider: .parakeet, duration: 3.0)
 
-        modelContext.insert(openAIRecord)
-        modelContext.insert(geminiRecord)
+        modelContext.insert(localRecord)
+        modelContext.insert(parakeetRecord)
         try modelContext.save()
 
         // When - Fetch provider-specific records
@@ -278,18 +251,18 @@ final class MultiProviderSwitchingTests: XCTestCase {
         let allRecords = try modelContext.fetch(descriptor)
 
         // Then - Each provider's records are correctly attributed
-        let openAIRecords = allRecords.filter { $0.transcriptionProvider == .openai }
-        let geminiRecords = allRecords.filter { $0.transcriptionProvider == .gemini }
+        let localRecords = allRecords.filter { $0.transcriptionProvider == .local }
+        let parakeetRecords = allRecords.filter { $0.transcriptionProvider == .parakeet }
 
-        XCTAssertEqual(openAIRecords.count, 1)
-        XCTAssertEqual(geminiRecords.count, 1)
+        XCTAssertEqual(localRecords.count, 1)
+        XCTAssertEqual(parakeetRecords.count, 1)
     }
 
     // MARK: - All Providers Test
 
     func testAllProvidersAreAccessible() {
         // Verify all providers can be set
-        let allProviders: [TranscriptionProvider] = [.openai, .gemini, .local, .parakeet]
+        let allProviders: [TranscriptionProvider] = [.local, .parakeet]
 
         for provider in allProviders {
             setProvider(provider)
@@ -299,7 +272,7 @@ final class MultiProviderSwitchingTests: XCTestCase {
 
     func testProviderDisplayNames() {
         // Verify all providers have display names
-        let allProviders: [TranscriptionProvider] = [.openai, .gemini, .local, .parakeet]
+        let allProviders: [TranscriptionProvider] = [.local, .parakeet]
 
         for provider in allProviders {
             XCTAssertFalse(provider.displayName.isEmpty, "\(provider) should have a display name")
@@ -308,7 +281,7 @@ final class MultiProviderSwitchingTests: XCTestCase {
 
     func testProviderRawValues() {
         // Verify raw values are unique and valid
-        let allProviders: [TranscriptionProvider] = [.openai, .gemini, .local, .parakeet]
+        let allProviders: [TranscriptionProvider] = [.local, .parakeet]
         let rawValues = allProviders.map { $0.rawValue }
 
         XCTAssertEqual(Set(rawValues).count, allProviders.count, "All raw values should be unique")
@@ -316,5 +289,10 @@ final class MultiProviderSwitchingTests: XCTestCase {
         for rawValue in rawValues {
             XCTAssertFalse(rawValue.isEmpty, "Raw value should not be empty")
         }
+    }
+
+    func testProviderAllCasesCount() {
+        // Verify TranscriptionProvider.allCases has the expected count
+        XCTAssertEqual(TranscriptionProvider.allCases.count, 2, "Should have exactly 2 providers (local and parakeet)")
     }
 }

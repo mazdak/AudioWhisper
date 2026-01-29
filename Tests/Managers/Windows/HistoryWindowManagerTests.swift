@@ -118,7 +118,7 @@ final class HistoryWindowManagerTests: XCTestCase {
         // Create a test record
         let record = TranscriptionRecord(
             text: "Test transcription",
-            provider: .openai,
+            provider: .local,
             duration: 5.0,
             sourceAppBundleId: nil,
             sourceAppName: nil,

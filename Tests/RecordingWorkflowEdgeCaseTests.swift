@@ -67,7 +67,7 @@ final class RecordingWorkflowEdgeCaseTests: XCTestCase {
 
         let processingTask = Task {
             try await Task.sleep(for: .milliseconds(100))
-            _ = try await mockSpeechService.transcribeRaw(audioURL: URL(fileURLWithPath: "/tmp/test.m4a"), provider: .openai, model: nil)
+            _ = try await mockSpeechService.transcribeRaw(audioURL: URL(fileURLWithPath: "/tmp/test.m4a"), provider: .local, model: nil)
         }
 
         // Cancel immediately
@@ -97,7 +97,7 @@ final class RecordingWorkflowEdgeCaseTests: XCTestCase {
         let processingTask = Task {
             try await Task.sleep(for: .milliseconds(50))
             try Task.checkCancellation()
-            _ = await mockSemanticService.correct(text: "Test", providerUsed: TranscriptionProvider.openai)
+            _ = await mockSemanticService.correct(text: "Test", providerUsed: TranscriptionProvider.local)
             try Task.checkCancellation()
         }
 
@@ -150,7 +150,7 @@ final class RecordingWorkflowEdgeCaseTests: XCTestCase {
 
         let processingTask = Task {
             try Task.checkCancellation() // Early cancellation check
-            _ = try await mockSpeechService.transcribeRaw(audioURL: URL(fileURLWithPath: "/tmp/test.m4a"), provider: .openai, model: nil)
+            _ = try await mockSpeechService.transcribeRaw(audioURL: URL(fileURLWithPath: "/tmp/test.m4a"), provider: .local, model: nil)
         }
 
         // Cancel immediately before task has chance to start transcription
@@ -351,7 +351,7 @@ final class RecordingWorkflowEdgeCaseTests: XCTestCase {
         var isProcessing = true
 
         do {
-            _ = try await mockSpeechService.transcribeRaw(audioURL: URL(fileURLWithPath: "/tmp/test.m4a"), provider: .openai, model: nil)
+            _ = try await mockSpeechService.transcribeRaw(audioURL: URL(fileURLWithPath: "/tmp/test.m4a"), provider: .local, model: nil)
         } catch {
             errorMessage = error.localizedDescription
             showError = true
@@ -429,7 +429,7 @@ final class RecordingWorkflowEdgeCaseTests: XCTestCase {
         var transcriptionStartTime: Date? = Date()
 
         do {
-            _ = try await mockSpeechService.transcribeRaw(audioURL: URL(fileURLWithPath: "/tmp/test.m4a"), provider: .openai, model: nil)
+            _ = try await mockSpeechService.transcribeRaw(audioURL: URL(fileURLWithPath: "/tmp/test.m4a"), provider: .local, model: nil)
             // On success
             isProcessing = false
             transcriptionStartTime = nil
@@ -448,7 +448,7 @@ final class RecordingWorkflowEdgeCaseTests: XCTestCase {
         var transcriptionStartTime: Date? = Date()
 
         do {
-            _ = try await mockSpeechService.transcribeRaw(audioURL: URL(fileURLWithPath: "/tmp/test.m4a"), provider: .openai, model: nil)
+            _ = try await mockSpeechService.transcribeRaw(audioURL: URL(fileURLWithPath: "/tmp/test.m4a"), provider: .local, model: nil)
         } catch {
             isProcessing = false
             transcriptionStartTime = nil
@@ -465,7 +465,7 @@ final class RecordingWorkflowEdgeCaseTests: XCTestCase {
         let lastAudioURL: URL? = testURL
 
         do {
-            _ = try await mockSpeechService.transcribeRaw(audioURL: testURL, provider: .openai, model: nil)
+            _ = try await mockSpeechService.transcribeRaw(audioURL: testURL, provider: .local, model: nil)
         } catch {
             // Error handling should NOT clear lastAudioURL for retry functionality
             // lastAudioURL remains unchanged
@@ -492,7 +492,7 @@ final class RecordingWorkflowEdgeCaseTests: XCTestCase {
         mockSpeechService.setSuccess("Test result")
 
         do {
-            _ = try await mockSpeechService.transcribeRaw(audioURL: lastAudioURL!, provider: .openai, model: nil)
+            _ = try await mockSpeechService.transcribeRaw(audioURL: lastAudioURL!, provider: .local, model: nil)
             // Success path
             showSuccess = true
             isProcessing = false

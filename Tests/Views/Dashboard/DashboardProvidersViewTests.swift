@@ -24,63 +24,9 @@ final class DashboardProvidersViewTests: XCTestCase {
 
     // MARK: - Status Badge Tests
 
-    func testStatusBadgeOpenAIReadyWithKey() {
-        let (text, isReady) = DashboardProvidersView.testableStatusInfo(
-            for: .openai,
-            openAIKey: "sk-test123",
-            geminiKey: "",
-            downloadedModels: [],
-            envReady: false
-        )
-
-        XCTAssertEqual(text, "Ready")
-        XCTAssertTrue(isReady)
-    }
-
-    func testStatusBadgeOpenAISetupWithoutKey() {
-        let (text, isReady) = DashboardProvidersView.testableStatusInfo(
-            for: .openai,
-            openAIKey: "",
-            geminiKey: "",
-            downloadedModels: [],
-            envReady: false
-        )
-
-        XCTAssertEqual(text, "Setup")
-        XCTAssertFalse(isReady)
-    }
-
-    func testStatusBadgeGeminiReadyWithKey() {
-        let (text, isReady) = DashboardProvidersView.testableStatusInfo(
-            for: .gemini,
-            openAIKey: "",
-            geminiKey: "AIza-test",
-            downloadedModels: [],
-            envReady: false
-        )
-
-        XCTAssertEqual(text, "Ready")
-        XCTAssertTrue(isReady)
-    }
-
-    func testStatusBadgeGeminiSetupWithoutKey() {
-        let (text, isReady) = DashboardProvidersView.testableStatusInfo(
-            for: .gemini,
-            openAIKey: "",
-            geminiKey: "",
-            downloadedModels: [],
-            envReady: false
-        )
-
-        XCTAssertEqual(text, "Setup")
-        XCTAssertFalse(isReady)
-    }
-
     func testStatusBadgeLocalReadyWithModels() {
         let (text, isReady) = DashboardProvidersView.testableStatusInfo(
             for: .local,
-            openAIKey: "",
-            geminiKey: "",
             downloadedModels: [.base],
             envReady: false
         )
@@ -92,8 +38,6 @@ final class DashboardProvidersViewTests: XCTestCase {
     func testStatusBadgeLocalSetupWithoutModels() {
         let (text, isReady) = DashboardProvidersView.testableStatusInfo(
             for: .local,
-            openAIKey: "",
-            geminiKey: "",
             downloadedModels: [],
             envReady: false
         )
@@ -105,8 +49,6 @@ final class DashboardProvidersViewTests: XCTestCase {
     func testStatusBadgeParakeetReadyWithEnv() {
         let (text, isReady) = DashboardProvidersView.testableStatusInfo(
             for: .parakeet,
-            openAIKey: "",
-            geminiKey: "",
             downloadedModels: [],
             envReady: true
         )
@@ -118,8 +60,6 @@ final class DashboardProvidersViewTests: XCTestCase {
     func testStatusBadgeParakeetSetupWithoutEnv() {
         let (text, isReady) = DashboardProvidersView.testableStatusInfo(
             for: .parakeet,
-            openAIKey: "",
-            geminiKey: "",
             downloadedModels: [],
             envReady: false
         )
@@ -129,20 +69,6 @@ final class DashboardProvidersViewTests: XCTestCase {
     }
 
     // MARK: - Engine Config Tests
-
-    func testEngineConfigOpenAI() {
-        let config = DashboardProvidersView.testableEngineConfig(for: .openai)
-
-        XCTAssertEqual(config.icon, "waveform.circle")
-        XCTAssertEqual(config.tagline, "Industry-leading accuracy via cloud")
-    }
-
-    func testEngineConfigGemini() {
-        let config = DashboardProvidersView.testableEngineConfig(for: .gemini)
-
-        XCTAssertEqual(config.icon, "sparkles")
-        XCTAssertEqual(config.tagline, "Google's multimodal intelligence")
-    }
 
     func testEngineConfigLocal() {
         let config = DashboardProvidersView.testableEngineConfig(for: .local)
@@ -180,13 +106,14 @@ final class DashboardProvidersViewTests: XCTestCase {
         XCTAssertEqual(mode, .localMLX)
     }
 
-    func testSemanticCorrectionModeCloud() {
-        let mode = DashboardProvidersView.testableSemanticCorrectionMode(from: "cloud")
-        XCTAssertEqual(mode, .cloud)
-    }
-
     func testSemanticCorrectionModeInvalid() {
         let mode = DashboardProvidersView.testableSemanticCorrectionMode(from: "invalid")
+        XCTAssertNil(mode)
+    }
+
+    func testSemanticCorrectionModeCloudRemoved() {
+        // Cloud mode was removed - should return nil
+        let mode = DashboardProvidersView.testableSemanticCorrectionMode(from: "cloud")
         XCTAssertNil(mode)
     }
 
@@ -200,52 +127,34 @@ final class DashboardProvidersViewTests: XCTestCase {
         XCTAssertFalse(DashboardProvidersView.testableShowsMLXSection(modeRaw: "off"))
     }
 
-    func testHidesMLXSectionWhenModeCloud() {
-        XCTAssertFalse(DashboardProvidersView.testableShowsMLXSection(modeRaw: "cloud"))
-    }
-
     func testHidesMLXSectionWhenModeInvalid() {
         XCTAssertFalse(DashboardProvidersView.testableShowsMLXSection(modeRaw: "invalid"))
-    }
-
-    // MARK: - Cloud Info Visibility Tests
-
-    func testShowsCloudInfoWhenModeCloud() {
-        XCTAssertTrue(DashboardProvidersView.testableShowsCloudInfo(modeRaw: "cloud"))
-    }
-
-    func testHidesCloudInfoWhenModeOff() {
-        XCTAssertFalse(DashboardProvidersView.testableShowsCloudInfo(modeRaw: "off"))
-    }
-
-    func testHidesCloudInfoWhenModeLocalMLX() {
-        XCTAssertFalse(DashboardProvidersView.testableShowsCloudInfo(modeRaw: "localMLX"))
     }
 
     // MARK: - Provider Selection Tests
 
     func testTranscriptionProviderEnumRawValues() {
-        XCTAssertEqual(TranscriptionProvider.openai.rawValue, "openai")
-        XCTAssertEqual(TranscriptionProvider.gemini.rawValue, "gemini")
         XCTAssertEqual(TranscriptionProvider.local.rawValue, "local")
         XCTAssertEqual(TranscriptionProvider.parakeet.rawValue, "parakeet")
     }
 
     func testTranscriptionProviderDisplayNames() {
-        XCTAssertFalse(TranscriptionProvider.openai.displayName.isEmpty)
-        XCTAssertFalse(TranscriptionProvider.gemini.displayName.isEmpty)
         XCTAssertFalse(TranscriptionProvider.local.displayName.isEmpty)
         XCTAssertFalse(TranscriptionProvider.parakeet.displayName.isEmpty)
     }
 
+    func testTranscriptionProviderCount() {
+        XCTAssertEqual(TranscriptionProvider.allCases.count, 2)
+    }
+
     func testProviderSelectionPersistence() {
-        testDefaults.set("gemini", forKey: "transcriptionProvider")
+        testDefaults.set("local", forKey: "transcriptionProvider")
 
         let stored = testDefaults.string(forKey: "transcriptionProvider")
-        XCTAssertEqual(stored, "gemini")
+        XCTAssertEqual(stored, "local")
 
         let provider = TranscriptionProvider(rawValue: stored ?? "")
-        XCTAssertEqual(provider, .gemini)
+        XCTAssertEqual(provider, .local)
     }
 
     // MARK: - Whisper Model Tests
@@ -312,9 +221,9 @@ final class DashboardProvidersViewTests: XCTestCase {
     // MARK: - AppStorage Default Values Tests
 
     func testDefaultTranscriptionProvider() {
-        // Default should be openai
-        let defaultProvider = TranscriptionProvider.openai
-        XCTAssertEqual(defaultProvider.rawValue, "openai")
+        // Default should be parakeet (local-only)
+        let defaultProvider = TranscriptionProvider.parakeet
+        XCTAssertEqual(defaultProvider.rawValue, "parakeet")
     }
 
     func testDefaultWhisperModel() {
@@ -327,55 +236,6 @@ final class DashboardProvidersViewTests: XCTestCase {
         // Default is 5.0 GB
         let defaultStorage = 5.0
         XCTAssertEqual(defaultStorage, 5.0)
-    }
-
-    // MARK: - Credential Toggle Tests
-
-    func testCredentialToggleLogic() {
-        var isShowing = false
-
-        // Toggle on
-        isShowing.toggle()
-        XCTAssertTrue(isShowing)
-
-        // Toggle off
-        isShowing.toggle()
-        XCTAssertFalse(isShowing)
-    }
-
-    // MARK: - Advanced Settings Toggle Tests
-
-    func testAdvancedSettingsToggleLogic() {
-        var showAdvanced = false
-
-        // Toggle on
-        showAdvanced.toggle()
-        XCTAssertTrue(showAdvanced)
-
-        // Toggle off
-        showAdvanced.toggle()
-        XCTAssertFalse(showAdvanced)
-    }
-
-    // MARK: - API Key Save Logic Tests
-
-    func testSaveKeyLogicEmptyKeyDeletes() {
-        // When key is empty, the save function should call delete
-        let key = ""
-        let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
-        XCTAssertTrue(trimmed.isEmpty, "Empty key should trigger delete")
-    }
-
-    func testSaveKeyLogicNonEmptyKeySaves() {
-        let key = "sk-test123"
-        let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
-        XCTAssertFalse(trimmed.isEmpty, "Non-empty key should trigger save")
-    }
-
-    func testSaveKeyTrimsWhitespace() {
-        let key = "  sk-test123  "
-        let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
-        XCTAssertEqual(trimmed, "sk-test123")
     }
 
     // MARK: - Environment Check Logic Tests

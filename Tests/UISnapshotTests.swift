@@ -62,18 +62,6 @@ final class UISnapshotTests: SnapshotTestCase {
 
     // MARK: - Provider View Snapshots
 
-    func testDashboardProvidersViewOpenAISnapshot() {
-        defaults.set(TranscriptionProvider.openai.rawValue, forKey: "transcriptionProvider")
-
-        let view = DashboardProvidersView()
-        assertSnapshot(
-            view,
-            named: "DashboardProvidersView-openai-selected",
-            size: CGSize(width: 750, height: 800),
-            colorScheme: .light
-        )
-    }
-
     func testDashboardProvidersViewLocalSnapshot() {
         defaults.set(TranscriptionProvider.local.rawValue, forKey: "transcriptionProvider")
         defaults.set(WhisperModel.base.rawValue, forKey: "selectedWhisperModel")
@@ -370,13 +358,13 @@ final class UISnapshotTests: SnapshotTestCase {
 
     // MARK: - Provider Selection Dark Mode Snapshots
 
-    func testDashboardProvidersViewGeminiDarkSnapshot() {
-        defaults.set(TranscriptionProvider.gemini.rawValue, forKey: "transcriptionProvider")
+    func testDashboardProvidersViewParakeetDarkSnapshot() {
+        defaults.set(TranscriptionProvider.parakeet.rawValue, forKey: "transcriptionProvider")
 
         let view = DashboardProvidersView()
         assertSnapshot(
             view,
-            named: "DashboardProvidersView-gemini-dark",
+            named: "DashboardProvidersView-parakeet-dark",
             size: CGSize(width: 750, height: 800),
             colorScheme: .dark
         )
@@ -405,18 +393,6 @@ final class UISnapshotTests: SnapshotTestCase {
     }
 
     // MARK: - Correction View Dark Mode Snapshots
-
-    func testDashboardCorrectionViewModeCloudSnapshot() {
-        defaults.set(SemanticCorrectionMode.cloud.rawValue, forKey: "semanticCorrectionMode")
-
-        let view = DashboardCorrectionView()
-        assertSnapshot(
-            view,
-            named: "DashboardCorrectionView-mode-cloud",
-            size: CGSize(width: 750, height: 600),
-            colorScheme: .light
-        )
-    }
 
     func testDashboardCorrectionViewDarkSnapshot() {
         defaults.set(SemanticCorrectionMode.localMLX.rawValue, forKey: "semanticCorrectionMode")
@@ -554,22 +530,22 @@ private extension UISnapshotTests {
         
         let sampleRecords = [
             TranscriptionRecord(
-                text: "This is a sample transcription from OpenAI Whisper service. It demonstrates how the history view will look with longer text content.",
-                provider: .openai,
+                text: "This is a sample transcription from Parakeet service. It demonstrates how the history view will look with longer text content.",
+                provider: .parakeet,
                 duration: 12.5,
-                modelUsed: "large-v3"
+                modelUsed: "parakeet-ctc-1.1b"
             ),
             TranscriptionRecord(
                 text: "Meeting notes about upcoming launch. Includes key dates and action items.",
-                provider: .gemini,
+                provider: .local,
                 duration: 8.3,
-                modelUsed: "gemini-pro"
+                modelUsed: "base"
             ),
             TranscriptionRecord(
                 text: "Quick local test recording to verify offline pipeline works correctly.",
                 provider: .local,
                 duration: 4.2,
-                modelUsed: "base"
+                modelUsed: "tiny"
             )
         ]
         

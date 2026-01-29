@@ -115,12 +115,12 @@ class UtilityTests: XCTestCase {
     
     func testValidURLs() {
         let validURLs = [
-            "https://api.openai.com/v1/audio/transcriptions",
-            "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
-            "https://platform.openai.com/api-keys",
-            "https://makersuite.google.com/app/apikey"
+            "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin",
+            "https://huggingface.co/mlx-community/parakeet-tdt-0.6b-v2",
+            "https://apple.github.io/coremltools",
+            "https://developer.apple.com/documentation"
         ]
-        
+
         for urlString in validURLs {
             let url = URL(string: urlString)
             XCTAssertNotNil(url)

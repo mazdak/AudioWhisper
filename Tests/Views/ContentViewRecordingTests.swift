@@ -92,7 +92,7 @@ final class ContentViewRecordingTests: XCTestCase {
         // Simulate the workflow
         let text = try await mockSpeechService.transcribeRaw(
             audioURL: URL(fileURLWithPath: "/tmp/test.m4a"),
-            provider: .openai,
+            provider: .local,
             model: nil
         )
 
@@ -103,7 +103,7 @@ final class ContentViewRecordingTests: XCTestCase {
         if mode != .off {
             let corrected = await mockSemanticService.correct(
                 text: text,
-                providerUsed: .openai,
+                providerUsed: .local,
                 sourceAppBundleId: nil
             )
             finalText = corrected
@@ -114,14 +114,14 @@ final class ContentViewRecordingTests: XCTestCase {
         XCTAssertEqual(mockSemanticService.lastText, "original text", "Should pass original text to correction")
     }
 
-    func testSemanticCorrectionAppliedWhenModeCloud() async throws {
-        testDefaults.set(SemanticCorrectionMode.cloud.rawValue, forKey: "semanticCorrectionMode")
+    func testSemanticCorrectionAppliedWithParakeetProvider() async throws {
+        testDefaults.set(SemanticCorrectionMode.localMLX.rawValue, forKey: "semanticCorrectionMode")
         mockSpeechService.setSuccess("raw transcription")
-        mockSemanticService.setCorrectionResult("cloud corrected")
+        mockSemanticService.setCorrectionResult("mlx corrected")
 
         let text = try await mockSpeechService.transcribeRaw(
             audioURL: URL(fileURLWithPath: "/tmp/test.m4a"),
-            provider: .gemini,
+            provider: .parakeet,
             model: nil
         )
 
@@ -132,15 +132,15 @@ final class ContentViewRecordingTests: XCTestCase {
         if mode != .off {
             let corrected = await mockSemanticService.correct(
                 text: text,
-                providerUsed: .gemini,
+                providerUsed: .parakeet,
                 sourceAppBundleId: "com.test.app"
             )
             finalText = corrected
         }
 
         XCTAssertEqual(mockSemanticService.correctCallCount, 1)
-        XCTAssertEqual(finalText, "cloud corrected")
-        XCTAssertEqual(mockSemanticService.lastProvider, .gemini)
+        XCTAssertEqual(finalText, "mlx corrected")
+        XCTAssertEqual(mockSemanticService.lastProvider, .parakeet)
     }
 
     func testSemanticCorrectionSkippedWhenModeOff() async throws {
@@ -150,7 +150,7 @@ final class ContentViewRecordingTests: XCTestCase {
 
         let text = try await mockSpeechService.transcribeRaw(
             audioURL: URL(fileURLWithPath: "/tmp/test.m4a"),
-            provider: .openai,
+            provider: .local,
             model: nil
         )
 
@@ -159,7 +159,7 @@ final class ContentViewRecordingTests: XCTestCase {
 
         var finalText = text
         if mode != .off {
-            let corrected = await mockSemanticService.correct(text: text, providerUsed: .openai)
+            let corrected = await mockSemanticService.correct(text: text, providerUsed: .local)
             finalText = corrected
         }
 
@@ -174,7 +174,7 @@ final class ContentViewRecordingTests: XCTestCase {
 
         let text = try await mockSpeechService.transcribeRaw(
             audioURL: URL(fileURLWithPath: "/tmp/test.m4a"),
-            provider: .openai,
+            provider: .local,
             model: nil
         )
 
@@ -183,7 +183,7 @@ final class ContentViewRecordingTests: XCTestCase {
 
         var finalText = text
         if mode != .off {
-            let corrected = await mockSemanticService.correct(text: text, providerUsed: .openai)
+            let corrected = await mockSemanticService.correct(text: text, providerUsed: .local)
             let trimmed = corrected.trimmingCharacters(in: .whitespacesAndNewlines)
             if !trimmed.isEmpty {
                 finalText = corrected
@@ -201,7 +201,7 @@ final class ContentViewRecordingTests: XCTestCase {
 
         let text = try await mockSpeechService.transcribeRaw(
             audioURL: URL(fileURLWithPath: "/tmp/test.m4a"),
-            provider: .openai,
+            provider: .local,
             model: nil
         )
 
@@ -209,7 +209,7 @@ final class ContentViewRecordingTests: XCTestCase {
         if shouldSave {
             let record = TranscriptionRecord(
                 text: text,
-                provider: .openai,
+                provider: .local,
                 duration: 5.0,
                 modelUsed: nil,
                 wordCount: 4,
@@ -232,7 +232,7 @@ final class ContentViewRecordingTests: XCTestCase {
 
         let text = try await mockSpeechService.transcribeRaw(
             audioURL: URL(fileURLWithPath: "/tmp/test.m4a"),
-            provider: .openai,
+            provider: .local,
             model: nil
         )
 
@@ -240,7 +240,7 @@ final class ContentViewRecordingTests: XCTestCase {
         if shouldSave {
             let record = TranscriptionRecord(
                 text: text,
-                provider: .openai,
+                provider: .local,
                 duration: 5.0,
                 modelUsed: nil,
                 wordCount: 4,
@@ -288,11 +288,11 @@ final class ContentViewRecordingTests: XCTestCase {
             "Should include model for local provider")
     }
 
-    func testHistoryRecordExcludesModelForCloudProvider() async throws {
+    func testHistoryRecordExcludesModelForParakeetProvider() async throws {
         mockDataManager.isHistoryEnabled = true
-        mockSpeechService.setSuccess("cloud transcription")
+        mockSpeechService.setSuccess("parakeet transcription")
 
-        let provider = TranscriptionProvider.openai
+        let provider = TranscriptionProvider.parakeet
 
         let text = try await mockSpeechService.transcribeRaw(
             audioURL: URL(fileURLWithPath: "/tmp/test.m4a"),
@@ -316,7 +316,7 @@ final class ContentViewRecordingTests: XCTestCase {
         await mockDataManager.saveTranscriptionQuietly(record)
 
         XCTAssertNil(mockDataManager.recordsToReturn.first?.modelUsed,
-            "Should not include model for cloud provider")
+            "Should not include model for parakeet provider")
     }
 
     // MARK: - Metrics Recording Tests
@@ -326,7 +326,7 @@ final class ContentViewRecordingTests: XCTestCase {
 
         let text = try await mockSpeechService.transcribeRaw(
             audioURL: URL(fileURLWithPath: "/tmp/test.m4a"),
-            provider: .openai,
+            provider: .local,
             model: nil
         )
 
@@ -374,7 +374,7 @@ final class ContentViewRecordingTests: XCTestCase {
         mockSpeechService.setSuccess("transcribed text")
         _ = try await mockSpeechService.transcribeRaw(
             audioURL: URL(fileURLWithPath: "/tmp/test.m4a"),
-            provider: .openai,
+            provider: .local,
             model: nil
         )
         executionOrder.append("transcribe")
@@ -383,7 +383,7 @@ final class ContentViewRecordingTests: XCTestCase {
         let modeRaw = testDefaults.string(forKey: "semanticCorrectionMode") ?? SemanticCorrectionMode.off.rawValue
         let mode = SemanticCorrectionMode(rawValue: modeRaw) ?? .off
         if mode != .off {
-            _ = await mockSemanticService.correct(text: "text", providerUsed: .openai)
+            _ = await mockSemanticService.correct(text: "text", providerUsed: .local)
             executionOrder.append("correct")
         }
 
@@ -490,7 +490,7 @@ final class ContentViewRecordingTests: XCTestCase {
         do {
             _ = try await mockSpeechService.transcribeRaw(
                 audioURL: URL(fileURLWithPath: "/tmp/test.m4a"),
-                provider: .openai,
+                provider: .local,
                 model: nil
             )
         } catch {
@@ -513,7 +513,7 @@ final class ContentViewRecordingTests: XCTestCase {
         do {
             _ = try await mockSpeechService.transcribeRaw(
                 audioURL: URL(fileURLWithPath: "/tmp/test.m4a"),
-                provider: .openai,
+                provider: .local,
                 model: nil
             )
             // Success path
@@ -542,21 +542,8 @@ final class ContentViewRecordingTests: XCTestCase {
         XCTAssertEqual(mockSpeechService.lastModel, .small, "Should pass model for local provider")
     }
 
-    func testCloudProviderOmitsModel() async throws {
-        mockSpeechService.setSuccess("cloud transcription")
-
-        _ = try await mockSpeechService.transcribeRaw(
-            audioURL: URL(fileURLWithPath: "/tmp/test.m4a"),
-            provider: .openai,
-            model: nil
-        )
-
-        XCTAssertEqual(mockSpeechService.lastProvider, .openai)
-        XCTAssertNil(mockSpeechService.lastModel, "Should not pass model for cloud provider")
-    }
-
-    func testParakeetProviderOmitsModel() async throws {
-        mockSpeechService.setSuccess("parakeet transcription")
+    func testParakeetProviderDoesNotUseWhisperModel() async throws {
+        mockSpeechService.setSuccess("parakeet transcription result")
 
         _ = try await mockSpeechService.transcribeRaw(
             audioURL: URL(fileURLWithPath: "/tmp/test.m4a"),
@@ -567,4 +554,5 @@ final class ContentViewRecordingTests: XCTestCase {
         XCTAssertEqual(mockSpeechService.lastProvider, .parakeet)
         XCTAssertNil(mockSpeechService.lastModel, "Should not pass model for parakeet provider")
     }
+
 }

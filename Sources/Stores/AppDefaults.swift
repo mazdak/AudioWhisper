@@ -14,11 +14,6 @@ enum AppDefaults {
         case transcriptionProvider
         case selectedWhisperModel
         case selectedParakeetModel
-        case useOpenAI  // Legacy key
-
-        // API Configuration
-        case openAIBaseURL
-        case geminiBaseURL
 
         // Semantic Correction
         case semanticCorrectionMode
@@ -62,7 +57,7 @@ enum AppDefaults {
         get {
             guard let rawValue = defaults.string(forKey: Key.transcriptionProvider.rawValue),
                   let provider = TranscriptionProvider(rawValue: rawValue) else {
-                return .openai
+                return .parakeet
             }
             return provider
         }
@@ -95,18 +90,6 @@ enum AppDefaults {
         set {
             defaults.set(newValue.rawValue, forKey: Key.selectedParakeetModel.rawValue)
         }
-    }
-
-    // MARK: - API Configuration
-
-    static var openAIBaseURL: String {
-        get { defaults.string(forKey: Key.openAIBaseURL.rawValue) ?? "" }
-        set { defaults.set(newValue, forKey: Key.openAIBaseURL.rawValue) }
-    }
-
-    static var geminiBaseURL: String {
-        get { defaults.string(forKey: Key.geminiBaseURL.rawValue) ?? "" }
-        set { defaults.set(newValue, forKey: Key.geminiBaseURL.rawValue) }
     }
 
     // MARK: - Semantic Correction
@@ -292,14 +275,6 @@ enum AppDefaults {
     static var hasShownFirstModelUseHint: Bool {
         get { defaults.bool(forKey: Key.hasShownFirstModelUseHint.rawValue) }
         set { defaults.set(newValue, forKey: Key.hasShownFirstModelUseHint.rawValue) }
-    }
-
-    // MARK: - Legacy Keys
-
-    /// Legacy key, prefer using transcriptionProvider instead
-    static var useOpenAI: Bool {
-        get { defaults.bool(forKey: Key.useOpenAI.rawValue) }
-        set { defaults.set(newValue, forKey: Key.useOpenAI.rawValue) }
     }
 
     // MARK: - Raw Access

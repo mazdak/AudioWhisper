@@ -12,17 +12,11 @@ internal enum WhisperModelError: Error, LocalizedError, Sendable {
 }
 
 internal enum TranscriptionProvider: String, CaseIterable, Codable, Sendable {
-    case openai = "openai"
-    case gemini = "gemini" 
     case local = "local"
     case parakeet = "parakeet"
-    
+
     var displayName: String {
         switch self {
-        case .openai:
-            return "OpenAI Whisper (Cloud)"
-        case .gemini:
-            return "Google Gemini (Cloud)"
         case .local:
             return "Local Whisper"
         case .parakeet:

@@ -10,7 +10,7 @@ final class TranscriptionRecordRowTests: XCTestCase {
     func testRowCanBeCreatedWithRecord() {
         let record = TranscriptionRecord(
             text: "Test transcription",
-            provider: .openai,
+            provider: .parakeet,
             duration: 5.0
         )
 
@@ -28,7 +28,7 @@ final class TranscriptionRecordRowTests: XCTestCase {
     func testRowBodyDoesNotCrash() {
         let record = TranscriptionRecord(
             text: "Test transcription",
-            provider: .openai,
+            provider: .parakeet,
             duration: 5.0
         )
 
@@ -67,16 +67,6 @@ final class TranscriptionRecordRowTests: XCTestCase {
 // MARK: - Provider Badge Tests
 final class ProviderBadgeTests: XCTestCase {
 
-    func testProviderColorForOpenAI() {
-        let color = providerColor(for: .openai)
-        XCTAssertEqual(color, .green)
-    }
-
-    func testProviderColorForGemini() {
-        let color = providerColor(for: .gemini)
-        XCTAssertEqual(color, .blue)
-    }
-
     func testProviderColorForLocal() {
         let color = providerColor(for: .local)
         XCTAssertEqual(color, .purple)
@@ -87,13 +77,16 @@ final class ProviderBadgeTests: XCTestCase {
         XCTAssertEqual(color, .orange)
     }
 
+    func testAllProvidersHaveColors() {
+        for provider in TranscriptionProvider.allCases {
+            let color = providerColor(for: provider)
+            XCTAssertNotNil(color, "\(provider) should have a color")
+        }
+    }
+
     // Helper matching TranscriptionRecordRow implementation
     private func providerColor(for provider: TranscriptionProvider) -> Color {
         switch provider {
-        case .openai:
-            return .green
-        case .gemini:
-            return .blue
         case .local:
             return .purple
         case .parakeet:
@@ -109,7 +102,7 @@ final class TranscriptionRecordDisplayTests: XCTestCase {
     func testFormattedDateNotEmpty() {
         let record = TranscriptionRecord(
             text: "Test",
-            provider: .openai,
+            provider: .parakeet,
             duration: 5.0
         )
         XCTAssertFalse(record.formattedDate.isEmpty)
@@ -118,7 +111,7 @@ final class TranscriptionRecordDisplayTests: XCTestCase {
     func testFormattedDurationForValidDuration() {
         let record = TranscriptionRecord(
             text: "Test",
-            provider: .openai,
+            provider: .parakeet,
             duration: 5.0
         )
         XCTAssertNotNil(record.formattedDuration)
@@ -127,7 +120,7 @@ final class TranscriptionRecordDisplayTests: XCTestCase {
     func testFormattedDurationForZeroDuration() {
         let record = TranscriptionRecord(
             text: "Test",
-            provider: .openai,
+            provider: .parakeet,
             duration: 0.0
         )
         // Zero duration might return nil or a valid string
@@ -139,10 +132,10 @@ final class TranscriptionRecordDisplayTests: XCTestCase {
     func testTranscriptionProviderProperty() {
         let record = TranscriptionRecord(
             text: "Test",
-            provider: .openai,
+            provider: .parakeet,
             duration: 5.0
         )
-        XCTAssertEqual(record.transcriptionProvider, .openai)
+        XCTAssertEqual(record.transcriptionProvider, .parakeet)
     }
 
     func testTranscriptionProviderRawValueLookup() {
@@ -150,9 +143,19 @@ final class TranscriptionRecordDisplayTests: XCTestCase {
         let unknownProvider = TranscriptionProvider(rawValue: "unknown")
         XCTAssertNil(unknownProvider)
 
+        // Test that removed providers return nil
+        let removedOpenAI = TranscriptionProvider(rawValue: "openai")
+        XCTAssertNil(removedOpenAI)
+
+        let removedGemini = TranscriptionProvider(rawValue: "gemini")
+        XCTAssertNil(removedGemini)
+
         // Test that valid raw values work
-        let validProvider = TranscriptionProvider(rawValue: "openai")
-        XCTAssertEqual(validProvider, .openai)
+        let validProvider = TranscriptionProvider(rawValue: "parakeet")
+        XCTAssertEqual(validProvider, .parakeet)
+
+        let localProvider = TranscriptionProvider(rawValue: "local")
+        XCTAssertEqual(localProvider, .local)
     }
 }
 
@@ -162,13 +165,7 @@ final class RowInteractionTests: XCTestCase {
     func testCopyCallbackIsInvoked() {
         var copyInvoked = false
 
-        let record = TranscriptionRecord(
-            text: "Test",
-            provider: .openai,
-            duration: 5.0
-        )
-
-        // Create row with callback
+        // Create callback
         let onCopy = {
             copyInvoked = true
         }
@@ -212,11 +209,10 @@ final class RecordRowAccessibilityTests: XCTestCase {
     func testAccessibilityLabelFormat() {
         let record = TranscriptionRecord(
             text: "Test",
-            provider: .openai,
+            provider: .parakeet,
             duration: 5.0
         )
 
-        let expectedLabelPattern = "Transcription from .*, using openai"
         let label = "Transcription from \(record.formattedDate), using \(record.provider)"
 
         XCTAssertTrue(label.contains("Transcription from"))

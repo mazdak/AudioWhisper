@@ -16,11 +16,6 @@ final class SemanticCorrectionTypesTests: XCTestCase {
         XCTAssertEqual(mode, .localMLX)
     }
 
-    func testSemanticCorrectionModeCloudCase() {
-        let mode = SemanticCorrectionMode.cloud
-        XCTAssertEqual(mode, .cloud)
-    }
-
     // MARK: - Raw Values Tests
 
     func testSemanticCorrectionModeRawValueOff() {
@@ -29,10 +24,6 @@ final class SemanticCorrectionTypesTests: XCTestCase {
 
     func testSemanticCorrectionModeRawValueLocalMLX() {
         XCTAssertEqual(SemanticCorrectionMode.localMLX.rawValue, "localMLX")
-    }
-
-    func testSemanticCorrectionModeRawValueCloud() {
-        XCTAssertEqual(SemanticCorrectionMode.cloud.rawValue, "cloud")
     }
 
     // MARK: - Init from Raw Value Tests
@@ -47,9 +38,10 @@ final class SemanticCorrectionTypesTests: XCTestCase {
         XCTAssertEqual(mode, .localMLX)
     }
 
-    func testSemanticCorrectionModeFromRawValueCloud() {
+    func testSemanticCorrectionModeFromCloudReturnsNil() {
+        // Cloud mode was removed
         let mode = SemanticCorrectionMode(rawValue: "cloud")
-        XCTAssertEqual(mode, .cloud)
+        XCTAssertNil(mode)
     }
 
     func testSemanticCorrectionModeFromInvalidRawValue() {
@@ -74,11 +66,6 @@ final class SemanticCorrectionTypesTests: XCTestCase {
         XCTAssertEqual(mode.displayName, "Local (MLX)")
     }
 
-    func testDisplayNameCloud() {
-        let mode = SemanticCorrectionMode.cloud
-        XCTAssertEqual(mode.displayName, "Cloud")
-    }
-
     func testAllModesHaveDisplayNames() {
         for mode in SemanticCorrectionMode.allCases {
             XCTAssertFalse(mode.displayName.isEmpty, "\(mode) should have a display name")
@@ -95,12 +82,8 @@ final class SemanticCorrectionTypesTests: XCTestCase {
         XCTAssertTrue(SemanticCorrectionMode.allCases.contains(.localMLX))
     }
 
-    func testAllCasesContainsCloud() {
-        XCTAssertTrue(SemanticCorrectionMode.allCases.contains(.cloud))
-    }
-
     func testAllCasesCount() {
-        XCTAssertEqual(SemanticCorrectionMode.allCases.count, 3)
+        XCTAssertEqual(SemanticCorrectionMode.allCases.count, 2)
     }
 
     // MARK: - Codable Tests
@@ -116,17 +99,26 @@ final class SemanticCorrectionTypesTests: XCTestCase {
     }
 
     func testSemanticCorrectionModeDecodable() throws {
-        let json = "\"cloud\""
+        let json = "\"localMLX\""
         let data = json.data(using: .utf8)!
         let decoder = JSONDecoder()
 
         let mode = try decoder.decode(SemanticCorrectionMode.self, from: data)
 
-        XCTAssertEqual(mode, .cloud)
+        XCTAssertEqual(mode, .localMLX)
     }
 
     func testSemanticCorrectionModeDecodeInvalid() {
         let json = "\"invalid\""
+        let data = json.data(using: .utf8)!
+        let decoder = JSONDecoder()
+
+        XCTAssertThrowsError(try decoder.decode(SemanticCorrectionMode.self, from: data))
+    }
+
+    func testSemanticCorrectionModeDecodeCloudFails() {
+        // Cloud mode was removed
+        let json = "\"cloud\""
         let data = json.data(using: .utf8)!
         let decoder = JSONDecoder()
 
@@ -170,7 +162,7 @@ final class SemanticCorrectionTypesTests: XCTestCase {
 
     func testSemanticCorrectionModeInequality() {
         let mode1 = SemanticCorrectionMode.off
-        let mode2 = SemanticCorrectionMode.cloud
+        let mode2 = SemanticCorrectionMode.localMLX
 
         XCTAssertNotEqual(mode1, mode2)
     }
@@ -178,9 +170,9 @@ final class SemanticCorrectionTypesTests: XCTestCase {
     // MARK: - Hashable Tests
 
     func testSemanticCorrectionModeHashable() {
-        let modes: Set<SemanticCorrectionMode> = [.off, .localMLX, .cloud]
+        let modes: Set<SemanticCorrectionMode> = [.off, .localMLX]
 
-        XCTAssertEqual(modes.count, 3)
+        XCTAssertEqual(modes.count, 2)
     }
 
     func testSemanticCorrectionModeHashConsistency() {
@@ -201,8 +193,6 @@ final class SemanticCorrectionTypesTests: XCTestCase {
             result = "disabled"
         case .localMLX:
             result = "local"
-        case .cloud:
-            result = "cloud"
         }
 
         XCTAssertEqual(result, "local")
@@ -218,35 +208,20 @@ final class SemanticCorrectionTypesTests: XCTestCase {
 
     func testModeRequiresSetup() {
         // off mode doesn't require setup
-        // localMLX and cloud modes require setup
+        // localMLX mode requires setup
         let offRequiresSetup = SemanticCorrectionMode.off != .off
         let localMLXRequiresSetup = SemanticCorrectionMode.localMLX != .off
-        let cloudRequiresSetup = SemanticCorrectionMode.cloud != .off
 
         XCTAssertFalse(offRequiresSetup)
         XCTAssertTrue(localMLXRequiresSetup)
-        XCTAssertTrue(cloudRequiresSetup)
     }
 
     func testModeIsLocal() {
         // Check if mode runs locally
         let offIsLocal = false
         let localMLXIsLocal = SemanticCorrectionMode.localMLX == .localMLX
-        let cloudIsLocal = false
 
         XCTAssertFalse(offIsLocal)
         XCTAssertTrue(localMLXIsLocal)
-        XCTAssertFalse(cloudIsLocal)
-    }
-
-    func testModeIsCloud() {
-        // Check if mode uses cloud
-        let offIsCloud = false
-        let localMLXIsCloud = false
-        let cloudIsCloud = SemanticCorrectionMode.cloud == .cloud
-
-        XCTAssertFalse(offIsCloud)
-        XCTAssertFalse(localMLXIsCloud)
-        XCTAssertTrue(cloudIsCloud)
     }
 }

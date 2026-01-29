@@ -8,7 +8,6 @@ let package = Package(
         .macOS(.v14)
     ],
     dependencies: [
-        .package(url: "https://github.com/Alamofire/Alamofire.git", from: "5.10.2"),
         .package(url: "https://github.com/soffes/HotKey", from: "0.2.1"),
         .package(url: "https://github.com/argmaxinc/WhisperKit.git", from: "0.15.0"),
         .package(url: "https://github.com/nalexn/ViewInspector", from: "0.10.0")
@@ -16,7 +15,7 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "AudioWhisper",
-            dependencies: ["Alamofire", "HotKey", "WhisperKit"],
+            dependencies: ["HotKey", "WhisperKit"],
             path: "Sources",
             exclude: ["VersionInfo.swift.template"],
             resources: [

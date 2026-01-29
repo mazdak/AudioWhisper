@@ -57,7 +57,7 @@ final class TranscriptionHistoryIntegrationTests: XCTestCase {
     
     private func createSampleRecord(
         text: String = "Sample transcription",
-        provider: TranscriptionProvider = .openai,
+        provider: TranscriptionProvider = .local,
         duration: TimeInterval? = 10.5,
         modelUsed: String? = nil
     ) -> TranscriptionRecord {
@@ -88,38 +88,38 @@ final class TranscriptionHistoryIntegrationTests: XCTestCase {
     
     func testCompleteTranscriptionFlow() async throws {
         // Given - Create a new transcription record
-        let originalText = "This is a complete integration test transcription from OpenAI"
+        let originalText = "This is a complete integration test transcription from local whisper"
         let record = createSampleRecord(
             text: originalText,
-            provider: .openai,
+            provider: .local,
             duration: 15.5,
-            modelUsed: "whisper-1"
+            modelUsed: "base"
         )
-        
+
         // When - Save the transcription
         modelContext.insert(record)
         try modelContext.save()
-        
+
         await waitForAsyncOperation()
-        
+
         // Then - Retrieve and verify
         let descriptor = FetchDescriptor<TranscriptionRecord>(
             sortBy: [SortDescriptor(\.date, order: .reverse)]
         )
         let savedRecords = try modelContext.fetch(descriptor)
-        
+
         XCTAssertEqual(savedRecords.count, 1, "Should have exactly one saved record")
-        
+
         let savedRecord = savedRecords[0]
         XCTAssertEqual(savedRecord.text, originalText, "Text should match")
-        XCTAssertEqual(savedRecord.provider, "openai", "Provider should match")
+        XCTAssertEqual(savedRecord.provider, "local", "Provider should match")
         XCTAssertEqual(savedRecord.duration, 15.5, "Duration should match")
-        XCTAssertEqual(savedRecord.modelUsed, "whisper-1", "Model should match")
+        XCTAssertEqual(savedRecord.modelUsed, "base", "Model should match")
         XCTAssertNotNil(savedRecord.date, "Date should be set")
         XCTAssertNotNil(savedRecord.id, "ID should be set")
-        
+
         // Verify computed properties work correctly
-        XCTAssertEqual(savedRecord.transcriptionProvider, .openai)
+        XCTAssertEqual(savedRecord.transcriptionProvider, .local)
         XCTAssertNotNil(savedRecord.formattedDate)
         XCTAssertNotNil(savedRecord.formattedDuration)
         XCTAssertEqual(savedRecord.preview, originalText) // Not truncated
@@ -128,38 +128,32 @@ final class TranscriptionHistoryIntegrationTests: XCTestCase {
     func testMultipleTranscriptionsWorkflow() async throws {
         // Given - Create multiple transcription records
         let records = [
-            createSampleRecord(text: "First transcription", provider: .openai, duration: 5.0),
-            createSampleRecord(text: "Second transcription", provider: .gemini, duration: 10.0),
-            createSampleRecord(text: "Third transcription", provider: .local, duration: 15.0, modelUsed: "base"),
-            createSampleRecord(text: "Fourth transcription", provider: .parakeet, duration: 20.0)
+            createSampleRecord(text: "First transcription", provider: .local, duration: 5.0),
+            createSampleRecord(text: "Second transcription", provider: .parakeet, duration: 10.0)
         ]
-        
+
         // When - Save all records
         for record in records {
             modelContext.insert(record)
         }
         try modelContext.save()
-        
+
         await waitForAsyncOperation()
-        
+
         // Then - Verify all records are saved and ordered correctly
         let descriptor = FetchDescriptor<TranscriptionRecord>(
             sortBy: [SortDescriptor(\.date, order: .reverse)]
         )
         let savedRecords = try modelContext.fetch(descriptor)
-        
-        XCTAssertEqual(savedRecords.count, 4, "Should have all four records")
-        
+
+        XCTAssertEqual(savedRecords.count, 2, "Should have both records")
+
         // Verify they're in reverse chronological order (newest first)
-        XCTAssertEqual(savedRecords[0].text, "Fourth transcription")
-        XCTAssertEqual(savedRecords[1].text, "Third transcription")
-        XCTAssertEqual(savedRecords[2].text, "Second transcription")
-        XCTAssertEqual(savedRecords[3].text, "First transcription")
-        
+        XCTAssertEqual(savedRecords[0].text, "Second transcription")
+        XCTAssertEqual(savedRecords[1].text, "First transcription")
+
         // Verify all providers are represented
         let providers = savedRecords.map { $0.provider }
-        XCTAssertTrue(providers.contains("openai"))
-        XCTAssertTrue(providers.contains("gemini"))
         XCTAssertTrue(providers.contains("local"))
         XCTAssertTrue(providers.contains("parakeet"))
     }
@@ -195,35 +189,35 @@ final class TranscriptionHistoryIntegrationTests: XCTestCase {
             modelContext.delete(record)
         }
         try modelContext.save()
-        
+
         // Given - Create records with diverse content
         let records = [
-            createSampleRecord(text: "Meeting notes about Swift programming", provider: .openai),
-            createSampleRecord(text: "Python tutorial transcript", provider: .gemini),
+            createSampleRecord(text: "Meeting notes about Swift programming", provider: .local),
+            createSampleRecord(text: "Python tutorial transcript", provider: .parakeet),
             createSampleRecord(text: "Swift development discussion", provider: .local, modelUsed: "base"),
             createSampleRecord(text: "JavaScript framework comparison", provider: .parakeet),
-            createSampleRecord(text: "Machine learning concepts explained", provider: .openai),
+            createSampleRecord(text: "Machine learning concepts explained", provider: .local),
             createSampleRecord(text: "Database design principles", provider: .local, modelUsed: "small")
         ]
-        
+
         for record in records {
             modelContext.insert(record)
         }
         try modelContext.save()
-        
+
         await waitForAsyncOperation()
-        
+
         // Test 1: Text-based search
         let allRecords = try modelContext.fetch(FetchDescriptor<TranscriptionRecord>())
         XCTAssertEqual(allRecords.count, 6, "Should have exactly 6 records")
-        
+
         let swiftResults = allRecords.filter { $0.matches(searchQuery: "Swift") }
         XCTAssertEqual(swiftResults.count, 2, "Should find 2 Swift-related records")
-        
+
         // Test 2: Provider-based search
-        let openaiResults = allRecords.filter { $0.matches(searchQuery: "openai") }
-        XCTAssertEqual(openaiResults.count, 2, "Should find 2 OpenAI records")
-        
+        let localResults = allRecords.filter { $0.matches(searchQuery: "local") }
+        XCTAssertEqual(localResults.count, 4, "Should find 4 local records")
+
         // Test 3: Model-based search (search for "tiny" model instead to avoid word collisions)
         let records2 = [
             createSampleRecord(text: "Additional test record", provider: .local, modelUsed: "tiny")
@@ -232,23 +226,23 @@ final class TranscriptionHistoryIntegrationTests: XCTestCase {
             modelContext.insert(record)
         }
         try modelContext.save()
-        
+
         let updatedRecords = try modelContext.fetch(FetchDescriptor<TranscriptionRecord>())
         let tinyModelResults = updatedRecords.filter { $0.matches(searchQuery: "tiny") }
         XCTAssertEqual(tinyModelResults.count, 1, "Should find 1 tiny model record")
-        
+
         // Test 4: Case-insensitive search
         let caseInsensitiveResults = allRecords.filter { $0.matches(searchQuery: "PYTHON") }
         XCTAssertEqual(caseInsensitiveResults.count, 1, "Case-insensitive search should work")
-        
+
         // Test 5: Partial word search
         let partialResults = allRecords.filter { $0.matches(searchQuery: "program") }
         XCTAssertEqual(partialResults.count, 1, "Partial word search should work")
-        
+
         // Test 6: No results
         let noResults = allRecords.filter { $0.matches(searchQuery: "nonexistent") }
         XCTAssertEqual(noResults.count, 0, "Should return no results for non-matching query")
-        
+
         // Test 7: Empty query (should match all)
         let emptyQueryResults = allRecords.filter { $0.matches(searchQuery: "") }
         XCTAssertEqual(emptyQueryResults.count, 6, "Empty query should match all records")
@@ -257,9 +251,9 @@ final class TranscriptionHistoryIntegrationTests: XCTestCase {
     func testSearchWithSpecialCharacters() async throws {
         // Given - Records with special characters
         let records = [
-            createSampleRecord(text: "Email: user@example.com with special chars!", provider: .openai),
+            createSampleRecord(text: "Email: user@example.com with special chars!", provider: .local),
             createSampleRecord(text: "Path: /Users/test/file.txt", provider: .local),
-            createSampleRecord(text: "Code: function() { return 'hello'; }", provider: .gemini),
+            createSampleRecord(text: "Code: function() { return 'hello'; }", provider: .parakeet),
             createSampleRecord(text: "Unicode: café naïve résumé 世界 🌍", provider: .parakeet)
         ]
         
@@ -297,8 +291,8 @@ final class TranscriptionHistoryIntegrationTests: XCTestCase {
     func testSingleRecordDeletion() async throws {
         // Given - Multiple records
         let records = [
-            createSampleRecord(text: "Keep this record", provider: .openai),
-            createSampleRecord(text: "Delete this record", provider: .gemini),
+            createSampleRecord(text: "Keep this record", provider: .local),
+            createSampleRecord(text: "Delete this record", provider: .parakeet),
             createSampleRecord(text: "Keep this one too", provider: .local)
         ]
         
@@ -335,46 +329,46 @@ final class TranscriptionHistoryIntegrationTests: XCTestCase {
         for i in 1...10 {
             records.append(createSampleRecord(
                 text: "Record number \(i)",
-                provider: i % 2 == 0 ? .openai : .gemini
+                provider: i % 2 == 0 ? .local : .parakeet
             ))
         }
-        
+
         for record in records {
             modelContext.insert(record)
         }
         try modelContext.save()
-        
+
         await waitForAsyncOperation()
-        
+
         var allRecords = try modelContext.fetch(FetchDescriptor<TranscriptionRecord>())
         XCTAssertEqual(allRecords.count, 10, "Should start with 10 records")
-        
-        // When - Delete all OpenAI records (should be 5)
-        let openaiRecords = allRecords.filter { $0.provider == "openai" }
-        XCTAssertEqual(openaiRecords.count, 5, "Should have 5 OpenAI records")
-        
-        for record in openaiRecords {
+
+        // When - Delete all local records (should be 5)
+        let localRecords = allRecords.filter { $0.provider == "local" }
+        XCTAssertEqual(localRecords.count, 5, "Should have 5 local records")
+
+        for record in localRecords {
             modelContext.delete(record)
         }
         try modelContext.save()
-        
+
         await waitForAsyncOperation()
-        
+
         // Then - Verify bulk deletion
         allRecords = try modelContext.fetch(FetchDescriptor<TranscriptionRecord>())
         XCTAssertEqual(allRecords.count, 5, "Should have 5 records after bulk deletion")
-        
-        // All remaining should be Gemini records
+
+        // All remaining should be parakeet records
         for record in allRecords {
-            XCTAssertEqual(record.provider, "gemini", "All remaining records should be Gemini")
+            XCTAssertEqual(record.provider, "parakeet", "All remaining records should be parakeet")
         }
     }
     
     func testDeleteAllRecords() async throws {
         // Given - Multiple records
         let records = [
-            createSampleRecord(text: "Record 1", provider: .openai),
-            createSampleRecord(text: "Record 2", provider: .gemini),
+            createSampleRecord(text: "Record 1", provider: .local),
+            createSampleRecord(text: "Record 2", provider: .parakeet),
             createSampleRecord(text: "Record 3", provider: .local),
             createSampleRecord(text: "Record 4", provider: .parakeet)
         ]
@@ -448,8 +442,8 @@ final class TranscriptionHistoryIntegrationTests: XCTestCase {
     func testTranscriptionHistoryViewIntegration() async throws {
         // Given - Records in the database
         let records = [
-            createSampleRecord(text: "First UI test record", provider: .openai),
-            createSampleRecord(text: "Second UI test record", provider: .gemini)
+            createSampleRecord(text: "First UI test record", provider: .local),
+            createSampleRecord(text: "Second UI test record", provider: .parakeet)
         ]
         
         for record in records {
@@ -513,8 +507,8 @@ final class TranscriptionHistoryIntegrationTests: XCTestCase {
     func testRecordDataIntegrity() async throws {
         // Test various record configurations
         let testCases: [(String, TranscriptionProvider, TimeInterval?, String?)] = [
-            ("Short text", .openai, 5.0, nil),
-            ("Medium length text that should not be truncated in preview", .gemini, 125.5, nil),
+            ("Short text", .local, 5.0, nil),
+            ("Medium length text that should not be truncated in preview", .parakeet, 125.5, nil),
             (String(repeating: "Long text ", count: 20), .local, 3665.0, "base"), // > 100 chars for truncation test
             ("", .parakeet, nil, nil), // Edge case: empty text
             ("Special chars: @#$%^&*()_+ 世界 🌍", .local, 0.5, "small")
@@ -597,7 +591,7 @@ final class TranscriptionHistoryIntegrationTests: XCTestCase {
     
     func testDataCorruptionRecovery() async throws {
         // Given - Valid records
-        let validRecord = createSampleRecord(text: "Valid record", provider: .openai)
+        let validRecord = createSampleRecord(text: "Valid record", provider: .local)
         modelContext.insert(validRecord)
         try modelContext.save()
         
@@ -621,8 +615,8 @@ final class TranscriptionHistoryIntegrationTests: XCTestCase {
     func testEmptyAndWhitespaceRecords() async throws {
         // Test edge cases with empty/whitespace content
         let edgeCaseRecords = [
-            createSampleRecord(text: "", provider: .openai),
-            createSampleRecord(text: "   ", provider: .gemini), // Only spaces
+            createSampleRecord(text: "", provider: .local),
+            createSampleRecord(text: "   ", provider: .parakeet), // Only spaces
             createSampleRecord(text: "\n\t\r", provider: .local), // Only whitespace chars
             createSampleRecord(text: "   Valid text with spaces   ", provider: .parakeet)
         ]
@@ -652,8 +646,8 @@ final class TranscriptionHistoryIntegrationTests: XCTestCase {
     func testExtremelyLongText() async throws {
         // Test with very long transcription text
         let veryLongText = String(repeating: "This is a very long transcription text that simulates real-world scenarios where speech-to-text might produce extensive content. ", count: 100) // ~10,000 characters
-        
-        let longRecord = createSampleRecord(text: veryLongText, provider: .openai)
+
+        let longRecord = createSampleRecord(text: veryLongText, provider: .local)
         modelContext.insert(longRecord)
         try modelContext.save()
         
@@ -674,8 +668,8 @@ final class TranscriptionHistoryIntegrationTests: XCTestCase {
     func testConcurrentModifications() async throws {
         // Test concurrent access to the same records
         let initialRecords = [
-            createSampleRecord(text: "Concurrent test 1", provider: .openai),
-            createSampleRecord(text: "Concurrent test 2", provider: .gemini)
+            createSampleRecord(text: "Concurrent test 1", provider: .local),
+            createSampleRecord(text: "Concurrent test 2", provider: .parakeet)
         ]
         
         for record in initialRecords {
@@ -763,7 +757,7 @@ final class TranscriptionHistoryIntegrationTests: XCTestCase {
     func testConcurrentReadOperations() async throws {
         // Setup initial data
         let initialRecords = Array(0..<50).map { i in
-            createSampleRecord(text: "Concurrent read test \(i)", provider: .openai)
+            createSampleRecord(text: "Concurrent read test \(i)", provider: .local)
         }
         
         for record in initialRecords {
@@ -794,12 +788,12 @@ final class TranscriptionHistoryIntegrationTests: XCTestCase {
     
     func testConcurrentWriteAndReadOperations() async throws {
         let operationCount = 20
-        
+
         await withTaskGroup(of: Void.self) { group in
             // Add write operations
             for i in 0..<operationCount {
                 group.addTask { @MainActor in
-                    let record = self.createSampleRecord(text: "Concurrent write \(i)", provider: .openai)
+                    let record = self.createSampleRecord(text: "Concurrent write \(i)", provider: .local)
                     self.modelContext.insert(record)
                     try? self.modelContext.save()
                 }
@@ -823,14 +817,14 @@ final class TranscriptionHistoryIntegrationTests: XCTestCase {
     
     func testDataConsistencyUnderConcurrency() async throws {
         let recordCount = 100
-        
+
         // Task 1: Add records sequentially
         await withTaskGroup(of: Void.self) { group in
             group.addTask { @MainActor in
                 for i in 0..<recordCount {
                     let record = self.createSampleRecord(
                         text: "Sequential record \(i)",
-                        provider: .openai
+                        provider: .local
                     )
                     self.modelContext.insert(record)
                     if i % 10 == 0 { // Save in batches
@@ -865,7 +859,7 @@ final class TranscriptionHistoryIntegrationTests: XCTestCase {
         
         // Verify data integrity
         for record in sequentialRecords {
-            XCTAssertEqual(record.provider, "openai", "Provider should be consistent")
+            XCTAssertEqual(record.provider, "local", "Provider should be consistent")
             XCTAssertTrue(record.text.contains("Sequential"), "Text should contain expected content")
             XCTAssertNotNil(record.id, "ID should be set")
             XCTAssertNotNil(record.date, "Date should be set")
@@ -877,30 +871,30 @@ final class TranscriptionHistoryIntegrationTests: XCTestCase {
     func testSettingsIntegrationWithDataManager() async throws {
         // Test that settings changes affect data manager behavior
         let mockDataManager = MockDataManager()
-        
+
         // Test 1: History enabled
         UserDefaults.standard.set(true, forKey: "transcriptionHistoryEnabled")
         mockDataManager.isHistoryEnabled = true
-        
-        let testRecord = createSampleRecord(text: "Settings integration test", provider: .openai)
-        
+
+        let testRecord = createSampleRecord(text: "Settings integration test", provider: .local)
+
         try await mockDataManager.saveTranscription(testRecord)
-        
+
         await waitForAsyncOperation()
-        
+
         var records = try await mockDataManager.fetchAllRecords()
         XCTAssertEqual(records.count, 1, "Record should be saved when history is enabled")
-        
+
         // Test 2: History disabled
         UserDefaults.standard.set(false, forKey: "transcriptionHistoryEnabled")
         mockDataManager.isHistoryEnabled = false
-        
-        let anotherRecord = createSampleRecord(text: "Should not be saved", provider: .gemini)
-        
+
+        let anotherRecord = createSampleRecord(text: "Should not be saved", provider: .parakeet)
+
         try await mockDataManager.saveTranscription(anotherRecord)
-        
+
         await waitForAsyncOperation()
-        
+
         records = try await mockDataManager.fetchAllRecords()
         XCTAssertEqual(records.count, 1, "No new record should be saved when history is disabled")
     }
@@ -909,11 +903,11 @@ final class TranscriptionHistoryIntegrationTests: XCTestCase {
         // Create records with different dates
         let oldDate = Date().addingTimeInterval(-40 * 24 * 60 * 60) // 40 days ago
         let recentDate = Date().addingTimeInterval(-5 * 24 * 60 * 60) // 5 days ago
-        
-        let oldRecord = createSampleRecord(text: "Old record", provider: .openai)
+
+        let oldRecord = createSampleRecord(text: "Old record", provider: .local)
         oldRecord.date = oldDate
-        
-        let recentRecord = createSampleRecord(text: "Recent record", provider: .gemini)
+
+        let recentRecord = createSampleRecord(text: "Recent record", provider: .parakeet)
         recentRecord.date = recentDate
         
         modelContext.insert(oldRecord)
@@ -954,62 +948,60 @@ final class TranscriptionHistoryIntegrationTests: XCTestCase {
     
     func testTypicalUserWorkflow() async throws {
         // Simulate a typical user workflow over several days
-        
+
         // Day 1: User makes several transcriptions
         let day1Records = [
-            createSampleRecord(text: "Meeting notes from Monday morning standup", provider: .openai, duration: 300.0),
-            createSampleRecord(text: "Voice memo about project ideas", provider: .local, duration: 45.0, modelUsed: "base"),
-            createSampleRecord(text: "Interview transcript with candidate", provider: .gemini, duration: 1800.0)
+            createSampleRecord(text: "Meeting notes from Monday morning standup", provider: .local, duration: 300.0),
+            createSampleRecord(text: "Voice memo about project ideas", provider: .parakeet, duration: 45.0),
+            createSampleRecord(text: "Interview transcript with candidate", provider: .local, duration: 1800.0, modelUsed: "base")
         ]
-        
+
         for record in day1Records {
             record.date = Date().addingTimeInterval(-2 * 24 * 60 * 60) // 2 days ago
             modelContext.insert(record)
         }
         try modelContext.save()
-        
+
         // Day 2: User searches and deletes some records
         await waitForAsyncOperation()
         var allRecords = try modelContext.fetch(FetchDescriptor<TranscriptionRecord>())
-        
+
         // Search for meeting-related records
         let meetingRecords = allRecords.filter { $0.matches(searchQuery: "meeting") }
         XCTAssertEqual(meetingRecords.count, 1, "Should find meeting record")
-        
+
         // Delete the voice memo
         let voiceMemo = allRecords.first { $0.text.contains("Voice memo") }!
         modelContext.delete(voiceMemo)
         try modelContext.save()
-        
+
         // Day 3: User adds more transcriptions and performs bulk operations
         let day3Records = [
-            createSampleRecord(text: "Technical discussion about API design", provider: .openai, duration: 600.0),
+            createSampleRecord(text: "Technical discussion about API design", provider: .local, duration: 600.0),
             createSampleRecord(text: "Customer feedback session recording", provider: .parakeet, duration: 2400.0)
         ]
-        
+
         for record in day3Records {
             modelContext.insert(record)
         }
         try modelContext.save()
-        
+
         await waitForAsyncOperation()
-        
+
         // Final verification
         allRecords = try modelContext.fetch(FetchDescriptor<TranscriptionRecord>())
         XCTAssertEqual(allRecords.count, 4, "Should have 4 records after workflow")
-        
+
         // Test comprehensive search across all records
         let apiRecords = allRecords.filter { $0.matches(searchQuery: "API") }
         XCTAssertEqual(apiRecords.count, 1, "Should find API-related record")
-        
+
         let interviewRecords = allRecords.filter { $0.matches(searchQuery: "interview") }
         XCTAssertEqual(interviewRecords.count, 1, "Should find interview record")
-        
+
         // Test provider distribution
         let providerCounts = Dictionary(grouping: allRecords, by: { $0.provider })
-        XCTAssertEqual(providerCounts["openai"]?.count, 2, "Should have 2 OpenAI records")
-        XCTAssertEqual(providerCounts["gemini"]?.count, 1, "Should have 1 Gemini record")
+        XCTAssertEqual(providerCounts["local"]?.count, 3, "Should have 3 local records")
         XCTAssertEqual(providerCounts["parakeet"]?.count, 1, "Should have 1 Parakeet record")
-        XCTAssertNil(providerCounts["local"], "Local record should have been deleted")
     }
 }

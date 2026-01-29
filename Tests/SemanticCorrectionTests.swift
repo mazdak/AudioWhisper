@@ -8,25 +8,22 @@ final class SemanticCorrectionTests: XCTestCase {
     func testSemanticCorrectionModeRawValues() {
         XCTAssertEqual(SemanticCorrectionMode.off.rawValue, "off")
         XCTAssertEqual(SemanticCorrectionMode.localMLX.rawValue, "localMLX")
-        XCTAssertEqual(SemanticCorrectionMode.cloud.rawValue, "cloud")
     }
-    
+
     func testSemanticCorrectionModeDisplayNames() {
         XCTAssertEqual(SemanticCorrectionMode.off.displayName, "Off")
         XCTAssertEqual(SemanticCorrectionMode.localMLX.displayName, "Local (MLX)")
-        XCTAssertEqual(SemanticCorrectionMode.cloud.displayName, "Cloud")
     }
-    
+
     func testSemanticCorrectionModeAllCases() {
         let allCases = SemanticCorrectionMode.allCases
-        XCTAssertEqual(allCases.count, 3)
+        XCTAssertEqual(allCases.count, 2)
         XCTAssertTrue(allCases.contains(.off))
         XCTAssertTrue(allCases.contains(.localMLX))
-        XCTAssertTrue(allCases.contains(.cloud))
     }
-    
+
     func testSemanticCorrectionModeCodable() {
-        let modes: [SemanticCorrectionMode] = [.off, .localMLX, .cloud]
+        let modes: [SemanticCorrectionMode] = [.off, .localMLX]
         
         for mode in modes {
             // Encode

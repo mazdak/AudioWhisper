@@ -66,18 +66,6 @@ internal struct DashboardCorrectionView: View {
 
                 case .localMLX:
                     localMLXCard
-
-                case .cloud:
-                    SettingsSectionCard(title: "Cloud Correction", icon: "cloud.fill") {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Corrections run on the same cloud provider you chose for transcription (OpenAI or Gemini).")
-                                .font(.footnote)
-                                .foregroundStyle(DashboardTheme.inkMuted)
-                            Text("Use this when you prefer not to download local models or want maximum quality using server models.")
-                                .font(.caption)
-                                .foregroundStyle(DashboardTheme.inkFaint)
-                        }
-                    }
                 }
             }
             .padding(20)
@@ -205,7 +193,7 @@ internal struct DashboardCorrectionView: View {
                 ForEach(mlxEntries.indices, id: \.self) { idx in
                     let entry = mlxEntries[idx]
                     modelRow(entry: entry)
-                    
+
                     if idx < mlxEntries.count - 1 {
                         Divider()
                             .background(DashboardTheme.rule)
@@ -223,9 +211,9 @@ internal struct DashboardCorrectionView: View {
                 Text("Models cached at ~/.cache/huggingface/hub")
                     .font(DashboardTheme.Fonts.sans(11, weight: .regular))
                     .foregroundStyle(DashboardTheme.inkFaint)
-                
+
                 Spacer()
-                
+
                 if modelManager.unusedModelCount > 0 {
                     Button {
                         Task {
@@ -240,7 +228,7 @@ internal struct DashboardCorrectionView: View {
             }
         }
     }
-    
+
     private func modelRow(entry: ModelEntry) -> some View {
         HStack(spacing: DashboardTheme.Spacing.sm) {
             // Selection indicator
@@ -248,21 +236,21 @@ internal struct DashboardCorrectionView: View {
                 Circle()
                     .stroke(entry.isSelected ? DashboardTheme.accent : DashboardTheme.rule, lineWidth: 1.5)
                     .frame(width: 18, height: 18)
-                
+
                 if entry.isSelected {
                     Circle()
                         .fill(DashboardTheme.accent)
                         .frame(width: 10, height: 10)
                 }
             }
-            
+
             // Model info
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: DashboardTheme.Spacing.xs) {
                     Text(entry.title)
                         .font(DashboardTheme.Fonts.mono(12, weight: .medium))
                         .foregroundStyle(DashboardTheme.ink)
-                    
+
                     if let badge = entry.badgeText {
                         Text(badge)
                             .font(DashboardTheme.Fonts.sans(9, weight: .bold))
@@ -273,19 +261,19 @@ internal struct DashboardCorrectionView: View {
                             .clipShape(RoundedRectangle(cornerRadius: 3))
                     }
                 }
-                
+
                 Text(entry.subtitle)
                     .font(DashboardTheme.Fonts.sans(11, weight: .regular))
                     .foregroundStyle(DashboardTheme.inkMuted)
             }
-            
+
             Spacer()
-            
+
             // Size
             Text(entry.sizeText ?? "")
                 .font(DashboardTheme.Fonts.mono(11, weight: .regular))
                 .foregroundStyle(DashboardTheme.inkMuted)
-            
+
             // Status/Action
             if entry.isDownloading {
                 ProgressView()
@@ -296,7 +284,7 @@ internal struct DashboardCorrectionView: View {
                     Text("Installed")
                         .font(DashboardTheme.Fonts.sans(10, weight: .medium))
                         .foregroundStyle(DashboardTheme.inkMuted)
-                    
+
                     Button {
                         entry.onDelete()
                     } label: {
@@ -502,7 +490,7 @@ internal struct DashboardCorrectionView: View {
                 }
                 Task { await modelManager.downloadModel(model.repo) }
             }
-            
+
             // Badge logic: recommend Qwen3-1.7B as best balance
             let badge: String? = model.repo == "mlx-community/Qwen3-1.7B-4bit" ? "RECOMMENDED" : nil
 
@@ -560,8 +548,6 @@ extension DashboardCorrectionView {
             return "disabled_info"
         case .localMLX:
             return "local_mlx_card"
-        case .cloud:
-            return "cloud_info"
         }
     }
 

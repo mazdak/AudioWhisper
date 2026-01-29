@@ -197,9 +197,9 @@ internal extension TranscriptionHistoryView {
             
             // Add sample data
             let sampleRecords = [
-                TranscriptionRecord(text: "This is a sample transcription from OpenAI Whisper service. It demonstrates how the history view will look with longer text content.", provider: .openai, duration: 12.5),
+                TranscriptionRecord(text: "This is a sample transcription from the Parakeet speech engine. It demonstrates how the history view will look with longer text content.", provider: .parakeet, duration: 12.5),
                 TranscriptionRecord(text: "Short test", provider: .local, duration: 2.1, modelUsed: "base"),
-                TranscriptionRecord(text: "Another example transcription that shows how multiple records are displayed in the history view.", provider: .gemini, duration: 8.3)
+                TranscriptionRecord(text: "Another example transcription that shows how multiple records are displayed in the history view.", provider: .parakeet, duration: 8.3)
             ]
             
             for record in sampleRecords {

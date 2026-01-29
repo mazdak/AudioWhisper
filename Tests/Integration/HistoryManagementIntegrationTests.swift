@@ -60,7 +60,7 @@ final class HistoryManagementIntegrationTests: XCTestCase {
 
     private func createRecord(
         text: String,
-        provider: TranscriptionProvider = .openai,
+        provider: TranscriptionProvider = .local,
         duration: TimeInterval? = 10.0
     ) -> TranscriptionRecord {
         TranscriptionRecord(

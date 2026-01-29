@@ -142,7 +142,7 @@ final class SourceUsageStoreTests: XCTestCase {
         let records = [
             TranscriptionRecord(
                 text: "Hello world from app A",
-                provider: .openai,
+                provider: .local,
                 duration: 5.0,
                 modelUsed: nil,
                 wordCount: 50,
@@ -153,7 +153,7 @@ final class SourceUsageStoreTests: XCTestCase {
             ),
             TranscriptionRecord(
                 text: "More text from app A",
-                provider: .openai,
+                provider: .local,
                 duration: 3.0,
                 modelUsed: nil,
                 wordCount: 30,
@@ -164,7 +164,7 @@ final class SourceUsageStoreTests: XCTestCase {
             ),
             TranscriptionRecord(
                 text: "Text from app B",
-                provider: .gemini,
+                provider: .parakeet,
                 duration: 2.0,
                 modelUsed: nil,
                 wordCount: 20,
@@ -219,7 +219,7 @@ final class SourceUsageStoreTests: XCTestCase {
         let records = [
             TranscriptionRecord(
                 text: "Text without bundle",
-                provider: .openai,
+                provider: .local,
                 duration: 5.0,
                 modelUsed: nil,
                 wordCount: 50,
@@ -230,7 +230,7 @@ final class SourceUsageStoreTests: XCTestCase {
             ),
             TranscriptionRecord(
                 text: "Text with empty bundle",
-                provider: .openai,
+                provider: .local,
                 duration: 5.0,
                 modelUsed: nil,
                 wordCount: 30,

@@ -79,14 +79,14 @@ final class AppLifecycleIntegrationTests: XCTestCase {
 
     func testAppLaunchSequenceWithCustomProvider() {
         // Given - Custom provider setting
-        testDefaults.set(TranscriptionProvider.gemini.rawValue, forKey: "transcriptionProvider")
+        testDefaults.set(TranscriptionProvider.parakeet.rawValue, forKey: "transcriptionProvider")
 
         // When - App reads provider
         let providerRaw = testDefaults.string(forKey: "transcriptionProvider")
         let provider = TranscriptionProvider(rawValue: providerRaw ?? "")
 
         // Then - Custom provider is loaded
-        XCTAssertEqual(provider, .gemini)
+        XCTAssertEqual(provider, .parakeet)
     }
 
     func testAppLaunchSequenceWithMissingModel() {
@@ -113,7 +113,7 @@ final class AppLifecycleIntegrationTests: XCTestCase {
         // When - Transcription is saved
         let record = TranscriptionRecord(
             text: recordingText,
-            provider: .openai,
+            provider: .local,
             duration: 5.0
         )
         modelContext.insert(record)
@@ -135,7 +135,7 @@ final class AppLifecycleIntegrationTests: XCTestCase {
         // Given - App has records and state
         let record = TranscriptionRecord(
             text: "Pre-termination record",
-            provider: .openai,
+            provider: .local,
             duration: 3.0
         )
         modelContext.insert(record)
@@ -157,7 +157,7 @@ final class AppLifecycleIntegrationTests: XCTestCase {
         // Given - Previous session left records
         let previousRecord = TranscriptionRecord(
             text: "Previous session transcription",
-            provider: .gemini,
+            provider: .parakeet,
             duration: 8.0
         )
         modelContext.insert(previousRecord)
@@ -222,7 +222,7 @@ final class AppLifecycleIntegrationTests: XCTestCase {
         for i in 1...3 {
             let record = TranscriptionRecord(
                 text: "Session \(i) transcription",
-                provider: .openai,
+                provider: .local,
                 duration: Double(i * 5)
             )
             modelContext.insert(record)
@@ -244,7 +244,7 @@ final class AppLifecycleIntegrationTests: XCTestCase {
         // Given - App has records
         let record = TranscriptionRecord(
             text: "Record before memory pressure",
-            provider: .openai,
+            provider: .parakeet,
             duration: 5.0
         )
         modelContext.insert(record)
