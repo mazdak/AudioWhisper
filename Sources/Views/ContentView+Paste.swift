@@ -20,20 +20,7 @@ private final class ObserverBox: @unchecked Sendable {
     }
 }
 
-/// Thread-safe flag to ensure continuation is resumed exactly once
-private final class ResumedFlag: @unchecked Sendable {
-    private let lock = NSLock()
-    private var _resumed = false
-
-    /// Attempts to resume. Returns true if this is the first call, false otherwise.
-    func tryResume() -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        if _resumed { return false }
-        _resumed = true
-        return true
-    }
-}
+// Note: ResumedFlag is defined in PasteManager.swift
 
 internal extension ContentView {
     func performUserTriggeredPaste() {
