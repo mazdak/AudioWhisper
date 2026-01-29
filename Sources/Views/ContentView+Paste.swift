@@ -21,7 +21,7 @@ private final class ObserverBox: @unchecked Sendable {
 }
 
 /// Thread-safe flag to ensure continuation is resumed exactly once
-internal final class ResumedFlag: @unchecked Sendable {
+private final class ResumedFlag: @unchecked Sendable {
     private let lock = NSLock()
     private var _resumed = false
 

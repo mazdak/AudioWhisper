@@ -81,15 +81,6 @@ internal struct ProviderSelectionCard: View {
 // MARK: - Provider Display Extensions
 
 extension TranscriptionProvider {
-    var displayName: String {
-        switch self {
-        case .openai: return "OpenAI Whisper"
-        case .gemini: return "Google Gemini"
-        case .local: return "WhisperKit"
-        case .parakeet: return "Parakeet MLX"
-        }
-    }
-
     var subtitle: String {
         switch self {
         case .openai: return "Cloud API"
