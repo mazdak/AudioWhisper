@@ -141,7 +141,7 @@ final class WaveformViewsTests: XCTestCase {
 
     func testWaveformContainerProcessingStatus() {
         let container = WaveformContainer(
-            status: .processing(message: "Transcribing..."),
+            status: .processing( "Transcribing..."),
             audioLevel: 0,
             waveformSamples: [],
             frequencyBands: [],
@@ -165,7 +165,7 @@ final class WaveformViewsTests: XCTestCase {
 
     func testWaveformContainerErrorStatus() {
         let container = WaveformContainer(
-            status: .error(message: "Failed"),
+            status: .error( "Failed"),
             audioLevel: 0,
             waveformSamples: [],
             frequencyBands: [],
@@ -276,7 +276,7 @@ final class WaveformViewsTests: XCTestCase {
     }
 
     func testStatusTextProcessing() {
-        let status = AppStatus.processing(message: "Transcribing")
+        let status = AppStatus.processing( "Transcribing")
         let text: String
 
         switch status {
@@ -324,7 +324,7 @@ final class WaveformViewsTests: XCTestCase {
     }
 
     func testStatusTextError() {
-        let status = AppStatus.error(message: "Failed")
+        let status = AppStatus.error( "Failed")
         let text: String
 
         switch status {

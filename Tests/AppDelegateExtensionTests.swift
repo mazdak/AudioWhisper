@@ -1,6 +1,7 @@
 import XCTest
 @testable import AudioWhisper
 
+@MainActor
 final class AppDelegateExtensionTests: XCTestCase {
 
     // MARK: - Lifecycle Tests

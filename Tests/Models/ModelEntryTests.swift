@@ -146,7 +146,7 @@ final class LocalWhisperEntryTests: XCTestCase {
     func testLocalWhisperEntryStatusColorForFailed() {
         let entry = LocalWhisperEntry(
             model: .base,
-            stage: .failed,
+            stage: .failed("Error"),
             estimatedTimeRemaining: nil,
             isDownloaded: false,
             isDownloading: false,
@@ -156,7 +156,7 @@ final class LocalWhisperEntryTests: XCTestCase {
             onDelete: {}
         )
 
-        XCTAssertEqual(entry.statusColor, .red)
+        XCTAssertEqual(entry.statusColor, Color.red)
     }
 
     func testLocalWhisperEntryStatusColorForDownloading() {
@@ -265,7 +265,7 @@ final class MLXEntryTests: XCTestCase {
             onDelete: {}
         )
 
-        XCTAssertEqual(entry.title, model.name)
+        XCTAssertEqual(entry.title, model.displayName)
     }
 
     func testMLXEntryStatusColorForError() {
@@ -283,7 +283,7 @@ final class MLXEntryTests: XCTestCase {
             onDelete: {}
         )
 
-        XCTAssertEqual(entry.statusColor, .red)
+        XCTAssertEqual(entry.statusColor, Color.red)
     }
 
     func testMLXEntryStatusColorForPlease() {
@@ -301,7 +301,7 @@ final class MLXEntryTests: XCTestCase {
             onDelete: {}
         )
 
-        XCTAssertEqual(entry.statusColor, .red)
+        XCTAssertEqual(entry.statusColor, Color.red)
     }
 
     func testMLXEntryStatusColorForDownloading() {
@@ -355,7 +355,7 @@ final class MLXEntryTests: XCTestCase {
             onDelete: {}
         )
 
-        XCTAssertEqual(entry.statusColor, .red)
+        XCTAssertEqual(entry.statusColor, Color.red)
     }
 }
 

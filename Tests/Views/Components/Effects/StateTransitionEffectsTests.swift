@@ -158,7 +158,7 @@ final class StateTransitionEffectsTests: XCTestCase {
     }
 
     func testIsProcessingDetection() {
-        let status = AppStatus.processing(message: "Transcribing...")
+        let status = AppStatus.processing( "Transcribing...")
 
         var isProcessing = false
         if case .processing = status {
@@ -169,7 +169,7 @@ final class StateTransitionEffectsTests: XCTestCase {
     }
 
     func testIsErrorDetection() {
-        let status = AppStatus.error(message: "Failed")
+        let status = AppStatus.error( "Failed")
 
         var isError = false
         if case .error = status {

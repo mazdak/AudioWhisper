@@ -288,7 +288,7 @@ final class UISnapshotTests: SnapshotTestCase {
         defaults.set(WaveformStyle.classic.rawValue, forKey: "waveformStyle")
 
         let view = WaveformContainer(
-            status: .processing(message: "Transcribing..."),
+            status: .processing( "Transcribing..."),
             audioLevel: 0,
             waveformSamples: [],
             frequencyBands: [],
@@ -308,7 +308,7 @@ final class UISnapshotTests: SnapshotTestCase {
         defaults.set(WaveformStyle.classic.rawValue, forKey: "waveformStyle")
 
         let view = WaveformContainer(
-            status: .error(message: "Failed"),
+            status: .error( "Failed"),
             audioLevel: 0,
             waveformSamples: [],
             frequencyBands: [],

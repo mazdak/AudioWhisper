@@ -89,7 +89,7 @@ final class TranscriptionRecordEdgeCaseTests: XCTestCase {
     func testRecordWithEmptyText() {
         let record = TranscriptionRecord(
             text: "",
-            provider: "openai",
+            provider: .openai,
             duration: 5.0
         )
         XCTAssertNotNil(record)
@@ -100,7 +100,7 @@ final class TranscriptionRecordEdgeCaseTests: XCTestCase {
         let longText = String(repeating: "Test ", count: 10000)
         let record = TranscriptionRecord(
             text: longText,
-            provider: "openai",
+            provider: .openai,
             duration: 300.0
         )
         XCTAssertNotNil(record)
@@ -110,7 +110,7 @@ final class TranscriptionRecordEdgeCaseTests: XCTestCase {
     func testRecordWithZeroDuration() {
         let record = TranscriptionRecord(
             text: "Test",
-            provider: "openai",
+            provider: .openai,
             duration: 0.0
         )
         XCTAssertNotNil(record)
@@ -120,38 +120,30 @@ final class TranscriptionRecordEdgeCaseTests: XCTestCase {
     func testRecordWithNegativeDuration() {
         let record = TranscriptionRecord(
             text: "Test",
-            provider: "openai",
+            provider: .openai,
             duration: -5.0
         )
         XCTAssertNotNil(record)
         XCTAssertEqual(record.duration, -5.0)
     }
 
-    func testRecordWithUnknownProvider() {
-        let record = TranscriptionRecord(
-            text: "Test",
-            provider: "unknown_provider",
-            duration: 5.0
-        )
-        XCTAssertNotNil(record)
-        XCTAssertNil(record.transcriptionProvider)
+    func testProviderRawValueLookupWithUnknown() {
+        // Test that invalid raw values return nil when looking up provider
+        let invalidProvider = TranscriptionProvider(rawValue: "unknown_provider")
+        XCTAssertNil(invalidProvider)
     }
 
-    func testRecordWithEmptyProvider() {
-        let record = TranscriptionRecord(
-            text: "Test",
-            provider: "",
-            duration: 5.0
-        )
-        XCTAssertNotNil(record)
-        XCTAssertTrue(record.provider.isEmpty)
+    func testProviderRawValueLookupWithEmpty() {
+        // Test that empty raw value returns nil when looking up provider
+        let emptyProvider = TranscriptionProvider(rawValue: "")
+        XCTAssertNil(emptyProvider)
     }
 
     func testRecordWithSpecialCharactersInText() {
         let specialText = "Test with émojis 🎤 and special chars: <>&\"'"
         let record = TranscriptionRecord(
             text: specialText,
-            provider: "openai",
+            provider: .openai,
             duration: 5.0
         )
         XCTAssertNotNil(record)
@@ -162,7 +154,7 @@ final class TranscriptionRecordEdgeCaseTests: XCTestCase {
         let unicodeText = "日本語テスト 中文测试 العربية"
         let record = TranscriptionRecord(
             text: unicodeText,
-            provider: "gemini",
+            provider: .gemini,
             duration: 10.0
         )
         XCTAssertNotNil(record)

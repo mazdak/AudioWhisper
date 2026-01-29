@@ -10,7 +10,7 @@ final class TranscriptionRecordRowTests: XCTestCase {
     func testRowCanBeCreatedWithRecord() {
         let record = TranscriptionRecord(
             text: "Test transcription",
-            provider: "openai",
+            provider: .openai,
             duration: 5.0
         )
 
@@ -28,7 +28,7 @@ final class TranscriptionRecordRowTests: XCTestCase {
     func testRowBodyDoesNotCrash() {
         let record = TranscriptionRecord(
             text: "Test transcription",
-            provider: "openai",
+            provider: .openai,
             duration: 5.0
         )
 
@@ -47,7 +47,7 @@ final class TranscriptionRecordRowTests: XCTestCase {
     func testExpandedRowDoesNotCrash() {
         let record = TranscriptionRecord(
             text: "Test transcription with more content to display when expanded",
-            provider: "local",
+            provider: .local,
             duration: 10.0
         )
 
@@ -109,7 +109,7 @@ final class TranscriptionRecordDisplayTests: XCTestCase {
     func testFormattedDateNotEmpty() {
         let record = TranscriptionRecord(
             text: "Test",
-            provider: "openai",
+            provider: .openai,
             duration: 5.0
         )
         XCTAssertFalse(record.formattedDate.isEmpty)
@@ -118,7 +118,7 @@ final class TranscriptionRecordDisplayTests: XCTestCase {
     func testFormattedDurationForValidDuration() {
         let record = TranscriptionRecord(
             text: "Test",
-            provider: "openai",
+            provider: .openai,
             duration: 5.0
         )
         XCTAssertNotNil(record.formattedDuration)
@@ -127,7 +127,7 @@ final class TranscriptionRecordDisplayTests: XCTestCase {
     func testFormattedDurationForZeroDuration() {
         let record = TranscriptionRecord(
             text: "Test",
-            provider: "openai",
+            provider: .openai,
             duration: 0.0
         )
         // Zero duration might return nil or a valid string
@@ -139,19 +139,20 @@ final class TranscriptionRecordDisplayTests: XCTestCase {
     func testTranscriptionProviderProperty() {
         let record = TranscriptionRecord(
             text: "Test",
-            provider: "openai",
+            provider: .openai,
             duration: 5.0
         )
         XCTAssertEqual(record.transcriptionProvider, .openai)
     }
 
-    func testTranscriptionProviderForUnknownProvider() {
-        let record = TranscriptionRecord(
-            text: "Test",
-            provider: "unknown",
-            duration: 5.0
-        )
-        XCTAssertNil(record.transcriptionProvider)
+    func testTranscriptionProviderRawValueLookup() {
+        // Test that invalid raw values return nil
+        let unknownProvider = TranscriptionProvider(rawValue: "unknown")
+        XCTAssertNil(unknownProvider)
+
+        // Test that valid raw values work
+        let validProvider = TranscriptionProvider(rawValue: "openai")
+        XCTAssertEqual(validProvider, .openai)
     }
 }
 
@@ -163,7 +164,7 @@ final class RowInteractionTests: XCTestCase {
 
         let record = TranscriptionRecord(
             text: "Test",
-            provider: "openai",
+            provider: .openai,
             duration: 5.0
         )
 
@@ -211,7 +212,7 @@ final class RecordRowAccessibilityTests: XCTestCase {
     func testAccessibilityLabelFormat() {
         let record = TranscriptionRecord(
             text: "Test",
-            provider: "openai",
+            provider: .openai,
             duration: 5.0
         )
 

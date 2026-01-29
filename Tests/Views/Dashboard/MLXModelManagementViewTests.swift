@@ -56,7 +56,7 @@ final class MLXModelManagerViewTests: XCTestCase {
     func testRecommendedModelsHaveNames() {
         let models = MLXModelManager.recommendedModels
         for model in models {
-            XCTAssertFalse(model.name.isEmpty)
+            XCTAssertFalse(model.displayName.isEmpty)
         }
     }
 
@@ -153,7 +153,7 @@ final class ModelEntryAdapterTests: XCTestCase {
             onDelete: {}
         )
 
-        XCTAssertEqual(entry.title, firstModel.name)
+        XCTAssertEqual(entry.title, firstModel.displayName)
         XCTAssertFalse(entry.isDownloaded)
         XCTAssertFalse(entry.isDownloading)
     }

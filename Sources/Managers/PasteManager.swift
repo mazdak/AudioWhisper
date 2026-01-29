@@ -49,7 +49,7 @@ private final class CancelledFlag: @unchecked Sendable {
 
 /// Thread-safe flag to ensure continuation is resumed exactly once.
 /// Used to prevent double-resume when timeout and completion race.
-private final class ResumedFlag: @unchecked Sendable {
+internal final class ResumedFlag: @unchecked Sendable {
     private let lock = NSLock()
     private var _resumed = false
 

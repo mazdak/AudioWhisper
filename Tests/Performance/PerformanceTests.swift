@@ -1,28 +1,6 @@
 import XCTest
 @testable import AudioWhisper
 
-// MARK: - Audio Processing Performance Tests
-final class AudioProcessingPerformanceTests: XCTestCase {
-
-    func testAudioProcessorCreationPerformance() {
-        measure {
-            for _ in 0..<100 {
-                let processor = AudioProcessor()
-                _ = processor
-            }
-        }
-    }
-
-    func testFFTProcessorCreationPerformance() {
-        measure {
-            for _ in 0..<100 {
-                let processor = FFTProcessor()
-                _ = processor
-            }
-        }
-    }
-}
-
 // MARK: - Data Manager Performance Tests
 @MainActor
 final class DataManagerPerformanceTests: XCTestCase {
@@ -32,7 +10,7 @@ final class DataManagerPerformanceTests: XCTestCase {
             for i in 0..<1000 {
                 let record = TranscriptionRecord(
                     text: "Test transcription text \(i)",
-                    provider: "openai",
+                    provider: .openai,
                     duration: Double(i) * 0.5
                 )
                 _ = record
