@@ -72,8 +72,11 @@ swift run --verbose
 ### Running Tests
 
 ```bash
-# Run all tests
-swift test
+# Run all tests (recommended - uses make)
+make test
+
+# Run all tests directly (sequential to prevent flaky tests)
+swift test --no-parallel
 
 # Run specific test suite
 swift test --filter AudioRecorderTests
@@ -81,14 +84,13 @@ swift test --filter SpeechToTextServiceTests
 swift test --filter SettingsViewTests
 
 # Run tests with verbose output
-swift test --verbose
-
-# Run tests in parallel (faster)
-swift test --parallel
+swift test --no-parallel --verbose
 
 # Run tests with code coverage
-swift test --enable-code-coverage
+swift test --no-parallel --enable-code-coverage
 ```
+
+**Note**: Tests run sequentially (`--no-parallel`) to prevent flaky behavior from shared UserDefaults state between test classes.
 
 ### Code Quality Checks
 

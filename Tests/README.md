@@ -39,8 +39,11 @@ Tests/
 ### Command Line
 
 ```bash
-# Run all tests
-swift test
+# Run all tests (recommended - uses make)
+make test
+
+# Run all tests directly (sequential to prevent flaky tests)
+swift test --no-parallel
 
 # Run specific test file
 swift test --filter AudioRecorderTests
@@ -49,11 +52,10 @@ swift test --filter AudioRecorderTests
 swift test --filter AudioRecorderTests.testStartRecordingUpdatesState
 
 # Run tests with verbose output
-swift test --verbose
-
-# Run tests in parallel (faster)
-swift test --parallel
+swift test --no-parallel --verbose
 ```
+
+**Note**: Tests run sequentially (`--no-parallel`) to prevent flaky behavior from shared UserDefaults state between test classes. Do not use `--parallel` as it can cause intermittent test failures.
 
 ### Xcode
 
