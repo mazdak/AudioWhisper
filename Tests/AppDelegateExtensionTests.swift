@@ -37,8 +37,8 @@ final class AppDelegateExtensionTests: XCTestCase {
 
     func testPressAndHoldConfigurationDefaultsAreCorrect() {
         let defaults = PressAndHoldConfiguration.defaults
-        XCTAssertFalse(defaults.enabled, "Press and hold should be disabled by default")
-        XCTAssertEqual(defaults.mode, .toggle, "Default mode should be toggle")
+        XCTAssertTrue(defaults.enabled, "Press and hold should be enabled by default")
+        XCTAssertEqual(defaults.mode, .hold, "Default mode should be hold")
     }
 
     func testPressAndHoldSettingsConfigurationReadsFromUserDefaults() {

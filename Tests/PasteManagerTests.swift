@@ -5,6 +5,13 @@ import AppKit
 @MainActor
 final class PasteManagerTests: XCTestCase {
 
+    override func setUp() {
+        super.setUp()
+        // Ensure clean state before each test
+        UserDefaults.standard.removeObject(forKey: "enableSmartPaste")
+        NSPasteboard.general.clearContents()
+    }
+
     override func tearDown() {
         UserDefaults.standard.removeObject(forKey: "enableSmartPaste")
         NSPasteboard.general.clearContents()

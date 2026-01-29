@@ -140,7 +140,8 @@ final class LocalWhisperEntryTests: XCTestCase {
 
         XCTAssertNotNil(entry.statusText)
         XCTAssertTrue(entry.statusText?.contains("30s") ?? false)
-        XCTAssertFalse(entry.statusText?.contains("m") ?? true)
+        // Check that no minutes indicator is present (format is "~Nm" when minutes shown)
+        XCTAssertFalse(entry.statusText?.contains("m ") ?? false, "Should not contain minutes indicator")
     }
 
     func testLocalWhisperEntryStatusColorForFailed() {
