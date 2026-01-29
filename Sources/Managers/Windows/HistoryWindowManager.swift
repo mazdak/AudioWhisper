@@ -61,7 +61,8 @@ internal final class HistoryWindowManager: NSObject {
         
         // Ensure window doesn't cause app to quit when closed
         window.isReleasedWhenClosed = false
-        
+        window.isRestorable = false
+
         // IMPORTANT: Set delegate before showing window
         windowDelegate = HistoryWindowDelegate(manager: self)
         window.delegate = windowDelegate

@@ -18,6 +18,20 @@ internal extension AppDelegate {
             return
         }
 
+        // Clear any corrupted window state restoration data (one-time migration)
+        if !UserDefaults.standard.bool(forKey: "hasCleanedWindowState") {
+            if let bundleId = Bundle.main.bundleIdentifier {
+                let savedStatePath = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first?
+                    .appendingPathComponent("Saved Application State")
+                    .appendingPathComponent("\(bundleId).savedState")
+                if let path = savedStatePath, FileManager.default.fileExists(atPath: path.path) {
+                    try? FileManager.default.removeItem(at: path)
+                    Logger.app.info("Cleaned up corrupted window state restoration data")
+                }
+            }
+            UserDefaults.standard.set(true, forKey: "hasCleanedWindowState")
+        }
+
         do {
             try DataManager.shared.initialize()
             Logger.app.info("DataManager initialized successfully")

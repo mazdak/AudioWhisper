@@ -54,7 +54,8 @@ internal final class DashboardWindowManager: NSObject, DashboardWindowManaging {
         window.minSize = minimumSize
         window.center()
         window.isReleasedWhenClosed = false
-        
+        window.isRestorable = false
+
         // Follow system appearance
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden

@@ -148,10 +148,8 @@ final class PermissionsViewStateTests: XCTestCase {
 
     func testDefaultSmartPasteState() {
         UserDefaults.standard.removeObject(forKey: "enableSmartPaste")
-        let defaultValue = UserDefaults.standard.bool(forKey: "enableSmartPaste")
-        // Default is true based on AppStorage default
-        // Note: This depends on the @AppStorage default value
-        XCTAssertFalse(defaultValue) // UserDefaults returns false for missing key
+        let defaultValue = AppDefaults.enableSmartPaste
+        XCTAssertTrue(defaultValue, "SmartPaste should default to enabled")
     }
 
     func testSmartPastePersistence() {

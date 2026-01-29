@@ -73,6 +73,7 @@ internal extension AppDelegate {
 
         window.contentView = NSHostingView(rootView: contentView)
         window.center()
+        window.isRestorable = false
 
         window.standardWindowButton(.closeButton)?.isHidden = true
         window.standardWindowButton(.miniaturizeButton)?.isHidden = true
