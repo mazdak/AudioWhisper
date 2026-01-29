@@ -81,6 +81,14 @@ internal enum DashboardTheme {
         static let xl: CGFloat = 32
         static let xxl: CGFloat = 48
     }
+
+    // Corner radius system
+    enum Radius {
+        static let xs: CGFloat = 4
+        static let sm: CGFloat = 6
+        static let md: CGFloat = 8
+        static let lg: CGFloat = 12
+    }
 }
 
 // MARK: - Navigation Item

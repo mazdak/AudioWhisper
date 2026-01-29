@@ -158,11 +158,11 @@ internal struct DashboardProvidersView: View {
             }
         }
         .background(DashboardTheme.pageBg)
-        .sheet(isPresented: $showSetupSheet) {
+        .sheet(isPresented: $state.showSetupSheet) {
             SetupEnvironmentSheet(
-                isPresented: $showSetupSheet,
-                isRunning: $isSettingUp,
-                logs: $setupLogs,
+                isPresented: $state.showSetupSheet,
+                isRunning: $state.isSettingUp,
+                logs: $state.setupLogs,
                 title: setupStatus ?? "Setting up environment…",
                 onStart: { }
             )
@@ -688,20 +688,20 @@ internal struct DashboardProvidersView: View {
                     apiKeyField(
                         provider: "OpenAI",
                         hint: "Get your key at platform.openai.com",
-                        key: $openAIKey,
-                        isShowing: $showOpenAIKey,
+                        key: $state.openAIKey,
+                        isShowing: $state.showOpenAIKey,
                         placeholder: "sk-..."
                     ) {
                         saveAPIKey(openAIKey, service: "AudioWhisper", account: "OpenAI")
                     }
                 }
-                
+
                 if transcriptionProvider == .gemini {
                     apiKeyField(
                         provider: "Gemini",
                         hint: "Get your key at aistudio.google.com",
-                        key: $geminiKey,
-                        isShowing: $showGeminiKey,
+                        key: $state.geminiKey,
+                        isShowing: $state.showGeminiKey,
                         placeholder: "AIza..."
                     ) {
                         saveAPIKey(geminiKey, service: "AudioWhisper", account: "Gemini")
