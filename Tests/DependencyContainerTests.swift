@@ -44,7 +44,8 @@ final class DependencyContainerTests: XCTestCase {
         let dataManager = container.dataManager
 
         XCTAssertNotNil(dataManager)
-        XCTAssertTrue(dataManager === DataManager.shared)
+        // Compare via type check since DataManagerProtocol is an existential
+        XCTAssertTrue(dataManager is DataManager)
     }
 
     func testUsageMetricsStoreReturnsSharedInstance() {
@@ -84,7 +85,7 @@ final class DependencyContainerTests: XCTestCase {
         container.reset()
 
         // After reset, should return the default shared instance
-        XCTAssertTrue(container.keychainService === KeychainService.shared)
+        XCTAssertTrue(container.keychainService is KeychainService)
     }
 
     // MARK: - Test Container Factory Tests

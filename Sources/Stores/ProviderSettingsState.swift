@@ -108,8 +108,7 @@ final class ProviderSettingsState {
     // MARK: - Model State Management
 
     func loadModelStates(from modelManager: ModelManager) {
-        downloadedModels = modelManager.downloadedModels
-        totalModelsSize = modelManager.totalSize
+        downloadedModels = Array(modelManager.downloadedModels)
         for model in WhisperModel.allCases {
             modelDownloadStates[model] = downloadedModels.contains(model)
         }

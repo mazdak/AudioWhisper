@@ -145,6 +145,17 @@ internal struct UvBootstrap {
     }
 
     // Copy pyproject.toml and uv.lock from bundle to per-user project dir
+    /// Check if the Python environment is ready (venv exists with python executable)
+    static func isEnvReady() async -> Bool {
+        do {
+            let proj = try projectDir()
+            let venvPython = proj.appendingPathComponent(".venv/bin/python3")
+            return FileManager.default.isExecutableFile(atPath: venvPython.path)
+        } catch {
+            return false
+        }
+    }
+
     private static func copyProjectFilesIfNeeded(to proj: URL) throws {
         let fm = FileManager.default
         // Check both Bundle.main (build.sh) and SPM module bundle (Xcode builds)

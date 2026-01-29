@@ -24,7 +24,7 @@ final class DependencyContainer {
     private var _modelManager: ModelManager?
     private var _mlxModelManager: MLXModelManager?
     private var _keychainService: KeychainServiceProtocol?
-    private var _dataManager: DataManager?
+    private var _dataManager: (any DataManagerProtocol)?
     private var _usageMetricsStore: UsageMetricsStore?
     private var _permissionManager: PermissionManager?
     private var _pasteManager: PasteManager?
@@ -47,7 +47,7 @@ final class DependencyContainer {
     }
 
     /// Access to the data manager for transcription history
-    var dataManager: DataManager {
+    var dataManager: any DataManagerProtocol {
         _dataManager ?? DataManager.shared
     }
 
@@ -84,7 +84,7 @@ final class DependencyContainer {
     }
 
     /// Register a custom data manager (useful for testing)
-    func register(dataManager: DataManager) {
+    func register(dataManager: any DataManagerProtocol) {
         _dataManager = dataManager
     }
 
@@ -146,7 +146,7 @@ extension DependencyContainer {
     /// Convenience initializer for creating a test container with mock services
     static func forTesting(
         keychainService: KeychainServiceProtocol? = nil,
-        dataManager: DataManager? = nil
+        dataManager: (any DataManagerProtocol)? = nil
     ) -> DependencyContainer {
         let container = DependencyContainer()
         if let keychain = keychainService {
