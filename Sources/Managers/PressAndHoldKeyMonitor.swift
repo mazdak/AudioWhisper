@@ -221,12 +221,13 @@ internal final class PressAndHoldKeyMonitor {
     private func handleModifierEvent(_ event: NSEvent) {
         guard event.type == .flagsChanged, event.keyCode == configuration.key.keyCode else { return }
 
+        // Determine key state from the event's modifier flags, not by toggling.
+        // This makes transitions idempotent - multiple events for the same state
+        // are handled correctly by the guard in processTransition.
+        let keyIsCurrentlyDown = event.modifierFlags.contains(configuration.key.modifierFlag)
+
         monitorQueue.async { [weak self] in
-            guard let self = self else { return }
-            // Read isPressed once inside the queue to avoid race conditions
-            // with optional chaining that could access self multiple times
-            let currentlyPressed = self.isPressed
-            self.processTransition(isKeyDownEvent: !currentlyPressed)
+            self?.processTransition(isKeyDownEvent: keyIsCurrentlyDown)
         }
     }
 
