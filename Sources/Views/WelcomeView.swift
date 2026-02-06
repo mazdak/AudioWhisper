@@ -2,10 +2,11 @@ import SwiftUI
 import AppKit
 
 internal struct WelcomeView: View {
-    @State private var modelManager = ModelManager()
-    @AppStorage("transcriptionProvider") private var transcriptionProvider = TranscriptionProvider.local.rawValue
-    @AppStorage("selectedWhisperModel") private var selectedWhisperModel = WhisperModel.base
+    @State private var modelManager = ModelManager.shared
+    @AppStorage(AppDefaults.Keys.transcriptionProvider) private var transcriptionProvider = AppDefaults.defaultTranscriptionProvider.rawValue
+    @AppStorage(AppDefaults.Keys.selectedWhisperModel) private var selectedWhisperModel = AppDefaults.defaultWhisperModel
     @State private var isDownloadingModel = false
+    @State private var downloadError: String?
     @Environment(\.dismiss) private var dismiss
     
     private var downloadProgress: Double {
@@ -40,6 +41,9 @@ internal struct WelcomeView: View {
             height: LayoutMetrics.Welcome.windowSize.height
         )
         .background(Color(NSColor.windowBackgroundColor))
+        .onAppear {
+            Task { await modelManager.refreshModelStates() }
+        }
     }
     
     private var headerSection: some View {
@@ -111,6 +115,13 @@ internal struct WelcomeView: View {
             } else {
                 setupOptions
             }
+
+            if let downloadError, !downloadError.isEmpty {
+                Text(downloadError)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             
             smartPasteInstructions
         }
@@ -137,19 +148,13 @@ internal struct WelcomeView: View {
                 Spacer()
             }
             
-            ProgressView(value: downloadProgress) {
-                HStack {
-                    Text(downloadStageText)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    if downloadProgress > 0 {
-                        Text("\(Int(downloadProgress * 100))%")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
+            ProgressView()
+                .controlSize(.small)
+
+            Text(downloadStageText)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
             
             Text("The Base model (142MB) provides good accuracy with fast performance.")
                 .font(.caption)
@@ -235,18 +240,45 @@ internal struct WelcomeView: View {
     
     
     private func startWithLocalWhisper() {
-        // Prevent multiple executions
         guard !isDownloadingModel && !isDismissing else { return }
-        
-        // Set the settings
-        UserDefaults.standard.set(TranscriptionProvider.local.rawValue, forKey: "transcriptionProvider")
-        UserDefaults.standard.set(true, forKey: "hasCompletedWelcome")
-        UserDefaults.standard.set("1.1", forKey: "lastWelcomeVersion") // Match version in AppSetupHelper
-        
-        // Notify that welcome is complete and show dashboard
-        NotificationCenter.default.post(name: .welcomeCompleted, object: nil)
-        DashboardWindowManager.shared.showDashboardWindow()
-        
+
+        downloadError = nil
+
+        // Ensure the default model is available before completing the welcome flow.
+        let model = selectedWhisperModel
+        if WhisperKitStorage.isModelDownloaded(model) {
+            completeWelcome()
+            return
+        }
+
+        isDownloadingModel = true
+        Task {
+            do {
+                try await modelManager.downloadModel(model)
+                await modelManager.refreshModelStates()
+                await MainActor.run {
+                    isDownloadingModel = false
+                }
+                await MainActor.run {
+                    completeWelcome()
+                }
+            } catch {
+                await MainActor.run {
+                    isDownloadingModel = false
+                    downloadError = error.localizedDescription.isEmpty ? String(describing: error) : error.localizedDescription
+                }
+            }
+        }
+    }
+
+    @MainActor
+    private func completeWelcome() {
+        // Persist defaults so service-layer code that reads UserDefaults directly is deterministic.
+        UserDefaults.standard.set(AppDefaults.defaultTranscriptionProvider.rawValue, forKey: AppDefaults.Keys.transcriptionProvider)
+        UserDefaults.standard.set(AppDefaults.defaultWhisperModel.rawValue, forKey: AppDefaults.Keys.selectedWhisperModel)
+        UserDefaults.standard.set(true, forKey: AppDefaults.Keys.hasCompletedWelcome)
+        UserDefaults.standard.set(AppDefaults.currentWelcomeVersion, forKey: AppDefaults.Keys.lastWelcomeVersion)
+
         dismissWindow()
     }
     

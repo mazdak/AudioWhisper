@@ -214,6 +214,8 @@ internal struct InkRippleRecordingView: View {
             return "Listening..."
         case .processing(let message):
             return message
+        case .downloadingModel(let message):
+            return message
         case .success:
             return "Done"
         case .ready:
@@ -231,6 +233,8 @@ internal struct InkRippleRecordingView: View {
             return "stop.fill"
         case .processing:
             return "ellipsis"
+        case .downloadingModel:
+            return "mic.fill"
         case .success:
             return "checkmark"
         case .ready, .permissionRequired:
@@ -246,6 +250,8 @@ internal struct InkRippleRecordingView: View {
             return inkColor
         case .processing:
             return mutedColor.opacity(0.3)
+        case .downloadingModel:
+            return inkColor.opacity(0.15)
         case .success:
             return Color(red: 0.35, green: 0.55, blue: 0.40)
         case .ready:
@@ -261,6 +267,8 @@ internal struct InkRippleRecordingView: View {
             return .white
         case .processing:
             return mutedColor
+        case .downloadingModel:
+            return inkColor
         case .ready:
             return inkColor
         case .permissionRequired, .error:

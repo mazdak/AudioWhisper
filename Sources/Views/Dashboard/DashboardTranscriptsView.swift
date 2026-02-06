@@ -8,19 +8,18 @@ internal struct DashboardTranscriptsView: View {
                 TranscriptionHistoryView()
                     .modelContainer(container)
             } else {
-                VStack(spacing: DashboardTheme.Spacing.md) {
+                VStack(spacing: 12) {
                     Image(systemName: "doc.text")
                         .font(.system(size: 32, weight: .light))
-                        .foregroundStyle(DashboardTheme.inkFaint)
+                        .foregroundStyle(.secondary)
                     
                     Text("History not available")
-                        .font(DashboardTheme.Fonts.sans(14, weight: .medium))
-                        .foregroundStyle(DashboardTheme.inkMuted)
+                        .font(.headline)
+                        .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .background(DashboardTheme.pageBg)
     }
 }
 

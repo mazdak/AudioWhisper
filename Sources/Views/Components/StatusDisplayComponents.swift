@@ -95,6 +95,8 @@ internal struct StatusMessage: View {
             return "Currently recording audio"
         case .processing(let message):
             return "Processing: \(message)"
+        case .downloadingModel(let message):
+            return "Downloading model: \(message)"
         case .success:
             return "Transcription completed successfully"
         case .ready:

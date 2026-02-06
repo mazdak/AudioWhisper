@@ -10,6 +10,7 @@ internal final class DashboardWindowManager: NSObject {
     
     private weak var dashboardWindow: NSWindow?
     private var windowDelegate: DashboardWindowDelegate?
+    private let selectionModel = DashboardSelectionModel()
     private let isTestEnvironment: Bool
     
     private override init() {
@@ -18,9 +19,13 @@ internal final class DashboardWindowManager: NSObject {
     }
     
     /// Shows the dashboard window, creating it if necessary or bringing existing one to front
-    func showDashboardWindow() {
+    func showDashboardWindow(selectedNav: DashboardNavItem? = nil) {
         if isTestEnvironment {
             return
+        }
+
+        if let selectedNav {
+            selectionModel.selectedNav = selectedNav
         }
         
         if let existingWindow = dashboardWindow, existingWindow.isVisible {
@@ -29,7 +34,7 @@ internal final class DashboardWindowManager: NSObject {
             return
         }
         
-        let dashboardView = DashboardView()
+        let dashboardView = DashboardView(selectionModel: selectionModel)
         
         let hostingController = NSHostingController(rootView: dashboardView)
         let initialSize = LayoutMetrics.DashboardWindow.initialSize
@@ -48,10 +53,6 @@ internal final class DashboardWindowManager: NSObject {
         window.minSize = minimumSize
         window.center()
         window.isReleasedWhenClosed = false
-        
-        // Follow system appearance
-        window.titlebarAppearsTransparent = true
-        window.titleVisibility = .hidden
         
         windowDelegate = DashboardWindowDelegate(manager: self)
         window.delegate = windowDelegate

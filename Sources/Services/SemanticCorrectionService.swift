@@ -24,7 +24,15 @@ internal final class SemanticCorrectionService {
     }
 
     func correct(text: String, providerUsed: TranscriptionProvider, sourceAppBundleId: String? = nil) async -> String {
-        let modeRaw = UserDefaults.standard.string(forKey: "semanticCorrectionMode") ?? SemanticCorrectionMode.off.rawValue
+        let outcome = await correctWithWarning(text: text, providerUsed: providerUsed, sourceAppBundleId: sourceAppBundleId)
+        return outcome.text
+    }
+
+    /// Like `correct(...)`, but returns a warning string when semantic correction is enabled but cannot run.
+    ///
+    /// This is used by the recording UI to reduce "silent failure" confusion for local MLX correction.
+    func correctWithWarning(text: String, providerUsed: TranscriptionProvider, sourceAppBundleId: String? = nil) async -> (text: String, warning: String?) {
+        let modeRaw = UserDefaults.standard.string(forKey: AppDefaults.Keys.semanticCorrectionMode) ?? SemanticCorrectionMode.off.rawValue
         let mode = SemanticCorrectionMode(rawValue: modeRaw) ?? .off
 
         let category = categoryFor(bundleId: sourceAppBundleId)
@@ -32,7 +40,7 @@ internal final class SemanticCorrectionService {
         
         switch mode {
         case .off:
-            return text
+            return (text, nil)
         case .localMLX:
             // Allow local MLX correction regardless of STT provider
             logger.info("Running local MLX correction")
@@ -41,19 +49,23 @@ internal final class SemanticCorrectionService {
             switch providerUsed {
             case .openai:
                 logger.info("Running cloud correction: OpenAI")
-                return await correctWithOpenAI(text: text, category: category)
+                return (await correctWithOpenAI(text: text, category: category), nil)
             case .gemini:
                 logger.info("Running cloud correction: Gemini")
-                return await correctWithGemini(text: text, category: category)
-            case .local, .parakeet: return text // don't send local text to cloud
+                return (await correctWithGemini(text: text, category: category), nil)
+            case .local, .parakeet:
+                // Don't send local text to cloud.
+                return (text, nil)
             }
         }
     }
 
     // MARK: - Local (MLX)
-    private func correctLocallyWithMLX(text: String, category: CategoryDefinition) async -> String {
-        guard Arch.isAppleSilicon else { return text }
-        let modelRepo = UserDefaults.standard.string(forKey: "semanticCorrectionModelRepo") ?? "mlx-community/Llama-3.2-1B-Instruct-4bit"
+    private func correctLocallyWithMLX(text: String, category: CategoryDefinition) async -> (text: String, warning: String?) {
+        guard Arch.isAppleSilicon else {
+            return (text, "Local semantic correction requires an Apple Silicon Mac.")
+        }
+        let modelRepo = UserDefaults.standard.string(forKey: AppDefaults.Keys.semanticCorrectionModelRepo) ?? AppDefaults.defaultSemanticCorrectionModelRepo
         do {
             let pyURL = try UvBootstrap.ensureVenv(userPython: nil)
             let prompt = loadPrompt(for: category)
@@ -64,10 +76,10 @@ internal final class SemanticCorrectionService {
             } else {
                 logger.info("MLX correction applied changes")
             }
-            return merged
+            return (merged, nil)
         } catch {
             logger.error("MLX correction failed: \(error.localizedDescription)")
-            return text
+            return (text, "Semantic correction unavailable (Local MLX). Open Settings → Providers to install dependencies and download the model.")
         }
     }
 

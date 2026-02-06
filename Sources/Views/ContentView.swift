@@ -2,10 +2,11 @@ import SwiftUI
 import AVFoundation
 
 internal struct ContentView: View {
-    @State var audioRecorder: AudioRecorder
-    @AppStorage("transcriptionProvider") var transcriptionProvider = TranscriptionProvider.openai
-    @AppStorage("selectedWhisperModel") var selectedWhisperModel = WhisperModel.base
-    @AppStorage("immediateRecording") var immediateRecording = false
+    @ObservedObject var audioRecorder: AudioRecorder
+    @AppStorage(AppDefaults.Keys.transcriptionProvider) var transcriptionProvider = AppDefaults.defaultTranscriptionProvider
+    @AppStorage(AppDefaults.Keys.selectedWhisperModel) var selectedWhisperModel = AppDefaults.defaultWhisperModel
+    @AppStorage(AppDefaults.Keys.immediateRecording) var immediateRecording = false
+    @State var modelManager = ModelManager.shared
     @State var speechService: SpeechToTextService
     @State var pasteManager = PasteManager()
     @State var statusViewModel = StatusViewModel()
@@ -40,7 +41,7 @@ internal struct ContentView: View {
     
     init(speechService: SpeechToTextService = SpeechToTextService(), audioRecorder: AudioRecorder) {
         self._speechService = State(initialValue: speechService)
-        self._audioRecorder = State(initialValue: audioRecorder)
+        self.audioRecorder = audioRecorder
     }
     
     private func showErrorAlert() {
@@ -107,6 +108,24 @@ internal struct ContentView: View {
             updateStatus()
         }
         .onChange(of: showSuccess) { _, _ in
+            updateStatus()
+        }
+        .onChange(of: transcriptionProvider) { _, _ in
+            if transcriptionProvider == .local {
+                startWhisperModelDownloadIfNeeded(selectedWhisperModel)
+            }
+            updateStatus()
+        }
+        .onChange(of: selectedWhisperModel) { _, _ in
+            if transcriptionProvider == .local {
+                startWhisperModelDownloadIfNeeded(selectedWhisperModel)
+            }
+            updateStatus()
+        }
+        .onChange(of: modelManager.downloadStages[selectedWhisperModel]?.displayText ?? "") { _, _ in
+            updateStatus()
+        }
+        .onChange(of: modelManager.downloadingModels.contains(selectedWhisperModel)) { _, _ in
             updateStatus()
         }
         .onChange(of: showError) { _, newValue in

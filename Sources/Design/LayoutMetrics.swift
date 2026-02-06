@@ -3,8 +3,8 @@ import CoreGraphics
 /// Centralized layout metrics to avoid scattered magic numbers.
 internal enum LayoutMetrics {
     enum RecordingWindow {
-        static let size = CGSize(width: 220, height: 200)
-        static let cornerRadius: CGFloat = 16
+        static let size = CGSize(width: 280, height: 220)
+        static let cornerRadius: CGFloat = 12
     }
     
     enum DashboardWindow {

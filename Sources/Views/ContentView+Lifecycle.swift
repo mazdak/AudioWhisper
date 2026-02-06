@@ -7,6 +7,9 @@ internal extension ContentView {
         setupNotificationObservers()
         permissionManager.checkPermissionState()
         loadStoredTranscriptionProvider()
+        if transcriptionProvider == .local {
+            startWhisperModelDownloadIfNeeded(selectedWhisperModel)
+        }
         updateStatus()
     }
     

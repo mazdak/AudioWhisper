@@ -39,7 +39,7 @@ internal extension DashboardProvidersView {
                     Text("Save")
                         .font(DashboardTheme.Fonts.sans(12, weight: .medium))
                 }
-                .buttonStyle(PaperButtonStyle())
+                .buttonStyle(.bordered)
             }
 
             HStack(spacing: DashboardTheme.Spacing.sm) {
@@ -50,17 +50,8 @@ internal extension DashboardProvidersView {
                         SecureField(placeholder, text: text)
                     }
                 }
-                .textFieldStyle(.plain)
+                .textFieldStyle(.roundedBorder)
                 .font(DashboardTheme.Fonts.mono(12, weight: .regular))
-                .padding(DashboardTheme.Spacing.sm)
-                .background(
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(DashboardTheme.cardBgAlt)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 4)
-                        .stroke(DashboardTheme.rule, lineWidth: 1)
-                )
 
                 Button {
                     isShowing.wrappedValue.toggle()

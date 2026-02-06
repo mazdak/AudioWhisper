@@ -139,12 +139,12 @@ internal struct UnifiedModelRow: View {
                     await MainActor.run { isDeleting = false }
                 }
             }
-            .buttonStyle(PaperButtonStyle())
+            .buttonStyle(.bordered)
             .frame(width: 72)
             .disabled(isDeleting)
         } else {
             Button("Get") { onDownload() }
-                .buttonStyle(PaperAccentButtonStyle())
+                .buttonStyle(.borderedProminent)
                 .frame(width: 72)
         }
     }

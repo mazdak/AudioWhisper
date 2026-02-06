@@ -6,14 +6,47 @@ internal extension ContentView {
     }
     
     func updateStatus() {
+        let modelDownloadMessage = currentModelDownloadMessage()
         statusViewModel.updateStatus(
             isRecording: audioRecorder.isRecording,
             isProcessing: isProcessing,
+            modelDownloadMessage: modelDownloadMessage,
             progressMessage: progressMessage,
             hasPermission: audioRecorder.hasPermission,
             showSuccess: showSuccess,
             errorMessage: showError ? errorMessage : nil
         )
+    }
+
+    private func currentModelDownloadMessage() -> String? {
+        guard audioRecorder.hasPermission else { return nil }
+        guard transcriptionProvider == .local else { return nil }
+
+        let model = selectedWhisperModel
+        if WhisperKitStorage.isModelDownloaded(model) { return nil }
+
+        if let stage = modelManager.downloadStages[model] {
+            switch stage {
+            case .preparing:
+                return "Preparing \(model.displayName) model…"
+            case .downloading:
+                return "Downloading \(model.displayName) model…"
+            case .processing:
+                return "Processing \(model.displayName) model…"
+            case .completing:
+                return "Finalizing \(model.displayName) model…"
+            case .ready:
+                return nil
+            case .failed:
+                return "Model download failed — open Settings"
+            }
+        }
+
+        if modelManager.downloadingModels.contains(model) {
+            return "Downloading \(model.displayName) model…"
+        }
+
+        return "Model not downloaded — open Settings"
     }
     
     func recordSourceUsage(words: Int, characters: Int) {
