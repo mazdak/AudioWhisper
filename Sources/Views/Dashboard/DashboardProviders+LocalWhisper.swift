@@ -4,54 +4,35 @@ internal extension DashboardProvidersView {
     // MARK: - Local Whisper Section
     @ViewBuilder
     var localWhisperCard: some View {
-        VStack(alignment: .leading, spacing: DashboardTheme.Spacing.lg) {
-            // Section label
-            HStack(spacing: DashboardTheme.Spacing.sm) {
-                Text("02")
-                    .font(DashboardTheme.Fonts.mono(11, weight: .medium))
-                    .foregroundStyle(DashboardTheme.accent)
-                
-                Text("LOCAL MODELS")
-                    .font(DashboardTheme.Fonts.sans(11, weight: .semibold))
-                    .foregroundStyle(DashboardTheme.inkMuted)
-                    .tracking(1.5)
-                
-                Spacer()
-                
+        VStack(alignment: .leading, spacing: DashboardTheme.Spacing.md) {
+            HStack {
                 Button {
                     Task { await modelManager.refreshModelStates() }
                 } label: {
-                    Image(systemName: "arrow.clockwise")
+                    Label("Refresh", systemImage: "arrow.clockwise")
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(DashboardTheme.inkMuted)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.bordered)
+
+                Spacer()
             }
-            
+
             VStack(spacing: 0) {
                 // Model list
                 ForEach(WhisperModel.allCases, id: \.self) { model in
                     whisperModelRow(model)
-                    
+
                     if model != WhisperModel.allCases.last {
                         Divider()
                             .background(DashboardTheme.rule)
                     }
                 }
-                
+
                 Divider().background(DashboardTheme.rule)
-                
+
                 // Storage footer
                 storageFooter
             }
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(DashboardTheme.cardBg)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(DashboardTheme.rule, lineWidth: 1)
-            )
             
             // Error message
             if let error = downloadError {
@@ -62,12 +43,6 @@ internal extension DashboardProvidersView {
                         .font(DashboardTheme.Fonts.sans(12, weight: .regular))
                 }
                 .foregroundStyle(Color(red: 0.75, green: 0.30, blue: 0.28))
-                .padding(DashboardTheme.Spacing.md)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(Color(red: 0.75, green: 0.30, blue: 0.28).opacity(0.08))
-                )
             }
         }
     }
@@ -152,18 +127,10 @@ internal extension DashboardProvidersView {
                         .buttonStyle(.plain)
                     }
                 } else {
-                    Button {
+                    Button("Get") {
                         downloadModel(model)
-                    } label: {
-                        Text("Get")
-                            .font(DashboardTheme.Fonts.sans(11, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 5)
-                            .background(DashboardTheme.accent)
-                            .clipShape(RoundedRectangle(cornerRadius: 5))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.borderedProminent)
                 }
             }
         }

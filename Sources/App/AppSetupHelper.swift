@@ -131,8 +131,7 @@ internal class AppSetupHelper {
         let hasCompletedWelcome = UserDefaults.standard.bool(forKey: "hasCompletedWelcome")
         let lastWelcomeVersion = UserDefaults.standard.string(forKey: "lastWelcomeVersion") ?? "0"
         
-        // Current version that includes SmartPaste feature
-        let currentWelcomeVersion = "1.1" // Update this when SmartPaste feature is released
+        let currentWelcomeVersion = AppDefaults.currentWelcomeVersion
         
         // Show welcome for new users OR existing users who haven't seen the SmartPaste welcome
         let shouldShowWelcome = (!hasExistingProvider && !hasCompletedWelcome) || (lastWelcomeVersion != currentWelcomeVersion)

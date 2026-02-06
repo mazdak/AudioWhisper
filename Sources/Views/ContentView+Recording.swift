@@ -7,6 +7,12 @@ internal extension ContentView {
             permissionManager.requestPermissionWithEducation()
             return
         }
+
+        // If the user selected local Whisper, ensure the model download has started so recording can proceed
+        // and transcription can wait on the download if needed.
+        if transcriptionProvider == .local {
+            startWhisperModelDownloadIfNeeded(selectedWhisperModel)
+        }
         
         lastAudioURL = nil
         
@@ -45,6 +51,7 @@ internal extension ContentView {
                 
                 let text: String
                 if transcriptionProvider == .local {
+                    try await ensureWhisperModelIsReadyForTranscription(selectedWhisperModel)
                     text = try await speechService.transcribeRaw(audioURL: audioURL, provider: transcriptionProvider, model: selectedWhisperModel)
                 } else {
                     text = try await speechService.transcribeRaw(audioURL: audioURL, provider: transcriptionProvider)
@@ -52,16 +59,19 @@ internal extension ContentView {
                 
                 try Task.checkCancellation()
                 
-                let modeRaw = UserDefaults.standard.string(forKey: "semanticCorrectionMode") ?? SemanticCorrectionMode.off.rawValue
+                let modeRaw = UserDefaults.standard.string(forKey: AppDefaults.Keys.semanticCorrectionMode) ?? SemanticCorrectionMode.off.rawValue
                 let mode = SemanticCorrectionMode(rawValue: modeRaw) ?? .off
                 var finalText = text
                 let sourceBundleId: String? = await MainActor.run { currentSourceAppInfo().bundleIdentifier }
                 if mode != .off {
                     await MainActor.run { progressMessage = "Semantic correction..." }
-                    let corrected = await semanticCorrectionService.correct(text: text, providerUsed: transcriptionProvider, sourceAppBundleId: sourceBundleId)
-                    let trimmed = corrected.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let outcome = await semanticCorrectionService.correctWithWarning(text: text, providerUsed: transcriptionProvider, sourceAppBundleId: sourceBundleId)
+                    if let warning = outcome.warning {
+                        await MainActor.run { progressMessage = warning }
+                    }
+                    let trimmed = outcome.text.trimmingCharacters(in: .whitespacesAndNewlines)
                     if !trimmed.isEmpty {
-                        finalText = corrected
+                        finalText = outcome.text
                     }
                 }
                 let wordCount = UsageMetricsStore.estimatedWordCount(for: finalText)
@@ -112,7 +122,7 @@ internal extension ContentView {
                         showError = true
                         isProcessing = false
                         transcriptionStartTime = nil
-                        DashboardWindowManager.shared.showDashboardWindow()
+                        DashboardWindowManager.shared.showDashboardWindow(selectedNav: .providers)
                         if shouldHintThisRun { hasShownFirstModelUseHint = true; showFirstModelUseHint = false }
                     }
                 } else if let pe = error as? ParakeetError, pe == .modelNotReady {
@@ -121,7 +131,7 @@ internal extension ContentView {
                         showError = true
                         isProcessing = false
                         transcriptionStartTime = nil
-                        DashboardWindowManager.shared.showDashboardWindow()
+                        DashboardWindowManager.shared.showDashboardWindow(selectedNav: .providers)
                         if shouldHintThisRun { hasShownFirstModelUseHint = true; showFirstModelUseHint = false }
                     }
                 } else {
@@ -155,6 +165,7 @@ internal extension ContentView {
 
                 let text: String
                 if transcriptionProvider == .local {
+                    try await ensureWhisperModelIsReadyForTranscription(selectedWhisperModel)
                     text = try await speechService.transcribeRaw(audioURL: audioURL, provider: transcriptionProvider, model: selectedWhisperModel)
                 } else {
                     text = try await speechService.transcribeRaw(audioURL: audioURL, provider: transcriptionProvider)
@@ -162,16 +173,19 @@ internal extension ContentView {
 
                 try Task.checkCancellation()
 
-                let modeRaw = UserDefaults.standard.string(forKey: "semanticCorrectionMode") ?? SemanticCorrectionMode.off.rawValue
+                let modeRaw = UserDefaults.standard.string(forKey: AppDefaults.Keys.semanticCorrectionMode) ?? SemanticCorrectionMode.off.rawValue
                 let mode = SemanticCorrectionMode(rawValue: modeRaw) ?? .off
                 var finalText = text
                 let sourceBundleId: String? = await MainActor.run { currentSourceAppInfo().bundleIdentifier }
                 if mode != .off {
                     await MainActor.run { progressMessage = "Semantic correction..." }
-                    let corrected = await semanticCorrectionService.correct(text: text, providerUsed: transcriptionProvider, sourceAppBundleId: sourceBundleId)
-                    let trimmed = corrected.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let outcome = await semanticCorrectionService.correctWithWarning(text: text, providerUsed: transcriptionProvider, sourceAppBundleId: sourceBundleId)
+                    if let warning = outcome.warning {
+                        await MainActor.run { progressMessage = warning }
+                    }
+                    let trimmed = outcome.text.trimmingCharacters(in: .whitespacesAndNewlines)
                     if !trimmed.isEmpty {
-                        finalText = corrected
+                        finalText = outcome.text
                     }
                 }
                 let wordCount = UsageMetricsStore.estimatedWordCount(for: finalText)
@@ -226,7 +240,7 @@ internal extension ContentView {
                         showError = true
                         isProcessing = false
                         transcriptionStartTime = nil
-                        DashboardWindowManager.shared.showDashboardWindow()
+                        DashboardWindowManager.shared.showDashboardWindow(selectedNav: .providers)
                         if shouldHintThisRun { hasShownFirstModelUseHint = true; showFirstModelUseHint = false }
                     }
                 } else if let pe = error as? ParakeetError, pe == .modelNotReady {
@@ -235,7 +249,7 @@ internal extension ContentView {
                         showError = true
                         isProcessing = false
                         transcriptionStartTime = nil
-                        DashboardWindowManager.shared.showDashboardWindow()
+                        DashboardWindowManager.shared.showDashboardWindow(selectedNav: .providers)
                         if shouldHintThisRun { hasShownFirstModelUseHint = true; showFirstModelUseHint = false }
                     }
                 } else {
@@ -322,7 +336,7 @@ internal extension ContentView {
                 NSPasteboard.general.setString(text, forType: .string)
 
                 let enableSmartPaste = UserDefaults.standard.bool(forKey: "enableSmartPaste")
-                let modeRaw = UserDefaults.standard.string(forKey: "semanticCorrectionMode") ?? SemanticCorrectionMode.off.rawValue
+                let modeRaw = UserDefaults.standard.string(forKey: AppDefaults.Keys.semanticCorrectionMode) ?? SemanticCorrectionMode.off.rawValue
                 let mode = SemanticCorrectionMode(rawValue: modeRaw) ?? .off
                 let shouldAwaitSemanticForPaste = enableSmartPaste && ((mode == .localMLX) || (mode == .cloud && (transcriptionProvider == .openai || transcriptionProvider == .gemini)))
 
@@ -333,7 +347,11 @@ internal extension ContentView {
                     }
                     let capturedBundleId: String? = await MainActor.run { currentSourceAppInfo().bundleIdentifier }
                     Task.detached { [text, transcriptionProvider, capturedBundleId] in
-                        let corrected = await semanticCorrectionService.correct(text: text, providerUsed: transcriptionProvider, sourceAppBundleId: capturedBundleId)
+                        let outcome = await semanticCorrectionService.correctWithWarning(text: text, providerUsed: transcriptionProvider, sourceAppBundleId: capturedBundleId)
+                        if let warning = outcome.warning {
+                            await MainActor.run { progressMessage = warning }
+                        }
+                        let corrected = outcome.text
                         let shouldSave2: Bool = await MainActor.run { DataManager.shared.isHistoryEnabled }
                         if shouldSave2 {
                             let modelUsed: String? = await MainActor.run { (transcriptionProvider == .local) ? self.selectedWhisperModel.rawValue : nil }
@@ -368,7 +386,11 @@ internal extension ContentView {
                     }
                     let capturedBundleId2: String? = await MainActor.run { currentSourceAppInfo().bundleIdentifier }
                     Task.detached { [text, transcriptionProvider, capturedBundleId2] in
-                        let corrected = await semanticCorrectionService.correct(text: text, providerUsed: transcriptionProvider, sourceAppBundleId: capturedBundleId2)
+                        let outcome = await semanticCorrectionService.correctWithWarning(text: text, providerUsed: transcriptionProvider, sourceAppBundleId: capturedBundleId2)
+                        if let warning = outcome.warning {
+                            await MainActor.run { progressMessage = warning }
+                        }
+                        let corrected = outcome.text
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(corrected, forType: .string)
                         let shouldSave3: Bool = await MainActor.run { DataManager.shared.isHistoryEnabled }
@@ -423,9 +445,99 @@ internal extension ContentView {
     
     private func isLocalModelInvocationPlanned() -> Bool {
         if transcriptionProvider == .local || transcriptionProvider == .parakeet { return true }
-        let modeRaw = UserDefaults.standard.string(forKey: "semanticCorrectionMode") ?? SemanticCorrectionMode.off.rawValue
+        let modeRaw = UserDefaults.standard.string(forKey: AppDefaults.Keys.semanticCorrectionMode) ?? SemanticCorrectionMode.off.rawValue
         let mode = SemanticCorrectionMode(rawValue: modeRaw) ?? .off
         if mode == .localMLX { return true }
         return false
+    }
+
+    func startWhisperModelDownloadIfNeeded(_ model: WhisperModel) {
+        guard !WhisperKitStorage.isModelDownloaded(model) else { return }
+        guard !(modelManager.downloadStages[model]?.isActive ?? false) else { return }
+        guard !modelManager.downloadingModels.contains(model) else { return }
+
+        Task {
+            do {
+                try await modelManager.downloadModel(model)
+                await modelManager.refreshModelStates()
+            } catch {
+                // Don't alert while recording; the transcription flow will surface errors if the model is still missing.
+            }
+        }
+    }
+
+    private func ensureWhisperModelIsReadyForTranscription(_ model: WhisperModel) async throws {
+        if WhisperKitStorage.isModelDownloaded(model) { return }
+
+        await MainActor.run {
+            progressMessage = "Downloading \(model.displayName) model…"
+        }
+
+        do {
+            try await modelManager.downloadModel(model)
+            await modelManager.refreshModelStates()
+        } catch let err as ModelError where err == .alreadyDownloading {
+            try await waitForWhisperModelDownload(model)
+        }
+
+        if !WhisperKitStorage.isModelDownloaded(model) {
+            throw LocalWhisperError.modelNotDownloaded
+        }
+    }
+
+    private func waitForWhisperModelDownload(_ model: WhisperModel) async throws {
+        let timeout: TimeInterval = 20 * 60 // 20 minutes
+        let startedAt = Date()
+        var didRetry = false
+
+        while true {
+            try Task.checkCancellation()
+
+            if WhisperKitStorage.isModelDownloaded(model) { return }
+
+            if Date().timeIntervalSince(startedAt) > timeout {
+                throw ModelError.downloadTimeout
+            }
+
+            let stage = await MainActor.run { modelManager.downloadStages[model] }
+            if let stage {
+                await MainActor.run {
+                    switch stage {
+                    case .preparing:
+                        progressMessage = "Preparing \(model.displayName) model…"
+                    case .downloading:
+                        progressMessage = "Downloading \(model.displayName) model…"
+                    case .processing:
+                        progressMessage = "Processing \(model.displayName) model…"
+                    case .completing:
+                        progressMessage = "Finalizing \(model.displayName) model…"
+                    case .ready:
+                        progressMessage = "Model ready"
+                    case .failed(let message):
+                        progressMessage = "Download failed: \(message)"
+                    }
+                }
+
+                if case .failed(let message) = stage {
+                    throw SpeechToTextError.transcriptionFailed(message)
+                }
+            } else {
+                // Stage may be cleared after a failure; retry once.
+                if !didRetry {
+                    didRetry = true
+                    do {
+                        try await modelManager.downloadModel(model)
+                        continue
+                    } catch {
+                        // Fall through to keep waiting/polling with best-effort messaging.
+                    }
+                }
+                await MainActor.run {
+                    progressMessage = "Downloading \(model.displayName) model…"
+                }
+            }
+
+            try await Task.sleep(for: .milliseconds(250))
+        }
     }
 }

@@ -24,7 +24,7 @@ internal enum TranscriptionProvider: String, CaseIterable, Codable, Sendable {
         case .gemini:
             return "Google Gemini (Cloud)"
         case .local:
-            return "Local Whisper"
+            return "Whisper (Local)"
         case .parakeet:
             return "Parakeet (Advanced)"
         }

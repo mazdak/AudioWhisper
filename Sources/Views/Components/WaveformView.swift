@@ -1,291 +1,237 @@
 import SwiftUI
+import AppKit
 
-/// Audio waveform visualization - minimal dark aesthetic
+/// Recording control view - standard macOS look and feel
 internal struct WaveformRecordingView: View {
     let status: AppStatus
     let audioLevel: Float
     let onTap: () -> Void
-    
-    // Dark void background
-    private let bgColor = Color(red: 0.04, green: 0.04, blue: 0.04)
-    // Soft cream/white for bars
-    private let barColor = Color(red: 0.85, green: 0.83, blue: 0.80)
-    // Muted for inactive states
-    private let mutedColor = Color(red: 0.35, green: 0.34, blue: 0.33)
-    // Success green
-    private let successColor = Color(red: 0.45, green: 0.75, blue: 0.55)
-    // Error/recording accent
-    private let accentColor = Color(red: 0.85, green: 0.45, blue: 0.40)
-    
+
     var body: some View {
-        Button(action: onTap) {
-            VStack(spacing: 0) {
-                // Waveform area
-                ZStack {
-                    bgColor
-                    
-                    WaveformBars(
-                        audioLevel: audioLevel,
-                        isActive: isRecording,
-                        barColor: currentBarColor
-                    )
-                    .padding(.horizontal, 24)
+        ZStack {
+            VisualEffectView()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            VStack(spacing: 10) {
+                header
+                statusRow
+
+                if isRecording {
+                    RecordingWaveformView(level: clampedAudioLevel)
+                        .frame(height: 28)
+                        .padding(.top, 4)
                 }
-                .frame(height: 120)
-                
-                // Status bar
-                HStack(spacing: 8) {
-                    // Status indicator dot
-                    if shouldShowDot {
-                        Circle()
-                            .fill(dotColor)
-                            .frame(width: 6, height: 6)
-                            .modifier(PulseModifier(isActive: isRecording || isProcessing))
-                    }
-                    
-                    Text(statusText)
-                        .font(.system(size: 12, weight: .medium, design: .default))
-                        .tracking(0.5)
-                        .foregroundStyle(mutedColor)
+
+                Button(action: onTap) {
+                    buttonSymbol
+                        .font(.system(size: 54, weight: .regular))
+                        .accessibilityHidden(true)
                 }
-                .frame(height: 44)
-                .frame(maxWidth: .infinity)
-                .background(bgColor)
+                .buttonStyle(.plain)
+                .focusable(false)
+                .help(buttonHelp)
+                .accessibilityLabel(buttonHelp)
+                .disabled(isProcessing)
+
             }
+            .padding(16)
         }
-        .buttonStyle(.plain)
-        .background(bgColor)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .frame(width: LayoutMetrics.RecordingWindow.size.width,
+               height: LayoutMetrics.RecordingWindow.size.height)
+        .clipShape(RoundedRectangle(cornerRadius: LayoutMetrics.RecordingWindow.cornerRadius, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+            RoundedRectangle(cornerRadius: LayoutMetrics.RecordingWindow.cornerRadius, style: .continuous)
+                .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
         )
     }
-    
-    // MARK: - State
-    
+
+    private var header: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "waveform")
+                .font(.system(size: 15, weight: .medium))
+            Text("AudioWhisper")
+                .font(.system(size: 15, weight: .semibold))
+        }
+        .foregroundStyle(Color(nsColor: .labelColor))
+    }
+
+    private var statusRow: some View {
+        HStack(spacing: 8) {
+            if isRecording {
+                Circle()
+                    .fill(Color(nsColor: .systemRed))
+                    .frame(width: 8, height: 8)
+            } else if isProcessing {
+                ProgressView()
+                    .controlSize(.small)
+            } else if isDownloadingModel {
+                ProgressView()
+                    .controlSize(.small)
+            } else if let icon = status.icon {
+                Image(systemName: icon)
+                    .foregroundStyle(status.color)
+            }
+
+            Text(statusText)
+                .font(.system(size: 12, weight: .regular))
+                .foregroundStyle(Color(nsColor: .secondaryLabelColor))
+                .lineLimit(2)
+                .multilineTextAlignment(.center)
+        }
+    }
+
+    @ViewBuilder
+    private var buttonSymbol: some View {
+        // Standard macOS recording controls keep "recording" as red, but the stop glyph should have strong
+        // contrast (commonly white) against the red background.
+        if case .recording = status {
+            Image(systemName: buttonIcon)
+                .symbolRenderingMode(.palette)
+                .foregroundStyle(.white, Color(nsColor: .systemRed))
+                .contentTransition(.symbolEffect(.replace))
+        } else {
+            Image(systemName: buttonIcon)
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(buttonTint)
+                .contentTransition(.symbolEffect(.replace))
+        }
+    }
+
+    private var statusText: String {
+        switch status {
+        case .recording:
+            return "Recording…"
+        case .processing(let message):
+            return message
+        case .downloadingModel(let message):
+            return message
+        case .success:
+            return "Copied to clipboard"
+        case .ready:
+            return "Ready to record"
+        case .permissionRequired:
+            return "Microphone access required"
+        case .error(let message):
+            return message
+        }
+    }
+
+    private var buttonTitle: String {
+        switch status {
+        case .recording:
+            return "Stop Recording"
+        case .processing:
+            return "Processing…"
+        case .downloadingModel:
+            return "Start Recording"
+        case .success:
+            return "Paste"
+        case .permissionRequired:
+            return "Grant Permission"
+        case .error:
+            return "Try Again"
+        case .ready:
+            return "Start Recording"
+        }
+    }
+
+    private var buttonIcon: String {
+        switch status {
+        case .recording:
+            return "stop.circle.fill"
+        case .processing:
+            return "hourglass"
+        case .downloadingModel:
+            return "record.circle.fill"
+        case .success:
+            return "doc.on.clipboard"
+        case .permissionRequired:
+            return "mic.badge.plus"
+        case .error:
+            return "arrow.clockwise"
+        case .ready:
+            return "record.circle.fill"
+        }
+    }
+
+    private var buttonTint: Color {
+        switch status {
+        case .recording, .ready, .downloadingModel:
+            return Color(nsColor: .systemRed)
+        case .success:
+            return Color(nsColor: .systemGreen)
+        case .processing:
+            return Color(nsColor: .secondaryLabelColor)
+        case .permissionRequired, .error:
+            return Color.accentColor
+        }
+    }
+
     private var isRecording: Bool {
         if case .recording = status { return true }
         return false
     }
-    
+
     private var isProcessing: Bool {
         if case .processing = status { return true }
         return false
     }
-    
-    private var isSuccess: Bool {
-        if case .success = status { return true }
+
+    private var isDownloadingModel: Bool {
+        if case .downloadingModel = status { return true }
         return false
     }
-    
-    private var isError: Bool {
-        if case .error = status { return true }
-        return false
+
+    private var clampedAudioLevel: Double {
+        let level = Double(audioLevel)
+        return min(1.0, max(0.0, level))
     }
-    
-    private var shouldShowDot: Bool {
-        switch status {
-        case .recording, .processing, .success, .error:
-            return true
-        default:
-            return false
-        }
-    }
-    
-    private var dotColor: Color {
+
+    private var buttonHelp: String {
         switch status {
         case .recording:
-            return accentColor
+            return "Stop recording"
         case .processing:
-            return barColor
+            return "Processing"
+        case .downloadingModel:
+            return "Start recording"
         case .success:
-            return successColor
-        case .error:
-            return accentColor
-        default:
-            return mutedColor
-        }
-    }
-    
-    private var currentBarColor: Color {
-        switch status {
-        case .recording:
-            return barColor
-        case .processing:
-            return mutedColor
-        case .success:
-            return successColor
-        case .error:
-            return accentColor
-        default:
-            return mutedColor.opacity(0.5)
-        }
-    }
-    
-    private var statusText: String {
-        switch status {
-        case .recording:
-            return "LISTENING"
-        case .processing(let message):
-            return message.uppercased()
-        case .success:
-            return "COPIED"
-        case .ready:
-            return "TAP TO RECORD"
+            return "Paste"
         case .permissionRequired:
-            return "PERMISSION NEEDED"
-        case .error(let message):
-            return message.uppercased()
+            return "Grant microphone permission"
+        case .error:
+            return "Try again"
+        case .ready:
+            return "Start recording"
         }
     }
 }
 
-// MARK: - Waveform Bars
+private struct RecordingWaveformView: View {
+    let level: Double
 
-private struct WaveformBars: View {
-    let audioLevel: Float
-    let isActive: Bool
-    let barColor: Color
-    
-    private let barCount = 48
-    private let barWidth: CGFloat = 2
-    private let barSpacing: CGFloat = 2
-    private let minHeight: CGFloat = 2
-    private let maxHeight: CGFloat = 60
-    
-    @State private var animatedLevels: [CGFloat] = []
-    @State private var idlePhase: CGFloat = 0
-    
+    private let barCount = 18
+
     var body: some View {
-        HStack(spacing: barSpacing) {
-            ForEach(0..<barCount, id: \.self) { index in
-                RoundedRectangle(cornerRadius: barWidth / 2)
-                    .fill(barColor)
-                    .frame(width: barWidth, height: barHeight(for: index))
-            }
-        }
-        .onAppear {
-            animatedLevels = Array(repeating: minHeight, count: barCount)
-        }
-        .onReceive(Timer.publish(every: 0.05, on: .main, in: .common).autoconnect()) { _ in
-            updateLevels()
-        }
-    }
-    
-    private func barHeight(for index: Int) -> CGFloat {
-        guard index < animatedLevels.count else { return minHeight }
-        return animatedLevels[index]
-    }
-    
-    private func updateLevels() {
-        idlePhase += 0.08
-        
-        var newLevels: [CGFloat] = []
-        let centerIndex = barCount / 2
-        
-        for i in 0..<barCount {
-            let distanceFromCenter = abs(i - centerIndex)
-            let normalizedDistance = CGFloat(distanceFromCenter) / CGFloat(centerIndex)
-            
-            // Base wave shape - higher in center, tapering to edges
-            let baseShape = 1.0 - pow(normalizedDistance, 1.5)
-            
-            if isActive && audioLevel > 0.01 {
-                // Active recording - respond to audio
-                let level = CGFloat(audioLevel)
-                
-                // Add some randomness for organic feel
-                let noise = CGFloat.random(in: -0.15...0.15)
-                let variation = sin(CGFloat(i) * 0.5 + idlePhase * 2) * 0.2
-                
-                let height = minHeight + (maxHeight - minHeight) * baseShape * level * (1 + noise + variation)
-                newLevels.append(max(minHeight, min(maxHeight, height)))
-            } else {
-                // Idle state - subtle breathing wave
-                let breathe = sin(idlePhase + CGFloat(i) * 0.15) * 0.5 + 0.5
-                let idleHeight = minHeight + (maxHeight * 0.08) * baseShape * breathe
-                newLevels.append(idleHeight)
-            }
-        }
-        
-        // Smooth transition
-        withAnimation(.linear(duration: 0.05)) {
-            animatedLevels = newLevels
-        }
-    }
-}
-
-// MARK: - Pulse Animation Modifier
-
-private struct PulseModifier: ViewModifier {
-    let isActive: Bool
-    @State private var isPulsing = false
-    
-    func body(content: Content) -> some View {
-        content
-            .opacity(isActive ? (isPulsing ? 0.4 : 1.0) : 1.0)
-            .onAppear {
-                if isActive {
-                    withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
-                        isPulsing = true
-                    }
+        TimelineView(.animation) { timeline in
+            let time = timeline.date.timeIntervalSinceReferenceDate
+            HStack(alignment: .center, spacing: 3) {
+                ForEach(0..<barCount, id: \.self) { index in
+                    let phase = Double(index) / Double(barCount)
+                    let wave = (sin(time * 5 + phase * 8) + 1) / 2
+                    let amplitude = max(0.2, level)
+                    let height = CGFloat(6 + 22 * wave * amplitude)
+                    Capsule()
+                        .fill(Color(nsColor: .secondaryLabelColor))
+                        .frame(width: 3, height: height)
                 }
             }
-            .onChange(of: isActive) { _, active in
-                if active {
-                    withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
-                        isPulsing = true
-                    }
-                } else {
-                    isPulsing = false
-                }
-            }
+        }
     }
 }
 
-// MARK: - Previews
-
-#Preview("Waveform - Recording") {
-    WaveformRecordingView(
-        status: .recording,
-        audioLevel: 0.6,
-        onTap: {}
-    )
-    .frame(width: 280)
-    .padding(40)
-    .background(Color.black)
-}
-
-#Preview("Waveform - Ready") {
-    WaveformRecordingView(
-        status: .ready,
-        audioLevel: 0,
-        onTap: {}
-    )
-    .frame(width: 280)
-    .padding(40)
-    .background(Color.black)
-}
-
-#Preview("Waveform - Processing") {
-    WaveformRecordingView(
-        status: .processing("Transcribing..."),
-        audioLevel: 0,
-        onTap: {}
-    )
-    .frame(width: 280)
-    .padding(40)
-    .background(Color.black)
-}
-
-#Preview("Waveform - Success") {
-    WaveformRecordingView(
-        status: .success,
-        audioLevel: 0,
-        onTap: {}
-    )
-    .frame(width: 280)
-    .padding(40)
-    .background(Color.black)
+#Preview("Recording Window") {
+    WaveformRecordingView(status: .ready, audioLevel: 0.1, onTap: {})
+        .padding(40)
+        .background(Color(nsColor: .windowBackgroundColor))
 }

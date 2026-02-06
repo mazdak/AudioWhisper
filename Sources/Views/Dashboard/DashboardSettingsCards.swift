@@ -17,28 +17,14 @@ internal struct SettingsSectionCard<Content: View>: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: DashboardTheme.Spacing.md) {
-            // Section header
-            Text(title)
-                .font(DashboardTheme.Fonts.sans(11, weight: .semibold))
-                .foregroundStyle(DashboardTheme.inkMuted)
-                .tracking(0.8)
-                .textCase(.uppercase)
-            
-            // Content card
+        GroupBox(label: Label(title, systemImage: icon)
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(.secondary)) {
             VStack(alignment: .leading, spacing: 0) {
                 content()
             }
-            .background(
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(DashboardTheme.cardBg)
-                    .shadow(color: .black.opacity(0.03), radius: 8, y: 2)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 2)
-                    .stroke(DashboardTheme.rule, lineWidth: 1)
-            )
         }
+        .groupBoxStyle(.automatic)
     }
 }
 
@@ -111,41 +97,13 @@ internal struct SettingsPickerRow<Selection: Hashable>: View {
             
             Spacer()
             
-            Menu {
+            Picker("", selection: $selection) {
                 ForEach(options, id: \.self) { option in
-                    Button {
-                        selection = option
-                    } label: {
-                        HStack {
-                            Text(display(option))
-                            if option == selection {
-                                Image(systemName: "checkmark")
-                            }
-                        }
-                    }
+                    Text(display(option)).tag(option)
                 }
-            } label: {
-                HStack(spacing: DashboardTheme.Spacing.xs) {
-                    Text(display(selection))
-                        .font(DashboardTheme.Fonts.sans(13, weight: .medium))
-                        .foregroundStyle(DashboardTheme.ink)
-                    
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(DashboardTheme.inkMuted)
-                }
-                .padding(.horizontal, DashboardTheme.Spacing.sm + 2)
-                .padding(.vertical, DashboardTheme.Spacing.xs + 2)
-                .background(
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(DashboardTheme.cardBgAlt)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 4)
-                        .stroke(DashboardTheme.rule, lineWidth: 1)
-                )
             }
-            .menuStyle(.borderlessButton)
+            .labelsHidden()
+            .pickerStyle(.menu)
         }
         .padding(DashboardTheme.Spacing.md)
     }
@@ -248,17 +206,8 @@ internal struct SettingsTextFieldRow: View {
                     TextField(placeholder, text: $text)
                 }
             }
-            .textFieldStyle(.plain)
+            .textFieldStyle(.roundedBorder)
             .font(DashboardTheme.Fonts.sans(13, weight: .regular))
-            .padding(DashboardTheme.Spacing.sm + 2)
-            .background(
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(DashboardTheme.cardBgAlt)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 4)
-                    .stroke(DashboardTheme.rule, lineWidth: 1)
-            )
         }
         .padding(DashboardTheme.Spacing.md)
     }

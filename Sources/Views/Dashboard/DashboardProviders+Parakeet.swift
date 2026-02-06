@@ -1,5 +1,4 @@
 import SwiftUI
-import AppKit
 
 private actor VerificationMessageStore {
     private var stdout: String = ""
@@ -15,161 +14,82 @@ internal extension DashboardProvidersView {
     // MARK: - Parakeet Section
     @ViewBuilder
     var parakeetCard: some View {
-        VStack(alignment: .leading, spacing: DashboardTheme.Spacing.lg) {
-            // Section label
-            HStack(spacing: DashboardTheme.Spacing.sm) {
-                Text("02")
-                    .font(DashboardTheme.Fonts.mono(11, weight: .medium))
-                    .foregroundStyle(DashboardTheme.accent)
-                
-                Text("PARAKEET SETUP")
-                    .font(DashboardTheme.Fonts.sans(11, weight: .semibold))
-                    .foregroundStyle(DashboardTheme.inkMuted)
-                    .tracking(1.5)
-            }
-            
-            VStack(spacing: 0) {
-                // Environment status - prominent
-                environmentStatusSection
-                
-                Divider().background(DashboardTheme.rule)
-                
-                // Model selection
-                modelSelectionSection
-                
-                // Verification message
-                if let msg = parakeetVerifyMessage, !msg.isEmpty {
-                    Divider().background(DashboardTheme.rule)
-                    
-                    HStack(spacing: DashboardTheme.Spacing.sm) {
-                        Image(systemName: "info.circle")
-                            .font(.system(size: 12))
-                            .foregroundStyle(DashboardTheme.inkMuted)
-                        
-                        Text(msg)
-                            .font(DashboardTheme.Fonts.sans(12, weight: .regular))
-                            .foregroundStyle(DashboardTheme.inkMuted)
+        let repo = selectedParakeetModel.repoId
+        let isDownloaded = mlxModelManager.downloadedModels.contains(repo)
+        let isDownloading = mlxModelManager.isDownloading[repo] ?? false
+        let progressText = mlxModelManager.downloadProgress[repo]
+
+        Group {
+            LabeledContent("Environment") {
+                HStack(spacing: 10) {
+                    if isCheckingEnv {
+                        ProgressView()
+                            .controlSize(.small)
                     }
-                    .padding(DashboardTheme.Spacing.md)
-                }
-            }
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(DashboardTheme.cardBg)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(DashboardTheme.rule, lineWidth: 1)
-            )
-            
-            // Info footer
-            HStack(spacing: DashboardTheme.Spacing.sm) {
-                Image(systemName: "apple.logo")
-                    .font(.system(size: 11))
-                    .foregroundStyle(DashboardTheme.inkFaint)
-                
-                Text("Runs locally on Apple Silicon • ~2.5 GB disk space")
-                    .font(DashboardTheme.Fonts.sans(11, weight: .regular))
-                    .foregroundStyle(DashboardTheme.inkFaint)
-            }
-        }
-    }
-    
-    private var environmentStatusSection: some View {
-        HStack(spacing: DashboardTheme.Spacing.md) {
-            // Status icon
-            ZStack {
-                Circle()
-                    .fill(envReady ? Color(red: 0.35, green: 0.60, blue: 0.40).opacity(0.12) : DashboardTheme.accent.opacity(0.12))
-                    .frame(width: 44, height: 44)
-                
-                if isCheckingEnv {
-                    ProgressView()
-                        .controlSize(.small)
-                } else {
-                    Image(systemName: envReady ? "checkmark" : "arrow.down.circle")
-                        .font(.system(size: 18, weight: .medium))
-                        .foregroundStyle(envReady ? Color(red: 0.35, green: 0.60, blue: 0.40) : DashboardTheme.accent)
-                }
-            }
-            
-            VStack(alignment: .leading, spacing: 3) {
-                Text(envReady ? "Environment Ready" : "Setup Required")
-                    .font(DashboardTheme.Fonts.sans(15, weight: .semibold))
-                    .foregroundStyle(DashboardTheme.ink)
-                
-                Text("Python dependencies for local neural inference")
-                    .font(DashboardTheme.Fonts.sans(12, weight: .regular))
-                    .foregroundStyle(DashboardTheme.inkMuted)
-            }
-            
-            Spacer()
-            
-            if !envReady {
-                Button {
-                    runUvSetupSheet(title: "Installing Parakeet dependencies…")
-                } label: {
-                    Text("Install")
-                        .font(DashboardTheme.Fonts.sans(13, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .background(DashboardTheme.accent)
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
-                }
-                .buttonStyle(.plain)
-            } else {
-                Button {
-                    verifyParakeetModel()
-                } label: {
-                    HStack(spacing: 4) {
-                        if isVerifyingParakeet {
-                            ProgressView()
-                                .controlSize(.small)
+
+                    Label(envReady ? "Ready" : "Setup required",
+                          systemImage: envReady ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                        .foregroundStyle(envReady ? Color(nsColor: .systemGreen) : Color(nsColor: .systemOrange))
+
+                    if !envReady {
+                        Button("Install…") {
+                            runUvSetupSheet(title: "Installing Parakeet dependencies…")
                         }
-                        Text(isVerifyingParakeet ? "Verifying…" : "Verify")
-                            .font(DashboardTheme.Fonts.sans(13, weight: .medium))
+                        .controlSize(.small)
+                    } else {
+                        Button(isVerifyingParakeet ? "Verifying…" : "Verify") {
+                            verifyParakeetModel()
+                        }
+                        .disabled(isVerifyingParakeet)
+                        .controlSize(.small)
                     }
-                    .foregroundStyle(DashboardTheme.ink)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 7)
-                    .background(
-                        RoundedRectangle(cornerRadius: 6)
-                            .stroke(DashboardTheme.rule, lineWidth: 1)
-                    )
                 }
-                .buttonStyle(.plain)
-                .disabled(isVerifyingParakeet)
+                .frame(maxWidth: .infinity, alignment: .trailing)
             }
-        }
-        .padding(DashboardTheme.Spacing.lg)
-    }
-    
-    private var modelSelectionSection: some View {
-        HStack(spacing: DashboardTheme.Spacing.md) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text("Model")
-                    .font(DashboardTheme.Fonts.sans(14, weight: .medium))
-                    .foregroundStyle(DashboardTheme.ink)
-                
-                Text("Downloaded on first use")
-                    .font(DashboardTheme.Fonts.sans(12, weight: .regular))
-                    .foregroundStyle(DashboardTheme.inkMuted)
-            }
-            
-            Spacer()
-            
-            Picker("", selection: $selectedParakeetModel) {
-                ForEach(ParakeetModel.allCases, id: \.self) { model in
-                    Text(model.displayName).tag(model)
+
+            LabeledContent("Model") {
+                HStack(spacing: 10) {
+                    Picker("", selection: $selectedParakeetModel) {
+                        ForEach(ParakeetModel.allCases, id: \.self) { model in
+                            Text(model.displayName).tag(model)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(width: 220)
+
+                    if isDownloading {
+                        ProgressView().controlSize(.small)
+                    } else if isDownloaded {
+                        Image(systemName: "checkmark")
+                            .foregroundStyle(Color(nsColor: .systemGreen))
+                            .help("Downloaded")
+                    } else {
+                        Button("Get") { Task { await mlxModelManager.ensureParakeetModel() } }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                    }
                 }
+                .frame(maxWidth: .infinity, alignment: .trailing)
             }
-            .labelsHidden()
-            .frame(width: 180)
+
+            if let progressText, !progressText.isEmpty {
+                Text(progressText)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            if let msg = parakeetVerifyMessage, !msg.isEmpty {
+                Text(msg)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            Label("Runs locally on Apple Silicon • ~2.5 GB disk space", systemImage: "apple.logo")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
         }
-        .padding(DashboardTheme.Spacing.md)
         .onChange(of: selectedParakeetModel) { _, _ in
-            Task { await MLXModelManager.shared.ensureParakeetModel() }
+            Task { await mlxModelManager.ensureParakeetModel() }
         }
     }
 

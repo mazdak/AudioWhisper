@@ -4,6 +4,8 @@ internal enum AppStatus: Equatable {
     case error(String)
     case recording
     case processing(String)
+    /// Indicates a background model download is in progress while the app remains usable.
+    case downloadingModel(String)
     case success
     case ready
     case permissionRequired
@@ -15,6 +17,8 @@ internal enum AppStatus: Equatable {
         case .recording:
             return "Recording..."
         case .processing(let message):
+            return message
+        case .downloadingModel(let message):
             return message
         case .success:
             return "Success!"
@@ -33,6 +37,8 @@ internal enum AppStatus: Equatable {
             return .red
         case .processing:
             return .orange
+        case .downloadingModel:
+            return .orange
         case .success:
             return .green
         case .ready:
@@ -50,6 +56,8 @@ internal enum AppStatus: Equatable {
             return nil // Will use pulsing circle
         case .processing:
             return nil // Will use spinning indicator
+        case .downloadingModel:
+            return nil // Will use a spinning indicator in the UI
         case .success:
             return "checkmark.circle.fill"
         case .ready:
@@ -61,7 +69,7 @@ internal enum AppStatus: Equatable {
     
     var shouldAnimate: Bool {
         switch self {
-        case .recording, .processing:
+        case .recording, .processing, .downloadingModel:
             return true
         default:
             return false
@@ -84,6 +92,7 @@ internal enum AppStatus: Equatable {
     func updateStatus(
         isRecording: Bool,
         isProcessing: Bool,
+        modelDownloadMessage: String?,
         progressMessage: String,
         hasPermission: Bool,
         showSuccess: Bool,
@@ -97,6 +106,10 @@ internal enum AppStatus: Equatable {
             currentStatus = .recording
         } else if isProcessing {
             currentStatus = .processing(progressMessage)
+        } else if !hasPermission {
+            currentStatus = .permissionRequired
+        } else if let modelDownloadMessage, !modelDownloadMessage.isEmpty {
+            currentStatus = .downloadingModel(modelDownloadMessage)
         } else if hasPermission {
             currentStatus = .ready
         } else {

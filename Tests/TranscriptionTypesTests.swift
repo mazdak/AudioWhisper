@@ -18,7 +18,7 @@ class TranscriptionTypesTests: XCTestCase {
     func testTranscriptionProviderDisplayNames() {
         XCTAssertEqual(TranscriptionProvider.openai.displayName, "OpenAI Whisper (Cloud)")
         XCTAssertEqual(TranscriptionProvider.gemini.displayName, "Google Gemini (Cloud)")
-        XCTAssertEqual(TranscriptionProvider.local.displayName, "Local Whisper")
+        XCTAssertEqual(TranscriptionProvider.local.displayName, "Whisper (Local)")
         XCTAssertEqual(TranscriptionProvider.parakeet.displayName, "Parakeet (Advanced)")
     }
     

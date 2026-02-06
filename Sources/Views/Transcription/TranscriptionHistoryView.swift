@@ -4,17 +4,17 @@ import AppKit
 
 @MainActor
 internal struct TranscriptionHistoryView: View {
-    @Environment(\.modelContext) private var modelContext
     @Query(sort: \TranscriptionRecord.date, order: .reverse) private var allRecords: [TranscriptionRecord]
-    
+
     @State private var searchText = ""
-    @State private var isLoading = false
     @State private var showError = false
     @State private var errorMessage = ""
-    @State private var recordToDelete: TranscriptionRecord?
-    @State private var showDeleteConfirmation = false
-    @State private var expandedRecords: Set<TranscriptionRecord.ID> = []
-    @FocusState private var isSearchFocused: Bool
+    @State private var isBusy = false
+
+    @State private var selection: Set<TranscriptionRecord.ID> = []
+
+    @State private var showDeleteSelectedConfirmation = false
+    @State private var showClearAllConfirmation = false
     
     // Computed property for filtered records
     private var filteredRecords: [TranscriptionRecord] {
@@ -25,52 +25,75 @@ internal struct TranscriptionHistoryView: View {
             record.matches(searchQuery: searchText)
         }
     }
+
+    private var selectedRecords: [TranscriptionRecord] {
+        allRecords.filter { selection.contains($0.id) }
+    }
+
+    private var primarySelection: TranscriptionRecord? {
+        selectedRecords.first
+    }
     
     var body: some View {
-        VStack(spacing: 0) {
-            TranscriptionHistoryHeader(
-                title: "Transcription History",
-                subtitle: subtitleText,
-                showClearAll: !allRecords.isEmpty,
-                onClearAll: showClearAllConfirmation
-            )
-            
-            Divider()
-            
-            TranscriptionSearchBar(
-                searchText: $searchText,
-                isFocused: $isSearchFocused
-            )
-            
-            if isLoading {
-                TranscriptionHistoryLoadingView()
-            } else if filteredRecords.isEmpty {
-                TranscriptionHistoryEmptyState(
-                    searchText: searchText,
-                    onClearSearch: {
-                        searchText = ""
-                        isSearchFocused = false
-                    }
-                )
-            } else {
-                TranscriptionRecordsList(
-                    records: filteredRecords,
-                    expandedRecords: expandedRecords,
-                    onToggleExpand: toggleExpansion(for:),
-                    onCopy: { copyToClipboard($0.text) },
-                    onDelete: confirmDelete
-                )
+        VSplitView {
+            listPane
+                .frame(minHeight: 260)
+
+            detailPane
+                .frame(minHeight: 180)
+        }
+        .searchable(text: $searchText)
+        .toolbar {
+            ToolbarItemGroup(placement: .primaryAction) {
+                Button {
+                    copySelectedToClipboard()
+                } label: {
+                    Label("Copy", systemImage: "doc.on.doc")
+                }
+                .disabled(selectedRecords.isEmpty)
+
+                Button(role: .destructive) {
+                    showDeleteSelectedConfirmation = true
+                } label: {
+                    Label("Delete", systemImage: "trash")
+                }
+                .disabled(selectedRecords.isEmpty || isBusy)
+
+                Button(role: .destructive) {
+                    showClearAllConfirmation = true
+                } label: {
+                    Text("Clear All")
+                }
+                .disabled(allRecords.isEmpty || isBusy)
             }
         }
-        .alert("Delete Record", isPresented: $showDeleteConfirmation) {
-            Button("Cancel", role: .cancel) { }
-            Button("Delete", role: .destructive) {
-                if let record = recordToDelete {
-                    deleteRecord(record)
-                }
+        .onDeleteCommand {
+            guard !selectedRecords.isEmpty else { return }
+            showDeleteSelectedConfirmation = true
+        }
+        .confirmationDialog(
+            "Delete Transcriptions",
+            isPresented: $showDeleteSelectedConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Cancel", role: .cancel) {}
+            Button(deleteSelectedButtonTitle, role: .destructive) {
+                deleteSelectedRecords()
             }
         } message: {
-            Text("Are you sure you want to delete this transcription record? This action cannot be undone.")
+            Text("This action cannot be undone.")
+        }
+        .confirmationDialog(
+            "Clear All Transcription History",
+            isPresented: $showClearAllConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Cancel", role: .cancel) {}
+            Button("Clear All", role: .destructive) {
+                clearAllRecords()
+            }
+        } message: {
+            Text("This will permanently delete all transcriptions.")
         }
         .alert("Error", isPresented: $showError) {
             Button("OK") { }
@@ -81,59 +104,102 @@ internal struct TranscriptionHistoryView: View {
             minWidth: LayoutMetrics.TranscriptionHistory.minimumSize.width,
             minHeight: LayoutMetrics.TranscriptionHistory.minimumSize.height
         )
-        .onKeyPress(.escape) {
-            handleEscapeKey()
-        }
-        .onKeyPress(characters: CharacterSet(charactersIn: "f")) { keyPress in
-            if keyPress.modifiers.contains(.command) {
-                return handleCommandF()
+    }
+
+    private var listPane: some View {
+        VStack(spacing: 0) {
+            if filteredRecords.isEmpty {
+                TranscriptionHistoryEmptyContent(searchText: searchText)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                Table(filteredRecords, selection: $selection) {
+                    TableColumn("Date") { record in
+                        Text(record.formattedDate)
+                            .lineLimit(1)
+                    }
+
+                    TableColumn("Provider") { record in
+                        Text(record.transcriptionProvider?.displayName ?? record.provider)
+                            .lineLimit(1)
+                    }
+
+                    TableColumn("Duration") { record in
+                        Text(record.formattedDuration ?? "—")
+                            .lineLimit(1)
+                    }
+
+                    TableColumn("Text") { record in
+                        Text(record.preview)
+                            .lineLimit(1)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
-            return .ignored
         }
     }
-    
+
+    private var detailPane: some View {
+        Group {
+            if let record = primarySelection {
+                TranscriptionDetailView(record: record)
+            } else {
+                ContentUnavailableView(
+                    "Select a Transcript",
+                    systemImage: "doc.text",
+                    description: Text("Choose a transcription on the left to view details.")
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    private var deleteSelectedButtonTitle: String {
+        let count = selectedRecords.count
+        if count <= 1 { return "Delete" }
+        return "Delete \(count) Items"
+    }
+
     private func copyToClipboard(_ text: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
         
         // Brief visual feedback could be added here
     }
-    
-    private func confirmDelete(_ record: TranscriptionRecord) {
-        recordToDelete = record
-        showDeleteConfirmation = true
+
+    private func copySelectedToClipboard() {
+        let text = selectedRecords.map(\.text).joined(separator: "\n\n")
+        guard !text.isEmpty else { return }
+        copyToClipboard(text)
     }
-    
-    private func deleteRecord(_ record: TranscriptionRecord) {
+
+    private func deleteSelectedRecords() {
+        let records = selectedRecords
+        guard !records.isEmpty else { return }
+
+        isBusy = true
         Task {
             do {
-                try await DataManager.shared.deleteRecord(record)
+                for record in records {
+                    try await DataManager.shared.deleteRecord(record)
+                }
+                await MainActor.run {
+                    selection.removeAll()
+                    isBusy = false
+                }
             } catch {
                 await MainActor.run {
-                    errorMessage = "Failed to delete record: \(error.localizedDescription)"
+                    errorMessage = "Failed to delete records: \(error.localizedDescription)"
                     showError = true
+                    isBusy = false
                 }
             }
         }
     }
-    
-    private func showClearAllConfirmation() {
-        let alert = NSAlert()
-        alert.messageText = "Clear All Transcription History"
-        alert.informativeText = "Are you sure you want to delete all transcription records? This action cannot be undone."
-        alert.alertStyle = .critical
-        alert.addButton(withTitle: "Cancel")
-        alert.addButton(withTitle: "Clear All")
-        
-        let response = alert.runModal()
-        if response == .alertSecondButtonReturn {
-            clearAllRecords()
-        }
-    }
-    
+
     private func clearAllRecords() {
         Task {
-            isLoading = true
+            isBusy = true
             do {
                 try await DataManager.shared.deleteAllRecords()
             } catch {
@@ -143,50 +209,94 @@ internal struct TranscriptionHistoryView: View {
                 }
             }
             await MainActor.run {
-                isLoading = false
+                selection.removeAll()
+                isBusy = false
             }
         }
     }
-    
-    private func toggleExpansion(for record: TranscriptionRecord) {
-        if expandedRecords.contains(record.id) {
-            expandedRecords.remove(record.id)
-        } else {
-            expandedRecords.insert(record.id)
-        }
-    }
-    
-    private var subtitleText: String {
-        let totalCount = allRecords.count
-        let filteredCount = filteredRecords.count
-        
-        if totalCount == 0 {
-            return "No records"
-        } else if searchText.isEmpty {
-            return "\(totalCount) \(totalCount == 1 ? "record" : "records")"
-        } else {
-            return "\(filteredCount) of \(totalCount) \(filteredCount == 1 ? "record" : "records")"
-        }
-    }
-    
 }
 
-// MARK: - View Extensions
+private struct TranscriptionHistoryEmptyContent: View {
+    let searchText: String
 
-internal extension TranscriptionHistoryView {
-    
-    private func handleEscapeKey() -> KeyPress.Result {
-        if isSearchFocused {
-            searchText = ""
-            isSearchFocused = false
-            return .handled
+    var body: some View {
+        if searchText.isEmpty {
+            ContentUnavailableView(
+                "No Transcripts Yet",
+                systemImage: "doc.text",
+                description: Text("Your transcription history will appear here.")
+            )
+        } else {
+            ContentUnavailableView(
+                "No Results",
+                systemImage: "magnifyingglass",
+                description: Text("Try a different search term.")
+            )
         }
-        return .ignored
     }
-    
-    private func handleCommandF() -> KeyPress.Result {
-        isSearchFocused = true
-        return .handled
+}
+
+private struct TranscriptionDetailView: View {
+    let record: TranscriptionRecord
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 0) {
+            details
+                .frame(minWidth: 260, idealWidth: 320, maxWidth: 360, alignment: .topLeading)
+                .padding(12)
+
+            Divider()
+
+            ScrollView {
+                Text(record.text)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(12)
+            }
+        }
+    }
+
+    private var details: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            LabeledContent("Date") {
+                Text(record.formattedDate)
+            }
+
+            LabeledContent("Provider") {
+                Text(record.transcriptionProvider?.displayName ?? record.provider)
+            }
+
+            if let duration = record.formattedDuration {
+                LabeledContent("Duration") {
+                    Text(duration)
+                }
+            }
+
+            if let modelUsed = record.modelUsed, !modelUsed.isEmpty {
+                LabeledContent("Model") {
+                    Text(modelUsed)
+                }
+            }
+
+            if let source = record.sourceAppName, !source.isEmpty {
+                LabeledContent("Source App") {
+                    Text(source)
+                }
+            }
+
+            if record.wordCount > 0 {
+                LabeledContent("Words") {
+                    Text("\(record.wordCount)")
+                }
+            }
+
+            if let wpm = record.wordsPerMinute {
+                LabeledContent("WPM") {
+                    Text(wpm.formatted(.number.precision(.fractionLength(0))))
+                }
+            }
+        }
+        .font(.callout)
     }
 }
 

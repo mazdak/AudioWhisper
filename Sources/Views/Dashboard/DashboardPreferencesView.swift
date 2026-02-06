@@ -1,6 +1,5 @@
 import SwiftUI
 import ServiceManagement
-import AppKit
 import os.log
 
 internal struct DashboardPreferencesView: View {
@@ -25,216 +24,122 @@ internal struct DashboardPreferencesView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: DashboardTheme.Spacing.xl) {
-                pageHeader
-                generalSection
-                historySection
-                storageSection
-                aboutSection
-            }
-            .padding(DashboardTheme.Spacing.xl)
-        }
-        .background(DashboardTheme.pageBg)
-    }
-
-    // MARK: - Header
-    private var pageHeader: some View {
-        VStack(alignment: .leading, spacing: DashboardTheme.Spacing.xs) {
-            Text("Preferences")
-                .font(DashboardTheme.Fonts.serif(28, weight: .semibold))
-                .foregroundStyle(DashboardTheme.ink)
-            
-            Text("General settings, history, and storage management")
-                .font(DashboardTheme.Fonts.sans(13, weight: .regular))
-                .foregroundStyle(DashboardTheme.inkMuted)
-        }
-    }
-
-    // MARK: - General
-    private var generalSection: some View {
-        VStack(alignment: .leading, spacing: DashboardTheme.Spacing.md) {
-            sectionHeader("General")
-            
-            VStack(alignment: .leading, spacing: 0) {
-                SettingsToggleRow(
-                    title: "Start at Login",
-                    subtitle: "Launch AudioWhisper when you sign in",
-                    isOn: $startAtLogin
-                )
+        Form {
+            Section("General") {
+                Toggle(isOn: $startAtLogin) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Start at Login")
+                        Text("Launch AudioWhisper when you sign in.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
                 .onChange(of: startAtLogin) { _, newValue in
                     updateLoginItem(enabled: newValue)
                 }
 
-                Divider().background(DashboardTheme.rule)
+                Toggle(isOn: $immediateRecording) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Express Mode")
+                        Text("Hotkey immediately starts and stops recording.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
 
-                SettingsToggleRow(
-                    title: "Express Mode",
-                    subtitle: "Hotkey immediately starts and stops recording",
-                    isOn: $immediateRecording
-                )
+                Toggle(isOn: $autoBoostMicrophoneVolume) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Auto-Boost Microphone")
+                        Text("Temporarily maximize mic input while recording.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
 
-                Divider().background(DashboardTheme.rule)
+                Toggle(isOn: $enableSmartPaste) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Smart Paste")
+                        Text("Automatically paste finished transcripts.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
 
-                SettingsToggleRow(
-                    title: "Auto-Boost Microphone",
-                    subtitle: "Temporarily maximize mic input while recording",
-                    isOn: $autoBoostMicrophoneVolume
-                )
+                Toggle(isOn: $playCompletionSound) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Completion Sound")
+                        Text("Play a chime when transcription finishes.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
 
-                Divider().background(DashboardTheme.rule)
-
-                SettingsToggleRow(
-                    title: "Smart Paste",
-                    subtitle: "Automatically paste finished transcripts",
-                    isOn: $enableSmartPaste
-                )
-
-                Divider().background(DashboardTheme.rule)
-
-                SettingsToggleRow(
-                    title: "Completion Sound",
-                    subtitle: "Play a chime when transcription finishes",
-                    isOn: $playCompletionSound
-                )
-
-                if let error = loginItemError {
-                    Divider().background(DashboardTheme.rule)
-                    Text(error)
-                        .font(DashboardTheme.Fonts.sans(12, weight: .regular))
-                        .foregroundStyle(Color(red: 0.75, green: 0.30, blue: 0.28))
-                        .padding(DashboardTheme.Spacing.md)
+                if let loginItemError {
+                    Text(loginItemError)
+                        .foregroundStyle(Color(nsColor: .systemRed))
                 }
             }
-            .cardStyle()
-        }
-    }
 
-    // MARK: - History
-    private var historySection: some View {
-        VStack(alignment: .leading, spacing: DashboardTheme.Spacing.md) {
-            sectionHeader("History")
-            
-            VStack(alignment: .leading, spacing: 0) {
-                SettingsToggleRow(
-                    title: "Save Transcription History",
-                    subtitle: "Store transcriptions locally for review",
-                    isOn: $transcriptionHistoryEnabled
-                )
+            Section {
+                Toggle(isOn: $transcriptionHistoryEnabled) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Save Transcription History")
+                        Text("Store transcripts locally so you can search and review them later.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
 
                 if transcriptionHistoryEnabled {
-                    Divider().background(DashboardTheme.rule)
-
-                    SettingsPickerRow(
-                        title: "Retention Period",
-                        subtitle: "How long to keep transcriptions",
-                        selection: retentionBinding,
-                        options: RetentionPeriod.allCases,
-                        display: { $0.displayName }
-                    )
-
-                    Divider().background(DashboardTheme.rule)
-
-                    SettingsButtonRow(
-                        title: "View History",
-                        subtitle: "Open the searchable transcription log",
-                        icon: "arrow.right"
-                    ) {
-                        HistoryWindowManager.shared.showHistoryWindow()
+                    Picker("Retention Period", selection: retentionBinding) {
+                        ForEach(RetentionPeriod.allCases, id: \.rawValue) { period in
+                            Text(period.displayName).tag(period)
+                        }
                     }
-
-                    Divider().background(DashboardTheme.rule)
-
-                    SettingsButtonRow(
-                        title: "Open Recordings Folder",
-                        subtitle: "Inspect saved audio snippets",
-                        icon: "arrow.right"
-                    ) {
-                        openRecordingsFolder()
-                    }
-                } else {
-                    Divider().background(DashboardTheme.rule)
-                    SettingsInfoRow(text: "Enable history to browse and search previous transcriptions.")
+                    .pickerStyle(.menu)
                 }
+            } header: {
+                Text("History")
+            } footer: {
+                Text("View saved transcripts in the Transcripts section in the sidebar.")
             }
-            .cardStyle()
-        }
-    }
 
-    // MARK: - Storage
-    private var storageSection: some View {
-        VStack(alignment: .leading, spacing: DashboardTheme.Spacing.md) {
-            sectionHeader("Storage")
-            
-            VStack(alignment: .leading, spacing: 0) {
-                SettingsPickerRow(
-                    title: "Max Model Storage",
-                    subtitle: "Disk space limit for downloaded models",
-                    selection: $maxModelStorageGB,
-                    options: storageOptions,
-                    display: { "\(Int($0)) GB" }
-                )
-
-                Divider().background(DashboardTheme.rule)
-
-                SettingsInfoRow(text: "Currently reserving \(formattedGigabytes(maxModelStorageGB)) for local models.")
+            Section("Storage") {
+                Picker("Max Model Storage", selection: $maxModelStorageGB) {
+                    ForEach(storageOptions, id: \.self) { option in
+                        Text("\(Int(option)) GB").tag(option)
+                    }
+                }
+                .pickerStyle(.menu)
             }
-            .cardStyle()
-        }
-    }
 
-    // MARK: - About
-    private var aboutSection: some View {
-        VStack(alignment: .leading, spacing: DashboardTheme.Spacing.md) {
-            sectionHeader("About")
-            
-            VStack(alignment: .leading, spacing: DashboardTheme.Spacing.sm) {
-                HStack(alignment: .firstTextBaseline, spacing: DashboardTheme.Spacing.md) {
-                    Text("AudioWhisper")
-                        .font(DashboardTheme.Fonts.serif(16, weight: .semibold))
-                        .foregroundStyle(DashboardTheme.ink)
-                    
+            Section("About") {
+                LabeledContent("Version") {
                     Text(VersionInfo.fullVersionInfo)
-                        .font(DashboardTheme.Fonts.mono(12, weight: .regular))
-                        .foregroundStyle(DashboardTheme.inkMuted)
+                        .font(.system(.body, design: .monospaced))
+                        .foregroundStyle(.secondary)
                 }
-                
+
                 if VersionInfo.gitHash != "dev-build" && VersionInfo.gitHash != "unknown" {
-                    HStack(spacing: DashboardTheme.Spacing.sm) {
-                        Text("Git:")
-                            .font(DashboardTheme.Fonts.sans(12, weight: .medium))
-                            .foregroundStyle(DashboardTheme.inkMuted)
-                        
+                    LabeledContent("Git") {
                         Text(VersionInfo.gitHash)
-                            .font(DashboardTheme.Fonts.mono(12, weight: .regular))
-                            .foregroundStyle(DashboardTheme.inkLight)
+                            .font(.system(.body, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
                     }
                 }
-                
+
                 if !VersionInfo.buildDate.isEmpty {
-                    HStack(spacing: DashboardTheme.Spacing.sm) {
-                        Text("Built:")
-                            .font(DashboardTheme.Fonts.sans(12, weight: .medium))
-                            .foregroundStyle(DashboardTheme.inkMuted)
-                        
+                    LabeledContent("Built") {
                         Text(VersionInfo.buildDate)
-                            .font(DashboardTheme.Fonts.mono(12, weight: .regular))
-                            .foregroundStyle(DashboardTheme.inkLight)
+                            .font(.system(.body, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
                     }
                 }
             }
-            .padding(DashboardTheme.Spacing.md)
-            .cardStyle()
         }
-    }
-
-    // MARK: - Helpers
-    private func sectionHeader(_ title: String) -> some View {
-        Text(title)
-            .font(DashboardTheme.Fonts.sans(11, weight: .semibold))
-            .foregroundStyle(DashboardTheme.inkMuted)
-            .tracking(0.8)
-            .textCase(.uppercase)
+        .formStyle(.grouped)
     }
 
     private func updateLoginItem(enabled: Bool) {
@@ -250,33 +155,9 @@ internal struct DashboardPreferencesView: View {
             loginItemError = "Couldn't update login item: \(error.localizedDescription)"
         }
     }
-
-    private func openRecordingsFolder() {
-        NSWorkspace.shared.open(FileManager.default.temporaryDirectory)
-    }
-
-    private func formattedGigabytes(_ value: Double) -> String {
-        let formatter = NumberFormatter()
-        formatter.maximumFractionDigits = value.truncatingRemainder(dividingBy: 1) == 0 ? 0 : 1
-        formatter.minimumFractionDigits = 0
-        let formattedValue = formatter.string(from: NSNumber(value: value))
-            ?? value.formatted(.number.precision(.fractionLength(1)))
-        return "\(formattedValue) GB"
-    }
 }
 
-// MARK: - Card Style
-private extension View {
-    func cardStyle() -> some View {
-        self
-            .background(
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(DashboardTheme.cardBg)
-                    .shadow(color: .black.opacity(0.03), radius: 8, y: 2)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 2)
-                    .stroke(DashboardTheme.rule, lineWidth: 1)
-            )
-    }
+#Preview {
+    DashboardPreferencesView()
+        .frame(width: 900, height: 700)
 }

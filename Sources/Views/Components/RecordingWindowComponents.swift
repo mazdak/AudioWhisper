@@ -11,9 +11,11 @@ internal struct VisualEffectView: NSViewRepresentable {
     func makeNSView(context: Context) -> NSVisualEffectView {
         let effectView = NSVisualEffectView()
         effectView.state = .active
-        effectView.material = .hudWindow
+        // Keep the recording window feeling like a light, translucent HUD that adapts to Light/Dark Mode.
+        effectView.material = .popover
+        effectView.blendingMode = .behindWindow
         effectView.wantsLayer = true
-        effectView.layer?.cornerRadius = 12
+        effectView.layer?.cornerRadius = LayoutMetrics.RecordingWindow.cornerRadius
         effectView.layer?.masksToBounds = true
         return effectView
     }

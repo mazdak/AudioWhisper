@@ -10,6 +10,9 @@ internal extension AppDelegate {
             return
         }
 
+        // Ensure a single, consistent set of defaults before any UI/services read from UserDefaults/AppStorage.
+        AppDefaults.register()
+
         do {
             try DataManager.shared.initialize()
             Logger.app.info("DataManager initialized successfully")

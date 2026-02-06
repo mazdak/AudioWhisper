@@ -81,7 +81,7 @@ internal struct MLXModelManagementView: View {
                         onDelete: {
                             Task {
                                 await modelManager.deleteModel(m.repo)
-                                if selectedModelRepo == m.repo { selectedModelRepo = "mlx-community/Llama-3.2-1B-Instruct-4bit" }
+                                if selectedModelRepo == m.repo { selectedModelRepo = AppDefaults.defaultSemanticCorrectionModelRepo }
                             }
                         }
                     )
@@ -133,6 +133,6 @@ internal struct MLXModelManagementView: View {
     }
 
     private func isRecommended(_ repo: String) -> Bool {
-        return repo == "mlx-community/Llama-3.2-1B-Instruct-4bit"
+        return repo == AppDefaults.defaultSemanticCorrectionModelRepo
     }
 }

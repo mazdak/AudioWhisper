@@ -9,21 +9,21 @@ internal extension AppDelegate {
         menu.addItem(NSMenuItem(title: "Transcribe Audio File...", action: #selector(transcribeAudioFile), keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: "Dashboard...", action: #selector(showDashboard), keyEquivalent: ""))
-        menu.addItem(NSMenuItem(title: LocalizedStrings.Menu.history, action: #selector(showHistory), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "Settings...", action: #selector(showSettings), keyEquivalent: ","))
         menu.addItem(NSMenuItem(title: "Help", action: #selector(showHelp), keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: LocalizedStrings.Menu.quit, action: #selector(NSApplication.terminate(_:)), keyEquivalent: ""))
         return menu
     }
 
-    @MainActor @objc func showHistory() {
-        Logger.app.info("History menu item selected")
-        HistoryWindowManager.shared.showHistoryWindow()
-    }
-
     @MainActor @objc func showDashboard() {
         Logger.app.info("Dashboard menu item selected")
         DashboardWindowManager.shared.showDashboardWindow()
+    }
+
+    @MainActor @objc func showSettings() {
+        Logger.app.info("Settings menu item selected")
+        DashboardWindowManager.shared.showDashboardWindow(selectedNav: .preferences)
     }
 
     @objc func showHelp() {

@@ -3,10 +3,10 @@ import AppKit
 
 internal struct DashboardCorrectionView: View {
     // Stored preferences
-    @AppStorage("semanticCorrectionMode") private var semanticCorrectionModeRaw = SemanticCorrectionMode.off.rawValue
-    @AppStorage("semanticCorrectionModelRepo") private var semanticCorrectionModelRepo = "mlx-community/Qwen3-1.7B-4bit"
-    @AppStorage("hasSetupLocalLLM") private var hasSetupLocalLLM = false
-    @AppStorage("hasSetupParakeet") private var hasSetupParakeet = false
+    @AppStorage(AppDefaults.Keys.semanticCorrectionMode) private var semanticCorrectionModeRaw = AppDefaults.defaultSemanticCorrectionMode.rawValue
+    @AppStorage(AppDefaults.Keys.semanticCorrectionModelRepo) private var semanticCorrectionModelRepo = AppDefaults.defaultSemanticCorrectionModelRepo
+    @AppStorage(AppDefaults.Keys.hasSetupLocalLLM) private var hasSetupLocalLLM = false
+    @AppStorage(AppDefaults.Keys.hasSetupParakeet) private var hasSetupParakeet = false
 
     // Model management
     @State private var modelManager = MLXModelManager.shared
@@ -172,8 +172,6 @@ internal struct DashboardCorrectionView: View {
                 Text("MLX Models")
                     .font(DashboardTheme.Fonts.sans(13, weight: .semibold))
                     .foregroundStyle(DashboardTheme.ink)
-                    .textCase(.uppercase)
-                    .tracking(0.5)
 
                 Spacer()
 
@@ -235,7 +233,7 @@ internal struct DashboardCorrectionView: View {
                         Text("Clean up \(modelManager.unusedModelCount) old model\(modelManager.unusedModelCount == 1 ? "" : "s")")
                             .font(DashboardTheme.Fonts.sans(11, weight: .medium))
                     }
-                    .buttonStyle(PaperButtonStyle())
+                    .buttonStyle(.bordered)
                 }
             }
         }
@@ -303,7 +301,7 @@ internal struct DashboardCorrectionView: View {
                         Text("Delete")
                             .font(DashboardTheme.Fonts.sans(11, weight: .medium))
                     }
-                    .buttonStyle(PaperButtonStyle())
+                    .buttonStyle(.bordered)
                 }
             } else {
                 Button {
@@ -312,7 +310,7 @@ internal struct DashboardCorrectionView: View {
                     Text("Get")
                         .font(DashboardTheme.Fonts.sans(11, weight: .medium))
                 }
-                .buttonStyle(PaperAccentButtonStyle())
+                .buttonStyle(.borderedProminent)
             }
         }
         .padding(.horizontal, DashboardTheme.Spacing.md)
@@ -496,7 +494,7 @@ internal struct DashboardCorrectionView: View {
             }
             
             // Badge logic: recommend Qwen3-1.7B as best balance
-            let badge: String? = model.repo == "mlx-community/Qwen3-1.7B-4bit" ? "RECOMMENDED" : nil
+            let badge: String? = model.repo == AppDefaults.defaultSemanticCorrectionModelRepo ? "RECOMMENDED" : nil
 
             return MLXEntry(
                 model: model,
@@ -517,7 +515,7 @@ internal struct DashboardCorrectionView: View {
                     Task {
                         await modelManager.deleteModel(model.repo)
                         if semanticCorrectionModelRepo == model.repo {
-                            semanticCorrectionModelRepo = "mlx-community/Qwen3-1.7B-4bit"
+                            semanticCorrectionModelRepo = AppDefaults.defaultSemanticCorrectionModelRepo
                         }
                     }
                 }
