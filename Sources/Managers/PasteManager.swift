@@ -352,36 +352,35 @@ internal class PasteManager {
         }
 
         let observerBox = ObserverBox()
-        let cancelledFlag = CancelledFlag()  // Use reference type to share state across closures
+        // Use ResumedFlag to guarantee completion is called exactly once,
+        // even if the timeout and activation notification race each other
+        let completedFlag = ResumedFlag()
 
-        // Set up timeout
-        // Capture observerBox strongly so it survives until timeout/activation
-        // The observerBox is only deallocated after the observer is properly removed
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [observerBox, cancelledFlag] in
-            guard !cancelledFlag.value else { return }
+        // Helper to clean up the observer and call completion exactly once
+        let cleanupAndComplete = { [observerBox] in
             if let observer = observerBox.observer {
                 NotificationCenter.default.removeObserver(observer)
-                observerBox.observer = nil  // Clear reference to allow cleanup
+                observerBox.observer = nil
             }
-            // Execute completion even on timeout to avoid hanging
-            completion()
+            if completedFlag.tryResume() {
+                completion()
+            }
+        }
+
+        // Set up timeout
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            cleanupAndComplete()
         }
 
         // Observe app activation
-        // Capture observerBox strongly to ensure we can remove the observer
         observerBox.observer = NotificationCenter.default.addObserver(
             forName: NSWorkspace.didActivateApplicationNotification,
             object: nil,
             queue: .main
-        ) { [observerBox, cancelledFlag] notification in
+        ) { notification in
             if let activatedApp = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
                activatedApp.processIdentifier == target.processIdentifier {
-                cancelledFlag.value = true
-                if let observer = observerBox.observer {
-                    NotificationCenter.default.removeObserver(observer)
-                    observerBox.observer = nil  // Clear reference to allow cleanup
-                }
-                completion()
+                cleanupAndComplete()
             }
         }
     }

@@ -32,8 +32,8 @@ final class AudioEngineRecorder: NSObject, ObservableObject, AudioRecording {
     private var sampleBuffer: [Float] = []
     private let sampleBufferSize = 2048
     private let dateProvider: () -> Date
-    private let sampleBufferLock = NSLock()  // Lock for thread-safe sampleBuffer access from audio thread
-    private var writeErrorCount = 0  // Track write errors for diagnostics
+    private let sampleBufferLock = NSLock()  // Lock for thread-safe sampleBuffer and writeErrorCount access from audio thread
+    private nonisolated(unsafe) var _writeErrorCount = 0  // Track write errors for diagnostics (access under sampleBufferLock)
 
     // MARK: - Volume Management
 
@@ -120,7 +120,9 @@ final class AudioEngineRecorder: NSObject, ObservableObject, AudioRecording {
             audioEngine = engine
             currentSessionStart = dateProvider()
             lastRecordingDuration = nil
-            writeErrorCount = 0  // Reset error count for new session
+            sampleBufferLock.lock()
+            _writeErrorCount = 0  // Reset error count for new session
+            sampleBufferLock.unlock()
             isRecording = true
 
             return true
@@ -151,8 +153,11 @@ final class AudioEngineRecorder: NSObject, ObservableObject, AudioRecording {
         currentSessionStart = nil
 
         // Log warning if write errors occurred during recording
-        if writeErrorCount > 0 {
-            Logger.audioEngineRecorder.warning("Recording had \(self.writeErrorCount) audio buffer write errors - audio may be incomplete")
+        sampleBufferLock.lock()
+        let errorCount = _writeErrorCount
+        sampleBufferLock.unlock()
+        if errorCount > 0 {
+            Logger.audioEngineRecorder.warning("Recording had \(errorCount) audio buffer write errors - audio may be incomplete")
         }
 
         stopEngine()
@@ -258,9 +263,12 @@ final class AudioEngineRecorder: NSObject, ObservableObject, AudioRecording {
             do {
                 try audioFile.write(from: buffer)
             } catch {
-                // Track write errors for later reporting
-                writeErrorCount += 1
-                if writeErrorCount == 1 {
+                // Track write errors for later reporting (thread-safe via sampleBufferLock)
+                sampleBufferLock.lock()
+                _writeErrorCount += 1
+                let isFirstError = _writeErrorCount == 1
+                sampleBufferLock.unlock()
+                if isFirstError {
                     // Only log the first error to avoid log spam
                     Logger.audioEngineRecorder.error("Failed to write audio buffer: \(error.localizedDescription)")
                 }
