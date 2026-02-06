@@ -106,56 +106,56 @@ final class NotificationCoordinatorTests: XCTestCase {
     // MARK: - Duplicate Observer Tests
 
     func testObservingSameNameReplacesExistingObserver() async throws {
-        var firstObserverCalled = false
-        var secondObserverCalled = false
+        let firstExpectation = XCTestExpectation(description: "First observer called")
+        firstExpectation.isInverted = true // Should NOT be fulfilled
+        let secondExpectation = XCTestExpectation(description: "Second observer called")
 
         coordinator.observe(testNotificationName) { _ in
-            firstObserverCalled = true
+            firstExpectation.fulfill()
         }
 
         // Replace with new observer
         coordinator.observe(testNotificationName) { _ in
-            secondObserverCalled = true
+            secondExpectation.fulfill()
         }
 
         XCTAssertEqual(coordinator.observerCount, 1)
 
         NotificationCenter.default.post(name: testNotificationName, object: nil)
 
-        // Give time for notification to be processed
-        try await Task.sleep(for: .milliseconds(100))
-
-        XCTAssertFalse(firstObserverCalled, "First observer should not be called after replacement")
-        XCTAssertTrue(secondObserverCalled, "Second observer should be called")
+        // Wait for expectations
+        await fulfillment(of: [secondExpectation], timeout: 0.5)
+        await fulfillment(of: [firstExpectation], timeout: 0.1)
     }
 
     // MARK: - Cleanup Tests
 
     func testRemovedObserverDoesNotReceiveNotifications() async throws {
-        var notificationReceived = false
+        let expectation = XCTestExpectation(description: "Notification received")
+        expectation.isInverted = true // Should NOT be fulfilled
 
         coordinator.observe(testNotificationName) { _ in
-            notificationReceived = true
+            expectation.fulfill()
         }
 
         coordinator.remove(for: testNotificationName)
 
         NotificationCenter.default.post(name: testNotificationName, object: nil)
 
-        try await Task.sleep(for: .milliseconds(100))
-
-        XCTAssertFalse(notificationReceived)
+        await fulfillment(of: [expectation], timeout: 0.1)
     }
 
     func testRemoveAllPreventsAllNotifications() async throws {
-        var notification1Received = false
-        var notification2Received = false
+        let expectation1 = XCTestExpectation(description: "First notification received")
+        expectation1.isInverted = true // Should NOT be fulfilled
+        let expectation2 = XCTestExpectation(description: "Second notification received")
+        expectation2.isInverted = true // Should NOT be fulfilled
 
         coordinator.observe(testNotificationName) { _ in
-            notification1Received = true
+            expectation1.fulfill()
         }
         coordinator.observe(Notification.Name("Second")) { _ in
-            notification2Received = true
+            expectation2.fulfill()
         }
 
         coordinator.removeAll()
@@ -163,9 +163,6 @@ final class NotificationCoordinatorTests: XCTestCase {
         NotificationCenter.default.post(name: testNotificationName, object: nil)
         NotificationCenter.default.post(name: Notification.Name("Second"), object: nil)
 
-        try await Task.sleep(for: .milliseconds(100))
-
-        XCTAssertFalse(notification1Received)
-        XCTAssertFalse(notification2Received)
+        await fulfillment(of: [expectation1, expectation2], timeout: 0.1)
     }
 }

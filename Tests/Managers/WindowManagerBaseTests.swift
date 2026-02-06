@@ -30,7 +30,9 @@ final class WindowManagerBaseTests: XCTestCase {
     }
 
     func testWindowManagerIsObservableObject() {
-        XCTAssertTrue(windowManager is ObservableObject)
+        // Verify WindowManager conforms to ObservableObject
+        let observable: (any ObservableObject)? = windowManager
+        XCTAssertNotNil(observable)
     }
 
     // MARK: - Setup Recording Window Tests

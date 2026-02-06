@@ -12,8 +12,7 @@ internal extension AppDelegate {
         ])
 
         // Skip UI initialization in test environment
-        let isTestEnvironment = NSClassFromString("XCTestCase") != nil
-        if isTestEnvironment {
+        if AppEnvironment.isRunningTests {
             Logger.app.info("Test environment detected - skipping UI initialization")
             return
         }

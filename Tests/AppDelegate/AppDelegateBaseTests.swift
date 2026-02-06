@@ -100,11 +100,15 @@ final class AppDelegateBaseTests: XCTestCase {
     // MARK: - NSApplicationDelegate Conformance Tests
 
     func testAppDelegateConformsToNSApplicationDelegate() {
-        XCTAssertTrue(appDelegate is NSApplicationDelegate)
+        // Verify AppDelegate conforms to NSApplicationDelegate by assignment
+        let delegate: (any NSApplicationDelegate)? = appDelegate
+        XCTAssertNotNil(delegate)
     }
 
     func testAppDelegateIsNSObject() {
-        XCTAssertTrue(appDelegate is NSObject)
+        // Verify AppDelegate inherits from NSObject by assignment
+        let object: NSObject? = appDelegate
+        XCTAssertNotNil(object)
     }
 
     // MARK: - MainActor Tests
@@ -133,7 +137,9 @@ final class AppDelegateBaseTests: XCTestCase {
     // MARK: - Window Controller Type Tests
 
     func testWindowControllerType() {
-        XCTAssertTrue(appDelegate.windowController is WindowController)
+        // WindowController type is verified by assignment
+        let controller: WindowController = appDelegate.windowController
+        XCTAssertNotNil(controller)
     }
 
     // MARK: - State Transition Tests

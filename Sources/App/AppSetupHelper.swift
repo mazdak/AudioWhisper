@@ -19,14 +19,10 @@ internal class AppSetupHelper {
         
         if startAtLogin {
             // Only try to register if we're in a real app context, not in tests
-            if Bundle.main.bundleIdentifier != nil && !isRunningInTests() {
+            if Bundle.main.bundleIdentifier != nil && !AppEnvironment.isRunningTests {
                 try? SMAppService.mainApp.register()
             }
         }
-    }
-    
-    private static func isRunningInTests() -> Bool {
-        return NSClassFromString("XCTestCase") != nil
     }
     
     static func createMenuBarIcon() -> NSImage {

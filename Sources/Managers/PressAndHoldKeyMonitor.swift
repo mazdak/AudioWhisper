@@ -1,5 +1,6 @@
 import Foundation
 import AppKit
+import os
 
 internal enum PressAndHoldMode: String, CaseIterable, Identifiable {
     case hold
@@ -113,7 +114,6 @@ internal enum PressAndHoldSettings {
         defaults.set(configuration.enabled, forKey: enabledKey)
         defaults.set(configuration.key.rawValue, forKey: keyIdentifierKey)
         defaults.set(configuration.mode.rawValue, forKey: modeKey)
-        defaults.synchronize()
 
         NotificationCenter.default.post(name: .pressAndHoldSettingsChanged, object: configuration)
     }
@@ -150,18 +150,18 @@ internal final class PressAndHoldKeyMonitor {
     private var keyUpMonitor: Any?
     private let monitorQueue = DispatchQueue(label: "com.audiowhisper.pressAndHoldMonitor")
 
-    // Thread-safe isPressed state (bug fix: data race prevention)
-    private let isPressedLock = NSLock()
+    // Thread-safe isPressed state using os_unfair_lock for minimal overhead in keyboard hot path
+    private var isPressedLock = os_unfair_lock()
     private var _isPressed = false
     private var isPressed: Bool {
         get {
-            isPressedLock.lock()
-            defer { isPressedLock.unlock() }
+            os_unfair_lock_lock(&isPressedLock)
+            defer { os_unfair_lock_unlock(&isPressedLock) }
             return _isPressed
         }
         set {
-            isPressedLock.lock()
-            defer { isPressedLock.unlock() }
+            os_unfair_lock_lock(&isPressedLock)
+            defer { os_unfair_lock_unlock(&isPressedLock) }
             _isPressed = newValue
         }
     }

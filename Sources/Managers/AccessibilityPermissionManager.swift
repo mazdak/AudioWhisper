@@ -13,7 +13,7 @@ internal class AccessibilityPermissionManager {
     private let pollingLock = NSLock()
 
     init(permissionCheck: @escaping () -> Bool = { AXIsProcessTrustedWithOptions(nil) }) {
-        isTestEnvironment = NSClassFromString("XCTestCase") != nil
+        isTestEnvironment = AppEnvironment.isRunningTests
         self.permissionCheck = permissionCheck
     }
 

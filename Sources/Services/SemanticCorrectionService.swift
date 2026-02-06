@@ -98,28 +98,46 @@ internal final class SemanticCorrectionService {
         return corrected.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    /// Computes normalized edit distance using space-efficient 2-row DP.
+    /// Memory: O(min(m,n)) instead of O(m*n) for full matrix.
     static func normalizedEditDistance(a: String, b: String) -> Double {
         if a == b { return 0 }
         let aChars = Array(a)
         let bChars = Array(b)
-        let m = aChars.count
-        let n = bChars.count
+        var m = aChars.count
+        var n = bChars.count
         if m == 0 || n == 0 { return 1 }
-        var dp = Array(repeating: Array(repeating: 0, count: n + 1), count: m + 1)
-        for i in 0...m { dp[i][0] = i }
-        for j in 0...n { dp[0][j] = j }
-        for i in 1...m {
-            for j in 1...n {
-                let cost = aChars[i-1] == bChars[j-1] ? 0 : 1
-                dp[i][j] = min(
-                    dp[i-1][j] + 1,
-                    dp[i][j-1] + 1,
-                    dp[i-1][j-1] + cost
+
+        // Optimize: ensure we iterate over shorter string in inner loop
+        let (shorter, longer): ([Character], [Character])
+        if m > n {
+            shorter = bChars
+            longer = aChars
+            swap(&m, &n)
+        } else {
+            shorter = aChars
+            longer = bChars
+        }
+
+        // Two-row DP: only keep current and previous rows
+        var previousRow = Array(0...shorter.count)
+        var currentRow = Array(repeating: 0, count: shorter.count + 1)
+
+        for i in 1...longer.count {
+            currentRow[0] = i
+            for j in 1...shorter.count {
+                let cost = longer[i - 1] == shorter[j - 1] ? 0 : 1
+                currentRow[j] = min(
+                    previousRow[j] + 1,      // deletion
+                    currentRow[j - 1] + 1,   // insertion
+                    previousRow[j - 1] + cost // substitution
                 )
             }
+            swap(&previousRow, &currentRow)
         }
-        let dist = dp[m][n]
-        let denom = max(m, n)
+
+        let dist = previousRow[shorter.count]
+        let denom = max(aChars.count, bChars.count)
         return Double(dist) / Double(denom)
     }
 }

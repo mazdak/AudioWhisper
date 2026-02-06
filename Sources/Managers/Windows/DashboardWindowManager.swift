@@ -19,7 +19,7 @@ internal final class DashboardWindowManager: NSObject, DashboardWindowManaging {
     private let isTestEnvironment: Bool
     
     private override init() {
-        isTestEnvironment = NSClassFromString("XCTestCase") != nil
+        isTestEnvironment = AppEnvironment.isRunningTests
         super.init()
     }
     

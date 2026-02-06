@@ -94,6 +94,6 @@ final class DashboardWindowManagerTests: XCTestCase {
 extension DashboardWindowManager {
     /// Returns whether the manager is configured for test environment
     var isRunningInTestEnvironment: Bool {
-        NSClassFromString("XCTestCase") != nil
+        AppEnvironment.isRunningTests
     }
 }

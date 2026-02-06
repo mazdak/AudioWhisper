@@ -228,6 +228,7 @@ final class LocalWhisperEntryTests: XCTestCase {
 }
 
 // MARK: - MLXEntry Tests
+@MainActor
 final class MLXEntryTests: XCTestCase {
 
     func testMLXEntryCreation() {
@@ -361,6 +362,7 @@ final class MLXEntryTests: XCTestCase {
 }
 
 // MARK: - ModelEntry Protocol Tests
+@MainActor
 final class ModelEntryProtocolTests: XCTestCase {
 
     func testLocalWhisperEntryConformsToModelEntry() {

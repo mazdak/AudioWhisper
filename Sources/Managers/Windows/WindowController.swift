@@ -29,7 +29,7 @@ internal class WindowController {
     }
     
     init() {
-        isTestEnvironment = NSClassFromString("XCTestCase") != nil
+        isTestEnvironment = AppEnvironment.isRunningTests
     }
     
     func toggleRecordWindow(_ window: NSWindow? = nil, completion: (() -> Void)? = nil) {

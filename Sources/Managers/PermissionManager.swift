@@ -53,7 +53,7 @@ internal class PermissionManager {
     
     init() {
         // Detect if running in tests
-        isTestEnvironment = NSClassFromString("XCTestCase") != nil
+        isTestEnvironment = AppEnvironment.isRunningTests
         // Load actual permission state on initialization
         checkPermissionState()
     }

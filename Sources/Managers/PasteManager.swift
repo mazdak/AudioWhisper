@@ -247,7 +247,7 @@ internal class PasteManager {
     private func performCGEventPaste(completion: ((Result<Void, PasteError>) -> Void)? = nil) {
         Logger.paste.debug("performCGEventPaste called")
         // CRITICAL: Prevent any paste operations during tests
-        if NSClassFromString("XCTestCase") != nil {
+        if AppEnvironment.isRunningTests {
             Logger.paste.debug("performCGEventPaste: skipping in test environment")
             handlePasteResult(.failure(PasteError.accessibilityPermissionDenied))
             completion?(.failure(PasteError.accessibilityPermissionDenied))
@@ -290,7 +290,7 @@ internal class PasteManager {
     
     private func simulateCmdVPaste() throws {
         // CRITICAL: Prevent any paste operations during tests
-        if NSClassFromString("XCTestCase") != nil {
+        if AppEnvironment.isRunningTests {
             throw PasteError.accessibilityPermissionDenied
         }
         

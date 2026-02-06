@@ -15,7 +15,7 @@ internal final class HistoryWindowManager: NSObject {
     private let isTestEnvironment: Bool
     
     private override init() {
-        isTestEnvironment = NSClassFromString("XCTestCase") != nil
+        isTestEnvironment = AppEnvironment.isRunningTests
         super.init()
     }
     

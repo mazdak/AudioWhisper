@@ -28,7 +28,7 @@ final class NotificationCoordinator {
     func observe(
         _ name: Notification.Name,
         queue: OperationQueue? = .main,
-        handler: @escaping (Notification) -> Void
+        handler: @escaping @Sendable (Notification) -> Void
     ) {
         // Remove existing observer for this name if any
         remove(for: name)

@@ -144,6 +144,6 @@ final class HistoryWindowManagerTests: XCTestCase {
 extension HistoryWindowManager {
     /// Returns whether the manager is configured for test environment
     var isRunningInTestEnvironment: Bool {
-        NSClassFromString("XCTestCase") != nil
+        AppEnvironment.isRunningTests
     }
 }

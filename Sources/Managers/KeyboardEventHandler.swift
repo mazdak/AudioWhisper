@@ -6,7 +6,7 @@ internal class KeyboardEventHandler {
     private var localKeyMonitor: Any?
     private let isTestEnvironment: Bool
     
-    init(isTestEnvironment: Bool = NSClassFromString("XCTestCase") != nil) {
+    init(isTestEnvironment: Bool = AppEnvironment.isRunningTests) {
         self.isTestEnvironment = isTestEnvironment
         
         // Avoid installing global monitors in tests to prevent flaky AppKit interactions
