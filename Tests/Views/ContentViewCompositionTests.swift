@@ -249,7 +249,7 @@ final class ContentViewCompositionTests: XCTestCase {
 
     func testOnTapWhenRecordingStopsAndProcesses() {
         // When recording and tapped, should stop and process
-        var isRecording = true
+        let isRecording = true
         var shouldStopAndProcess = false
 
         if isRecording {
@@ -261,7 +261,7 @@ final class ContentViewCompositionTests: XCTestCase {
 
     func testOnTapWhenSuccessShowsPaste() {
         // When success and SmartPaste enabled, should paste
-        var showSuccess = true
+        let showSuccess = true
         let enableSmartPaste = true
         var shouldPaste = false
 

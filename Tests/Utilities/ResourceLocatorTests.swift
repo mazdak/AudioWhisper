@@ -111,7 +111,7 @@ final class ResourceLocatorPythonScriptTests: XCTestCase {
 
     func testPythonScriptExtension() {
         // Verify py extension is used
-        let url = ResourceLocator.pythonScriptURL(named: "test")
+        _ = ResourceLocator.pythonScriptURL(named: "test")
         // URL format should include .py
         XCTAssertTrue(true)
     }

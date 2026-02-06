@@ -185,17 +185,19 @@ final class SemanticCorrectionTypesTests: XCTestCase {
     // MARK: - Usage Pattern Tests
 
     func testModeSelectionSwitchStatement() {
-        let mode = SemanticCorrectionMode.localMLX
-        var result = ""
+        var results: [String] = []
 
-        switch mode {
-        case .off:
-            result = "disabled"
-        case .localMLX:
-            result = "local"
+        for mode in SemanticCorrectionMode.allCases {
+            switch mode {
+            case .off:
+                results.append("disabled")
+            case .localMLX:
+                results.append("local")
+            }
         }
 
-        XCTAssertEqual(result, "local")
+        XCTAssertTrue(results.contains("disabled"))
+        XCTAssertTrue(results.contains("local"))
     }
 
     func testDefaultModeIsOff() {
@@ -208,20 +210,15 @@ final class SemanticCorrectionTypesTests: XCTestCase {
 
     func testModeRequiresSetup() {
         // off mode doesn't require setup
-        // localMLX mode requires setup
-        let offRequiresSetup = SemanticCorrectionMode.off != .off
-        let localMLXRequiresSetup = SemanticCorrectionMode.localMLX != .off
-
-        XCTAssertFalse(offRequiresSetup)
-        XCTAssertTrue(localMLXRequiresSetup)
+        XCTAssertEqual(SemanticCorrectionMode.off, .off, "off mode doesn't require setup")
+        // localMLX mode requires setup (is not .off)
+        XCTAssertNotEqual(SemanticCorrectionMode.localMLX, .off, "localMLX mode requires setup")
     }
 
     func testModeIsLocal() {
-        // Check if mode runs locally
-        let offIsLocal = false
-        let localMLXIsLocal = SemanticCorrectionMode.localMLX == .localMLX
-
-        XCTAssertFalse(offIsLocal)
-        XCTAssertTrue(localMLXIsLocal)
+        // off is not a local mode
+        XCTAssertNotEqual(SemanticCorrectionMode.off, .localMLX, "off is not a local mode")
+        // localMLX is a local mode
+        XCTAssertEqual(SemanticCorrectionMode.localMLX, .localMLX, "localMLX is a local mode")
     }
 }

@@ -86,57 +86,38 @@ final class ContentViewLifecycleTests: XCTestCase {
     // MARK: - Escape Key Behavior Tests
 
     func testEscapeKeyStopsRecording() {
+        // Simulate escape key behavior when recording: cancel, stop recording, clear processing
         var isRecording = true
         var cancelCalled = false
-        var isProcessing = false
 
-        // Simulate escape key behavior
-        if isRecording {
-            cancelCalled = true
-            isRecording = false
-            isProcessing = false
-        }
+        cancelCalled = true
+        isRecording = false
 
         XCTAssertTrue(cancelCalled, "Cancel should be called when recording")
         XCTAssertFalse(isRecording, "Recording should stop")
-        XCTAssertFalse(isProcessing, "Processing should be false")
     }
 
     func testEscapeKeyCancelsProcessing() {
-        let isRecording = false
         var isProcessing = true
         var taskCancelled = false
 
-        // Simulate escape key behavior
-        if isRecording {
-            // ...
-        } else if isProcessing {
-            taskCancelled = true
-            isProcessing = false
-        }
+        // Simulate escape key: not recording, but processing
+        taskCancelled = true
+        isProcessing = false
 
         XCTAssertTrue(taskCancelled, "Task should be cancelled when processing")
         XCTAssertFalse(isProcessing, "Processing should stop")
     }
 
     func testEscapeKeyClosesWindowWhenIdle() {
-        let isRecording = false
-        let isProcessing = false
         var windowClosed = false
         var restoreFocusPosted = false
         var showSuccess = true
 
-        // Simulate escape key behavior when idle
-        if isRecording {
-            // ...
-        } else if isProcessing {
-            // ...
-        } else {
-            // Close window and restore focus
-            windowClosed = true
-            restoreFocusPosted = true
-            showSuccess = false
-        }
+        // Simulate escape key behavior when idle (not recording, not processing)
+        windowClosed = true
+        restoreFocusPosted = true
+        showSuccess = false
 
         XCTAssertTrue(windowClosed, "Window should close when idle")
         XCTAssertTrue(restoreFocusPosted, "Restore focus should be posted")

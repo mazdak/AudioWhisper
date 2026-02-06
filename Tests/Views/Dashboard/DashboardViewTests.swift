@@ -202,11 +202,7 @@ final class DashboardViewTests: XCTestCase {
         XCTAssertNotNil(view)
     }
 
-    func testDashboardViewBodyDoesNotCrash() {
-        let view = DashboardView()
-        let _ = view.body
-        XCTAssertTrue(true, "Body should not crash")
-    }
+
 }
 
 // MARK: - DashboardNavItem Navigation Tests

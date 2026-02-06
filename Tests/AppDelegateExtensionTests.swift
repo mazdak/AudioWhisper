@@ -14,8 +14,6 @@ final class AppDelegateExtensionTests: XCTestCase {
     }
 
     func testHasAPIKeyReturnsTrueWhenKeyExists() {
-        let appDelegate = AppDelegate()
-
         // Set up a test key
         let mockKeychain = MockKeychainService()
         mockKeychain.saveQuietly("test-key", service: "AudioWhisper", account: "TestProvider")
@@ -123,25 +121,21 @@ final class AppDelegateExtensionTests: XCTestCase {
     // MARK: - Hotkey Trigger Source Tests
 
     func testHotkeyTriggerSourceDistinguishesBetweenSources() {
-        let standardHotkey = AppDelegate.HotkeyTriggerSource.standardHotkey
-        let pressAndHold = AppDelegate.HotkeyTriggerSource.pressAndHold
+        let sources: [AppDelegate.HotkeyTriggerSource] = [.standardHotkey, .pressAndHold]
+        var matchedStandard = false
+        var matchedPressAndHold = false
 
-        // These are distinct enum cases
-        switch standardHotkey {
-        case .standardHotkey:
-            // Expected
-            break
-        case .pressAndHold:
-            XCTFail("standardHotkey should not match pressAndHold")
+        for source in sources {
+            switch source {
+            case .standardHotkey:
+                matchedStandard = true
+            case .pressAndHold:
+                matchedPressAndHold = true
+            }
         }
 
-        switch pressAndHold {
-        case .pressAndHold:
-            // Expected
-            break
-        case .standardHotkey:
-            XCTFail("pressAndHold should not match standardHotkey")
-        }
+        XCTAssertTrue(matchedStandard)
+        XCTAssertTrue(matchedPressAndHold)
     }
 
     // MARK: - App Setup Helper Integration Tests

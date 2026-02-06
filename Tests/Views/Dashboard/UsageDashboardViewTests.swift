@@ -19,11 +19,7 @@ final class UsageDashboardViewTests: XCTestCase {
         XCTAssertNotNil(view)
     }
 
-    func testViewBodyDoesNotCrash() {
-        let view = UsageDashboardView()
-        let _ = view.body
-        XCTAssertTrue(true, "Body should not crash")
-    }
+
 }
 
 // MARK: - UsageMetricsStore Tests

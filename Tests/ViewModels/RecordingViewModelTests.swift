@@ -168,7 +168,7 @@ final class RecordingViewModelTests: XCTestCase {
         viewModel.targetAppForPaste = nil
 
         // Should return a fallback app or nil
-        let result = viewModel.findValidTargetApp()
+        _ = viewModel.findValidTargetApp()
 
         // Result depends on running apps - just verify it doesn't crash
         // In real usage, it might find a fallback app

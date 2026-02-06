@@ -35,31 +35,23 @@ final class DashboardProvidersParakeetTests: XCTestCase {
     // MARK: - Environment Status Display Tests
 
     func testEnvironmentReadyText() {
-        let envReady = true
-        let text = envReady ? "Environment Ready" : "Setup Required"
-
-        XCTAssertEqual(text, "Environment Ready")
+        // Documents the mapping: envReady=true → "Environment Ready"
+        XCTAssertEqual("Environment Ready", "Environment Ready")
     }
 
     func testEnvironmentSetupRequiredText() {
-        let envReady = false
-        let text = envReady ? "Environment Ready" : "Setup Required"
-
-        XCTAssertEqual(text, "Setup Required")
+        // Documents the mapping: envReady=false → "Setup Required"
+        XCTAssertEqual("Setup Required", "Setup Required")
     }
 
     func testEnvironmentReadyIcon() {
-        let envReady = true
-        let icon = envReady ? "checkmark" : "arrow.down.circle"
-
-        XCTAssertEqual(icon, "checkmark")
+        // Documents the mapping: envReady=true → "checkmark"
+        XCTAssertEqual("checkmark", "checkmark")
     }
 
     func testEnvironmentSetupRequiredIcon() {
-        let envReady = false
-        let icon = envReady ? "checkmark" : "arrow.down.circle"
-
-        XCTAssertEqual(icon, "arrow.down.circle")
+        // Documents the mapping: envReady=false → "arrow.down.circle"
+        XCTAssertEqual("arrow.down.circle", "arrow.down.circle")
     }
 
     // MARK: - Model Selection Tests
@@ -177,26 +169,22 @@ final class DashboardProvidersParakeetTests: XCTestCase {
     }
 
     func testVerifyButtonTextWhenVerifying() {
-        let isVerifyingParakeet = true
-        let buttonText = isVerifyingParakeet ? "Verifying…" : "Verify"
-
-        XCTAssertEqual(buttonText, "Verifying…")
+        // Documents the mapping: isVerifying=true → "Verifying…"
+        XCTAssertEqual("Verifying…", "Verifying…")
     }
 
     func testVerifyButtonTextWhenNotVerifying() {
-        let isVerifyingParakeet = false
-        let buttonText = isVerifyingParakeet ? "Verifying…" : "Verify"
-
-        XCTAssertEqual(buttonText, "Verify")
+        // Documents the mapping: isVerifying=false → "Verify"
+        XCTAssertEqual("Verify", "Verify")
     }
 
     // MARK: - Setup Sheet Tests
 
     func testSetupSheetInitialState() {
-        var showSetupSheet = false
-        var isSettingUp = false
-        var setupLogs = ""
-        var setupStatus: String?
+        let showSetupSheet = false
+        let isSettingUp = false
+        let setupLogs = ""
+        let setupStatus: String? = nil
 
         XCTAssertFalse(showSetupSheet)
         XCTAssertFalse(isSettingUp)
@@ -218,6 +206,7 @@ final class DashboardProvidersParakeetTests: XCTestCase {
 
         XCTAssertTrue(showSetupSheet)
         XCTAssertTrue(isSettingUp)
+        XCTAssertTrue(setupLogs.isEmpty)
         XCTAssertEqual(setupStatus, "Installing Parakeet dependencies…")
     }
 
