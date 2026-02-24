@@ -3,11 +3,13 @@ import AppKit
 @testable import AudioWhisper
 
 final class PressAndHoldKeyMonitorTests: XCTestCase {
-    private var addedEvents: [(NSEvent.EventTypeMask, (NSEvent) -> Void)] = []
+    private var addedGlobalEvents: [(NSEvent.EventTypeMask, (NSEvent) -> Void)] = []
+    private var addedLocalEvents: [(NSEvent.EventTypeMask, (NSEvent) -> NSEvent?)] = []
     private var removedEvents: [Any] = []
 
     override func tearDown() {
-        addedEvents.removeAll()
+        addedGlobalEvents.removeAll()
+        addedLocalEvents.removeAll()
         removedEvents.removeAll()
         super.tearDown()
     }
@@ -20,8 +22,13 @@ final class PressAndHoldKeyMonitorTests: XCTestCase {
         keyUpHandler: (() -> Void)? = nil
     ) -> PressAndHoldKeyMonitor {
         let addMonitor: PressAndHoldKeyMonitor.EventMonitorFactory = { [weak self] mask, handler in
-            self?.addedEvents.append((mask, handler))
-            return self?.addedEvents.count ?? 0
+            self?.addedGlobalEvents.append((mask, handler))
+            return self?.addedGlobalEvents.count ?? 0
+        }
+
+        let addLocalMonitor: PressAndHoldKeyMonitor.LocalEventMonitorFactory = { [weak self] mask, handler in
+            self?.addedLocalEvents.append((mask, handler))
+            return self?.addedLocalEvents.count ?? 0
         }
 
         let removeMonitor: PressAndHoldKeyMonitor.EventMonitorRemoval = { [weak self] token in
@@ -33,6 +40,7 @@ final class PressAndHoldKeyMonitorTests: XCTestCase {
             keyDownHandler: keyDownHandler,
             keyUpHandler: keyUpHandler,
             addGlobalMonitor: addMonitor,
+            addLocalMonitor: addLocalMonitor,
             removeMonitor: removeMonitor
         )
     }
@@ -45,8 +53,10 @@ final class PressAndHoldKeyMonitorTests: XCTestCase {
 
         monitor.start()
 
-        XCTAssertEqual(addedEvents.count, 1)
-        XCTAssertEqual(addedEvents.first?.0, .flagsChanged)
+        XCTAssertEqual(addedGlobalEvents.count, 1)
+        XCTAssertEqual(addedGlobalEvents.first?.0, .flagsChanged)
+        XCTAssertEqual(addedLocalEvents.count, 1)
+        XCTAssertEqual(addedLocalEvents.first?.0, .flagsChanged)
     }
 
     // MARK: - Transitions
@@ -110,6 +120,6 @@ final class PressAndHoldKeyMonitorTests: XCTestCase {
         monitor.start()
         monitor.stop()
 
-        XCTAssertEqual(removedEvents.count, 1)
+        XCTAssertEqual(removedEvents.count, 2)
     }
 }
