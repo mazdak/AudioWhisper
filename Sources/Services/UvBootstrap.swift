@@ -81,10 +81,14 @@ internal struct UvBootstrap {
     // Ensure project exists and dependencies are synced with uv. Returns path to project .venv python.
     // If userPython is nil, we let uv provision or use its managed interpreter (via --python 3.x)
     static func ensureVenv(userPython: String? = nil, log: ((String)->Void)? = nil) throws -> URL {
-        let uv = try findUv()
         let proj = try projectDir()
 
         let fm = FileManager.default
+        if let existingPython = existingVenvPython(in: proj) {
+            return existingPython
+        }
+
+        let uv = try findUv()
         // Copy pyproject.toml and uv.lock from bundle to project dir (if present / newer)
         try copyProjectFilesIfNeeded(to: proj)
 
@@ -110,6 +114,15 @@ internal struct UvBootstrap {
         ]
         for c in candidates { if fm.isExecutableFile(atPath: c) { return URL(fileURLWithPath: c) } }
         throw UvError.pythonNotUsable("project venv python not found")
+    }
+
+    private static func existingVenvPython(in proj: URL) -> URL? {
+        let fm = FileManager.default
+        let candidates = [
+            proj.appendingPathComponent(".venv/bin/python3"),
+            proj.appendingPathComponent(".venv/bin/python")
+        ]
+        return candidates.first(where: { fm.isExecutableFile(atPath: $0.path) })
     }
 
     // Copy pyproject.toml and uv.lock from bundle to per-user project dir

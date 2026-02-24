@@ -8,7 +8,14 @@ from typing import Any, Dict
 
 from .correction import correct
 from .loader import load_correction_model, load_parakeet_model
-from .parakeet import DEFAULT_PARAKEET_REPO, transcribe
+from .parakeet import (
+    DEFAULT_PARAKEET_REPO,
+    parakeet_stream_abort,
+    parakeet_stream_finalize,
+    parakeet_stream_start,
+    parakeet_stream_update,
+    transcribe,
+)
 
 
 def _respond(payload: Dict[str, Any]) -> None:
@@ -32,6 +39,39 @@ def _handle_request(request: Dict[str, Any]) -> None:
             if not pcm_path:
                 raise ValueError("pcm_path is required for transcribe")
             result = transcribe(repo, pcm_path)
+            _respond({"jsonrpc": "2.0", "id": req_id, "result": result})
+            return
+
+        if method == "parakeet_stream_start":
+            repo = params.get("repo") or DEFAULT_PARAKEET_REPO
+            pcm_path = params.get("pcm_path")
+            if not pcm_path:
+                raise ValueError("pcm_path is required for parakeet_stream_start")
+            result = parakeet_stream_start(repo, pcm_path)
+            _respond({"jsonrpc": "2.0", "id": req_id, "result": result})
+            return
+
+        if method == "parakeet_stream_update":
+            stream_id = params.get("stream_id")
+            if not stream_id:
+                raise ValueError("stream_id is required for parakeet_stream_update")
+            result = parakeet_stream_update(stream_id)
+            _respond({"jsonrpc": "2.0", "id": req_id, "result": result})
+            return
+
+        if method == "parakeet_stream_finalize":
+            stream_id = params.get("stream_id")
+            if not stream_id:
+                raise ValueError("stream_id is required for parakeet_stream_finalize")
+            result = parakeet_stream_finalize(stream_id)
+            _respond({"jsonrpc": "2.0", "id": req_id, "result": result})
+            return
+
+        if method == "parakeet_stream_abort":
+            stream_id = params.get("stream_id")
+            if not stream_id:
+                raise ValueError("stream_id is required for parakeet_stream_abort")
+            result = parakeet_stream_abort(stream_id)
             _respond({"jsonrpc": "2.0", "id": req_id, "result": result})
             return
 
@@ -89,4 +129,3 @@ def main() -> int:
 
         _handle_request(request)
     return 0
-

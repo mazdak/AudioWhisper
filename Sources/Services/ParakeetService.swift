@@ -42,6 +42,11 @@ internal class ParakeetService {
     private let daemon = MLDaemonManager.shared
 
     func transcribe(audioFileURL: URL, pythonPath _: String? = nil) async throws -> String {
+        if let liveText = await ParakeetLiveTranscriber.shared.finalizeIfAvailable(expectedRepo: selectedRepo) {
+            logger.info("Parakeet live stream finalize successful")
+            return liveText
+        }
+
         // Step 0: Do not download here; just verify model cache exists
         guard isModelCached() else {
             throw ParakeetError.modelNotReady
@@ -83,109 +88,96 @@ internal class ParakeetService {
     }
     
     private func processAudioToRawPCM(audioFileURL: URL) async throws -> URL {
-        // Create temporary file for raw PCM data
+        let startedAt = Date()
+        defer {
+            let elapsedMs = Int(Date().timeIntervalSince(startedAt) * 1000)
+            logger.debug("audio_convert_write_ms=\(elapsedMs, privacy: .public)")
+        }
+
         let tempPCMURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("audio_pcm_\(UUID().uuidString).raw")
-        
+
         do {
-            // Use AudioProcessor.swift logic directly
-            let samples = try loadAudio(url: audioFileURL, samplingRate: 16000)
-            
-            // Write raw float32 data
-            let data = samples.withUnsafeBytes { Data($0) }
-            try data.write(to: tempPCMURL)
-            
+            guard FileManager.default.createFile(atPath: tempPCMURL.path, contents: nil) else {
+                throw ParakeetError.transcriptionFailed("Failed to create temporary PCM file")
+            }
+
+            let outputHandle = try FileHandle(forWritingTo: tempPCMURL)
+            defer { outputHandle.closeFile() }
+
+            var extAudioFile: ExtAudioFileRef?
+            var status = ExtAudioFileOpenURL(audioFileURL as CFURL, &extAudioFile)
+            guard status == noErr, let extFile = extAudioFile else {
+                throw ParakeetError.transcriptionFailed("Failed to open audio file: \(status)")
+            }
+            defer { ExtAudioFileDispose(extFile) }
+
+            // Convert directly to the PCM format expected by parakeet_mlx (mono, float32, 16kHz).
+            var clientFormat = AudioStreamBasicDescription(
+                mSampleRate: 16_000,
+                mFormatID: kAudioFormatLinearPCM,
+                mFormatFlags: kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked,
+                mBytesPerPacket: 4,
+                mFramesPerPacket: 1,
+                mBytesPerFrame: 4,
+                mChannelsPerFrame: 1,
+                mBitsPerChannel: 32,
+                mReserved: 0
+            )
+
+            let propertySize = UInt32(MemoryLayout<AudioStreamBasicDescription>.size)
+            status = ExtAudioFileSetProperty(extFile, kExtAudioFileProperty_ClientDataFormat, propertySize, &clientFormat)
+            guard status == noErr else {
+                throw ParakeetError.transcriptionFailed("Failed to set audio format: \(status)")
+            }
+
+            let bufferFrameSize = 16_384
+            var buffer = [Float](repeating: 0, count: bufferFrameSize)
+
+            while true {
+                var numFrames = UInt32(bufferFrameSize)
+                let audioBuffer = buffer.withUnsafeMutableBytes { bytes in
+                    AudioBuffer(
+                        mNumberChannels: 1,
+                        mDataByteSize: UInt32(bufferFrameSize * MemoryLayout<Float>.size),
+                        mData: bytes.baseAddress
+                    )
+                }
+                var audioBufferList = AudioBufferList(mNumberBuffers: 1, mBuffers: audioBuffer)
+
+                status = ExtAudioFileRead(extFile, &numFrames, &audioBufferList)
+                guard status == noErr else {
+                    throw ParakeetError.transcriptionFailed("Failed to read audio data: \(status)")
+                }
+
+                if numFrames == 0 { break }
+
+                try buffer.withUnsafeBytes { rawBytes in
+                    guard let baseAddress = rawBytes.baseAddress else {
+                        throw ParakeetError.transcriptionFailed("Audio buffer unavailable")
+                    }
+                    let byteCount = Int(numFrames) * MemoryLayout<Float>.size
+                    let chunk = Data(bytes: baseAddress, count: byteCount)
+                    try outputHandle.write(contentsOf: chunk)
+                }
+            }
+
             return tempPCMURL
-            
         } catch {
+            try? FileManager.default.removeItem(at: tempPCMURL)
+            if let parakeetError = error as? ParakeetError {
+                throw parakeetError
+            }
             throw ParakeetError.transcriptionFailed("Audio processing failed: \(error.localizedDescription)")
         }
     }
     
-    // Audio processing function from AudioProcessor.swift
-    private func loadAudio(url: URL, samplingRate: Int) throws -> [Float] {
-        var extAudioFile: ExtAudioFileRef?
-        
-        // Open the audio file
-        var status = ExtAudioFileOpenURL(url as CFURL, &extAudioFile)
-        guard status == noErr, let extFile = extAudioFile else {
-            throw ParakeetError.transcriptionFailed("Failed to open audio file: \(status)")
-        }
-        defer { ExtAudioFileDispose(extFile) }
-        
-        // Get file's original format and length
-        var fileFormat = AudioStreamBasicDescription()
-        var propertySize = UInt32(MemoryLayout<AudioStreamBasicDescription>.size)
-        status = ExtAudioFileGetProperty(extFile, kExtAudioFileProperty_FileDataFormat, &propertySize, &fileFormat)
-        guard status == noErr else {
-            throw ParakeetError.transcriptionFailed("Failed to get audio format: \(status)")
-        }
-        
-        var fileLengthFrames: Int64 = 0
-        propertySize = UInt32(MemoryLayout<Int64>.size)
-        status = ExtAudioFileGetProperty(extFile, kExtAudioFileProperty_FileLengthFrames, &propertySize, &fileLengthFrames)
-        guard status == noErr else {
-            throw ParakeetError.transcriptionFailed("Failed to get audio length: \(status)")
-        }
-        
-        // Define client format: mono, float32, target sample rate, interleaved/packed
-        var clientFormat = AudioStreamBasicDescription(
-            mSampleRate: Float64(samplingRate),
-            mFormatID: kAudioFormatLinearPCM,
-            mFormatFlags: kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked,
-            mBytesPerPacket: 4,
-            mFramesPerPacket: 1,
-            mBytesPerFrame: 4,
-            mChannelsPerFrame: 1,
-            mBitsPerChannel: 32,
-            mReserved: 0
-        )
-        
-        propertySize = UInt32(MemoryLayout<AudioStreamBasicDescription>.size)
-        status = ExtAudioFileSetProperty(extFile, kExtAudioFileProperty_ClientDataFormat, propertySize, &clientFormat)
-        guard status == noErr else {
-            throw ParakeetError.transcriptionFailed("Failed to set audio format: \(status)")
-        }
-        
-        // Estimate client length for preallocation
-        let fileSampleRate = fileFormat.mSampleRate
-        let duration = Double(fileLengthFrames) / fileSampleRate
-        let estimatedClientFrames = Int(duration * Double(samplingRate) + 0.5)
-        var samples: [Float] = []
-        samples.reserveCapacity(estimatedClientFrames)
-        
-        // Read in chunks until EOF
-        let bufferFrameSize = 4096
-        var buffer = [Float](repeating: 0, count: bufferFrameSize)
-        
-        while true {
-            var numFrames = UInt32(bufferFrameSize)
-            
-            let audioBuffer = buffer.withUnsafeMutableBytes { bytes in
-                AudioBuffer(
-                    mNumberChannels: 1,
-                    mDataByteSize: UInt32(bufferFrameSize * MemoryLayout<Float>.size),
-                    mData: bytes.baseAddress
-                )
-            }
-            var audioBufferList = AudioBufferList(mNumberBuffers: 1, mBuffers: audioBuffer)
-            
-            status = ExtAudioFileRead(extFile, &numFrames, &audioBufferList)
-            guard status == noErr else {
-                throw ParakeetError.transcriptionFailed("Failed to read audio data: \(status)")
-            }
-            
-            if numFrames == 0 {
-                break  // EOF
-            }
-            
-            samples.append(contentsOf: buffer[0..<Int(numFrames)])
-        }
-        
-        return samples
-    }
-    
     private func transcribeWithRawPCM(pcmDataURL: URL) async throws -> String {
+        let startedAt = Date()
+        defer {
+            let elapsedMs = Int(Date().timeIntervalSince(startedAt) * 1000)
+            logger.debug("daemon_transcribe_ms=\(elapsedMs, privacy: .public)")
+        }
         do {
             let text = try await daemon.transcribe(repo: selectedRepo, pcmPath: pcmDataURL.path)
             logger.info("Parakeet transcription successful")
@@ -195,7 +187,7 @@ internal class ParakeetService {
             throw error
         }
     }
-    
+
     func validateSetup(pythonPath _: String? = nil) async throws {
         guard isModelCached() else {
             throw ParakeetError.modelNotReady
@@ -209,3 +201,18 @@ internal class ParakeetService {
         }
     }
 }
+
+#if DEBUG
+internal extension ParakeetService {
+    func processAudioToRawPCMForTesting(audioFileURL: URL) async throws -> URL {
+        try await processAudioToRawPCM(audioFileURL: audioFileURL)
+    }
+
+    func transcribeAndCleanupForTesting(audioFileURL: URL) async throws -> (text: String, pcmPath: String) {
+        let pcmDataURL = try await processAudioToRawPCM(audioFileURL: audioFileURL)
+        defer { try? FileManager.default.removeItem(at: pcmDataURL) }
+        let text = try await transcribeWithRawPCM(pcmDataURL: pcmDataURL)
+        return (text, pcmDataURL.path)
+    }
+}
+#endif

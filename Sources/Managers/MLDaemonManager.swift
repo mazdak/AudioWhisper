@@ -64,6 +64,62 @@ internal actor MLDaemonManager {
         return result.text
     }
 
+    func parakeetStreamStart(repo: String, pcmPath: String) async throws -> String {
+        struct StreamStartResult: Decodable {
+            let success: Bool
+            let streamID: String
+            let error: String?
+
+            enum CodingKeys: String, CodingKey {
+                case success
+                case streamID = "stream_id"
+                case error
+            }
+        }
+        let result: StreamStartResult = try await sendRequest(
+            method: "parakeet_stream_start",
+            params: ["repo": repo, "pcm_path": pcmPath]
+        )
+        guard result.success else { throw MLDaemonError.remoteError(result.error ?? "Parakeet stream start failed") }
+        return result.streamID
+    }
+
+    func parakeetStreamUpdate(streamID: String) async throws -> String {
+        struct StreamUpdateResult: Decodable {
+            let success: Bool
+            let text: String
+            let error: String?
+        }
+        let result: StreamUpdateResult = try await sendRequest(
+            method: "parakeet_stream_update",
+            params: ["stream_id": streamID]
+        )
+        guard result.success else { throw MLDaemonError.remoteError(result.error ?? "Parakeet stream update failed") }
+        return result.text
+    }
+
+    func parakeetStreamFinalize(streamID: String) async throws -> String {
+        struct StreamFinalizeResult: Decodable {
+            let success: Bool
+            let text: String
+            let error: String?
+        }
+        let result: StreamFinalizeResult = try await sendRequest(
+            method: "parakeet_stream_finalize",
+            params: ["stream_id": streamID]
+        )
+        guard result.success else { throw MLDaemonError.remoteError(result.error ?? "Parakeet stream finalize failed") }
+        return result.text
+    }
+
+    func parakeetStreamAbort(streamID: String) async {
+        struct StreamAbortResult: Decodable { let success: Bool? }
+        _ = try? await sendRequest(
+            method: "parakeet_stream_abort",
+            params: ["stream_id": streamID]
+        ) as StreamAbortResult
+    }
+
     func correct(repo: String, text: String, prompt: String?) async throws -> String {
         struct CorrectionResult: Decodable { let success: Bool; let text: String; let error: String? }
         var params: [String: Any] = ["repo": repo, "text": text]

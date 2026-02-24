@@ -8,7 +8,8 @@ final class AppStatusTests: XCTestCase {
     
     func testAppStatusMessages() {
         XCTAssertEqual(AppStatus.error("Test error").message, "Test error")
-        XCTAssertEqual(AppStatus.recording.message, "Recording...")
+        XCTAssertEqual(AppStatus.recording(nil).message, "Recording...")
+        XCTAssertEqual(AppStatus.recording("hello").message, "hello")
         XCTAssertEqual(AppStatus.processing("Converting...").message, "Converting...")
         XCTAssertEqual(AppStatus.downloadingModel("Downloading Base…").message, "Downloading Base…")
         XCTAssertEqual(AppStatus.success.message, "Success!")
@@ -18,7 +19,7 @@ final class AppStatusTests: XCTestCase {
     
     func testAppStatusColors() {
         XCTAssertEqual(AppStatus.error("Test").color, .red)
-        XCTAssertEqual(AppStatus.recording.color, .red)
+        XCTAssertEqual(AppStatus.recording(nil).color, .red)
         XCTAssertEqual(AppStatus.processing("Test").color, .orange)
         XCTAssertEqual(AppStatus.downloadingModel("Test").color, .orange)
         XCTAssertEqual(AppStatus.success.color, .green)
@@ -28,7 +29,7 @@ final class AppStatusTests: XCTestCase {
     
     func testAppStatusIcons() {
         XCTAssertEqual(AppStatus.error("Test").icon, "exclamationmark.triangle.fill")
-        XCTAssertNil(AppStatus.recording.icon)
+        XCTAssertNil(AppStatus.recording(nil).icon)
         XCTAssertNil(AppStatus.processing("Test").icon)
         XCTAssertNil(AppStatus.downloadingModel("Test").icon)
         XCTAssertEqual(AppStatus.success.icon, "checkmark.circle.fill")
@@ -38,7 +39,7 @@ final class AppStatusTests: XCTestCase {
     
     func testAppStatusShouldAnimate() {
         XCTAssertFalse(AppStatus.error("Test").shouldAnimate)
-        XCTAssertTrue(AppStatus.recording.shouldAnimate)
+        XCTAssertTrue(AppStatus.recording(nil).shouldAnimate)
         XCTAssertTrue(AppStatus.processing("Test").shouldAnimate)
         XCTAssertTrue(AppStatus.downloadingModel("Test").shouldAnimate)
         XCTAssertFalse(AppStatus.success.shouldAnimate)
@@ -48,7 +49,7 @@ final class AppStatusTests: XCTestCase {
     
     func testAppStatusShowInfoButton() {
         XCTAssertFalse(AppStatus.error("Test").showInfoButton)
-        XCTAssertFalse(AppStatus.recording.showInfoButton)
+        XCTAssertFalse(AppStatus.recording(nil).showInfoButton)
         XCTAssertFalse(AppStatus.processing("Test").showInfoButton)
         XCTAssertFalse(AppStatus.downloadingModel("Test").showInfoButton)
         XCTAssertFalse(AppStatus.success.showInfoButton)
@@ -58,14 +59,14 @@ final class AppStatusTests: XCTestCase {
     
     func testAppStatusEquality() {
         XCTAssertEqual(AppStatus.ready, AppStatus.ready)
-        XCTAssertEqual(AppStatus.recording, AppStatus.recording)
+        XCTAssertEqual(AppStatus.recording(nil), AppStatus.recording(nil))
         XCTAssertEqual(AppStatus.success, AppStatus.success)
         XCTAssertEqual(AppStatus.permissionRequired, AppStatus.permissionRequired)
         XCTAssertEqual(AppStatus.error("Test"), AppStatus.error("Test"))
         XCTAssertEqual(AppStatus.processing("Test"), AppStatus.processing("Test"))
         XCTAssertEqual(AppStatus.downloadingModel("Test"), AppStatus.downloadingModel("Test"))
         
-        XCTAssertNotEqual(AppStatus.ready, AppStatus.recording)
+        XCTAssertNotEqual(AppStatus.ready, AppStatus.recording(nil))
         XCTAssertNotEqual(AppStatus.error("Test1"), AppStatus.error("Test2"))
         XCTAssertNotEqual(AppStatus.processing("Test1"), AppStatus.processing("Test2"))
         XCTAssertNotEqual(AppStatus.downloadingModel("Test1"), AppStatus.downloadingModel("Test2"))
@@ -121,7 +122,7 @@ final class AppStatusTests: XCTestCase {
             showSuccess: false
         )
         
-        XCTAssertEqual(viewModel.currentStatus, .recording)
+        XCTAssertEqual(viewModel.currentStatus, .recording(nil))
     }
     
     func testStatusViewModelUpdateWithProcessing() {
@@ -219,7 +220,7 @@ final class AppStatusTests: XCTestCase {
             hasPermission: true,
             showSuccess: false
         )
-        XCTAssertEqual(viewModel.currentStatus, .recording)
+        XCTAssertEqual(viewModel.currentStatus, .recording("Test"))
         
         // Processing has fourth priority
         viewModel.updateStatus(

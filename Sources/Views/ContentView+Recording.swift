@@ -15,6 +15,7 @@ internal extension ContentView {
         }
         
         lastAudioURL = nil
+        progressMessage = ""
         
         let success = audioRecorder.startRecording()
         if !success {
