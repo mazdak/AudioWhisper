@@ -26,7 +26,7 @@ internal struct WaveformRecordingView: View {
                     Text(partial)
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(Color(nsColor: .labelColor))
-                        .lineLimit(4)
+                        .lineLimit(2)
                         .multilineTextAlignment(.leading)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, 10)
@@ -114,10 +114,7 @@ internal struct WaveformRecordingView: View {
 
     private var statusText: String {
         switch status {
-        case .recording(let partial):
-            if let partial, !partial.isEmpty {
-                return partial
-            }
+        case .recording:
             return "Recording…"
         case .processing(let message):
             return message

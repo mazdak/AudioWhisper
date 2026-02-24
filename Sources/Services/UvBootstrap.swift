@@ -27,6 +27,12 @@ internal struct UvBootstrap {
     static let minUvVersion = "0.8.5"
     static let defaultPythonVersion = "3.11"
 
+    private enum ProjectFilesSyncState {
+        case unavailable
+        case unchanged
+        case updated
+    }
+
     // Where we keep the app-managed project (contains pyproject + .venv)
     static func projectDir() throws -> URL {
         let fm = FileManager.default
@@ -82,15 +88,14 @@ internal struct UvBootstrap {
     // If userPython is nil, we let uv provision or use its managed interpreter (via --python 3.x)
     static func ensureVenv(userPython: String? = nil, log: ((String)->Void)? = nil) throws -> URL {
         let proj = try projectDir()
+        let projectFilesState = try copyProjectFilesIfNeeded(to: proj)
 
         let fm = FileManager.default
-        if let existingPython = existingVenvPython(in: proj) {
+        if let existingPython = existingVenvPython(in: proj), projectFilesState == .unchanged {
             return existingPython
         }
 
         let uv = try findUv()
-        // Copy pyproject.toml and uv.lock from bundle to project dir (if present / newer)
-        try copyProjectFilesIfNeeded(to: proj)
 
         // Ensure .venv exists using specified Python (or default)
         let venvDir = proj.appendingPathComponent(".venv", isDirectory: true)
@@ -125,17 +130,17 @@ internal struct UvBootstrap {
         return candidates.first(where: { fm.isExecutableFile(atPath: $0.path) })
     }
 
-    // Copy pyproject.toml and uv.lock from bundle to per-user project dir
-    private static func copyProjectFilesIfNeeded(to proj: URL) throws {
-        guard let res = Bundle.main.resourceURL else { return }
+    // Copy pyproject.toml from bundle to per-user project dir and report if it changed.
+    private static func copyProjectFilesIfNeeded(to proj: URL) throws -> ProjectFilesSyncState {
+        guard let res = Bundle.main.resourceURL else { return .unavailable }
         let fm = FileManager.default
         // Support both flattened and nested resource layouts for pyproject.toml only.
         // We intentionally do NOT copy a bundled uv.lock to avoid mismatches.
         let pyCandidates = [res.appendingPathComponent("pyproject.toml"), res.appendingPathComponent("Resources/pyproject.toml")]
-        if let src = pyCandidates.first(where: { fm.fileExists(atPath: $0.path) }) {
-            let dest = proj.appendingPathComponent("pyproject.toml")
-            try copyIfDifferent(src: src, dst: dest)
-        }
+        guard let src = pyCandidates.first(where: { fm.fileExists(atPath: $0.path) }) else { return .unavailable }
+        let dest = proj.appendingPathComponent("pyproject.toml")
+        let changed = try copyIfDifferent(src: src, dst: dest)
+        return changed ? .updated : .unchanged
     }
 
     // MARK: - Utilities
@@ -217,16 +222,16 @@ internal struct UvBootstrap {
         return (out, err, p.terminationStatus)
     }
 
-    private static func copyIfDifferent(src: URL, dst: URL) throws {
+    @discardableResult
+    private static func copyIfDifferent(src: URL, dst: URL) throws -> Bool {
         let fm = FileManager.default
         if fm.fileExists(atPath: dst.path) {
-            let sAttr = try fm.attributesOfItem(atPath: src.path)
-            let dAttr = try fm.attributesOfItem(atPath: dst.path)
-            let sSize = (sAttr[.size] as? NSNumber)?.intValue ?? -1
-            let dSize = (dAttr[.size] as? NSNumber)?.intValue ?? -2
-            if sSize == dSize { return }
+            let srcData = try Data(contentsOf: src, options: .mappedIfSafe)
+            let dstData = try Data(contentsOf: dst, options: .mappedIfSafe)
+            if srcData == dstData { return false }
             try fm.removeItem(at: dst)
         }
         try fm.copyItem(at: src, to: dst)
+        return true
     }
 }
