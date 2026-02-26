@@ -24,11 +24,14 @@ internal struct WaveformRecordingView: View {
 
                 if let partial = recordingPartialText {
                     Text(partial)
-                        .font(.system(size: 11, weight: .medium))
+                        .font(.system(size: 14, weight: .medium))
                         .foregroundStyle(Color(nsColor: .labelColor))
-                        .lineLimit(2)
+                        .lineLimit(4, reservesSpace: true)
+                        .truncationMode(.head)
                         .multilineTextAlignment(.leading)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .layoutPriority(1)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 8)
                         .background(
@@ -205,7 +208,13 @@ internal struct WaveformRecordingView: View {
     private var recordingPartialText: String? {
         guard case .recording(let partial) = status else { return nil }
         guard let partial, !partial.isEmpty else { return nil }
-        return partial
+        return visibleTailText(partial)
+    }
+
+    private func visibleTailText(_ text: String) -> String {
+        let limit = 360
+        guard text.count > limit else { return text }
+        return "…" + String(text.suffix(limit))
     }
 
     private var buttonHelp: String {

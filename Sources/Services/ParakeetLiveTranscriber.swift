@@ -168,7 +168,7 @@ internal actor ParakeetLiveTranscriber {
 
         NotificationCenter.default.post(
             name: .transcriptionProgress,
-            object: displaySnippet(for: normalized),
+            object: normalized,
             userInfo: ["aw_partial": true]
         )
     }
@@ -194,11 +194,5 @@ internal actor ParakeetLiveTranscriber {
         }
 
         try? FileManager.default.removeItem(at: current.pcmURL)
-    }
-
-    private func displaySnippet(for text: String) -> String {
-        let limit = 96
-        guard text.count > limit else { return text }
-        return "…" + String(text.suffix(limit))
     }
 }
