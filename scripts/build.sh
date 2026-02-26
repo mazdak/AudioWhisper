@@ -26,35 +26,39 @@ done
 
 # Generate version info
 GIT_HASH=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
-BUILD_DATE=$(date '+%Y-%m-%d')
+BUILD_DATE=$(date '+%Y-%m-%d %H:%M:%S')
 
 # Read version from VERSION file or use environment variable
 DEFAULT_VERSION=$(cat VERSION | tr -d '[:space:]')
 VERSION="${AUDIO_WHISPER_VERSION:-$DEFAULT_VERSION}"
+BUILD_COUNTER_FILE="BUILD_NUMBER"
 
-echo "🎙️ Building AudioWhisper version $VERSION..."
-
-# Update Info.plist with current version
-if [ -f "Info.plist" ]; then
-  echo "Updating Info.plist version to $VERSION..."
-  # Update CFBundleShortVersionString
-  /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" Info.plist 2>/dev/null ||
-    sed -i '' "s|<key>CFBundleShortVersionString</key>[[:space:]]*<string>[^<]*</string>|<key>CFBundleShortVersionString</key><string>$VERSION</string>|" Info.plist
-
-  # Update CFBundleVersion (remove dots for build number)
-  BUILD_NUMBER="${VERSION//./}"
-  /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" Info.plist 2>/dev/null ||
-    sed -i '' "s|<key>CFBundleVersion</key>[[:space:]]*<string>[^<]*</string>|<key>CFBundleVersion</key><string>$BUILD_NUMBER</string>|" Info.plist
+if [ -n "${AUDIO_WHISPER_BUILD_NUMBER:-}" ]; then
+  BUILD_NUMBER="${AUDIO_WHISPER_BUILD_NUMBER}"
+else
+  CURRENT_BUILD=0
+  if [ -f "$BUILD_COUNTER_FILE" ]; then
+    CURRENT_BUILD=$(cat "$BUILD_COUNTER_FILE" | tr -d '[:space:]')
+    if ! [[ "$CURRENT_BUILD" =~ ^[0-9]+$ ]]; then
+      CURRENT_BUILD=0
+    fi
+  fi
+  BUILD_NUMBER=$((CURRENT_BUILD + 1))
+  echo "$BUILD_NUMBER" >"$BUILD_COUNTER_FILE"
 fi
+
+echo "🎙️ Building AudioWhisper version $VERSION (build $BUILD_NUMBER)..."
 
 # Clean previous builds
 rm -rf .build/release
+rm -rf .build/apple/Products/Release
 rm -rf AudioWhisper.app
 rm -f Sources/AudioProcessorCLI
 
 # Create version file from template
 if [ -f "Sources/VersionInfo.swift.template" ]; then
   sed -e "s/VERSION_PLACEHOLDER/$VERSION/g" \
+    -e "s/BUILD_NUMBER_PLACEHOLDER/$BUILD_NUMBER/g" \
     -e "s/GIT_HASH_PLACEHOLDER/$GIT_HASH/g" \
     -e "s/BUILD_DATE_PLACEHOLDER/$BUILD_DATE/g" \
     Sources/VersionInfo.swift.template >Sources/Utilities/VersionInfo.swift
@@ -66,19 +70,16 @@ import Foundation
 
 struct VersionInfo {
     static let version = "$VERSION"
+    static let buildNumber = "$BUILD_NUMBER"
     static let gitHash = "$GIT_HASH"
     static let buildDate = "$BUILD_DATE"
     
     static var displayVersion: String {
-        if gitHash != "unknown" && !gitHash.isEmpty {
-            let shortHash = String(gitHash.prefix(7))
-            return "\(version) (\(shortHash))"
-        }
-        return version
+        return "\(version).\(buildNumber)"
     }
     
     static var fullVersionInfo: String {
-        var info = "AudioWhisper \(version)"
+        var info = "AudioWhisper \(version).\(buildNumber)"
         if gitHash != "unknown" && !gitHash.isEmpty {
             let shortHash = String(gitHash.prefix(7))
             info += " • \(shortHash)"
@@ -92,12 +93,12 @@ struct VersionInfo {
 EOF
 fi
 
-# Build for release
+# Build for release (Apple Silicon only)
 echo "📦 Building for release..."
-swift build -c release --arch arm64 --arch x86_64
+swift build -c release --arch arm64
 
 # Check for the actual binary instead of exit code (swift-collections emits spurious errors)
-if [ ! -f ".build/apple/Products/Release/AudioWhisper" ]; then
+if [ ! -f ".build/release/AudioWhisper" ]; then
   echo "❌ Build failed - binary not found!"
   exit 1
 fi
@@ -108,11 +109,10 @@ mkdir -p AudioWhisper.app/Contents/MacOS
 mkdir -p AudioWhisper.app/Contents/Resources
 mkdir -p AudioWhisper.app/Contents/Resources/bin
 
-# Set build number for Info.plist
-BUILD_NUMBER="${VERSION//./}"
+# CFBundleVersion uses short incrementing build number (1, 2, 3, ...)
 
-# Copy executable (universal binary)
-cp .build/apple/Products/Release/AudioWhisper AudioWhisper.app/Contents/MacOS/
+# Copy executable
+cp .build/release/AudioWhisper AudioWhisper.app/Contents/MacOS/
 
 # Copy dashboard logo
 if [ -f "Sources/Resources/DashboardLogo.jpg" ]; then
@@ -157,13 +157,17 @@ else
   echo "⚠️ Sources/ml package not found, ML daemon will not work"
 fi
 
-# Bundle uv (Apple Silicon). Prefer repo copy; else fall back to system uv if available
+# Bundle uv (Apple Silicon). Prefer repo copy; then installed app copy; lastly system uv.
 if [ -f "Sources/Resources/bin/uv" ]; then
   cp Sources/Resources/bin/uv AudioWhisper.app/Contents/Resources/bin/uv
   chmod +x AudioWhisper.app/Contents/Resources/bin/uv
   echo "Bundled uv binary (from repo)"
 else
-  if command -v uv >/dev/null 2>&1; then
+  if [ -x "/Applications/AudioWhisper.app/Contents/Resources/bin/uv" ]; then
+    cp /Applications/AudioWhisper.app/Contents/Resources/bin/uv AudioWhisper.app/Contents/Resources/bin/uv
+    chmod +x AudioWhisper.app/Contents/Resources/bin/uv
+    echo "Bundled uv binary (from /Applications/AudioWhisper.app)"
+  elif command -v uv >/dev/null 2>&1; then
     UV_PATH=$(command -v uv)
     cp "$UV_PATH" AudioWhisper.app/Contents/Resources/bin/uv
     chmod +x AudioWhisper.app/Contents/Resources/bin/uv

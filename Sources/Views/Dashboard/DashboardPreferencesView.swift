@@ -120,6 +120,13 @@ internal struct DashboardPreferencesView: View {
                         .foregroundStyle(.secondary)
                 }
 
+                LabeledContent("Build") {
+                    Text(VersionInfo.buildNumber)
+                        .font(.system(.body, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
+
                 if VersionInfo.gitHash != "dev-build" && VersionInfo.gitHash != "unknown" {
                     LabeledContent("Git") {
                         Text(VersionInfo.gitHash)

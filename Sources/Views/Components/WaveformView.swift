@@ -22,6 +22,24 @@ internal struct WaveformRecordingView: View {
                         .padding(.top, 4)
                 }
 
+                if let partial = recordingPartialText {
+                    Text(partial)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(Color(nsColor: .labelColor))
+                        .lineLimit(4, reservesSpace: true)
+                        .truncationMode(.head)
+                        .multilineTextAlignment(.leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .layoutPriority(1)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 8)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(Color.black.opacity(0.08))
+                        )
+                }
+
                 Button(action: onTap) {
                     buttonSymbol
                         .font(.system(size: 54, weight: .regular))
@@ -84,7 +102,7 @@ internal struct WaveformRecordingView: View {
     private var buttonSymbol: some View {
         // Standard macOS recording controls keep "recording" as red, but the stop glyph should have strong
         // contrast (commonly white) against the red background.
-        if case .recording = status {
+        if case .recording(_) = status {
             Image(systemName: buttonIcon)
                 .symbolRenderingMode(.palette)
                 .foregroundStyle(.white, Color(nsColor: .systemRed))
@@ -168,7 +186,7 @@ internal struct WaveformRecordingView: View {
     }
 
     private var isRecording: Bool {
-        if case .recording = status { return true }
+        if case .recording(_) = status { return true }
         return false
     }
 
@@ -185,6 +203,18 @@ internal struct WaveformRecordingView: View {
     private var clampedAudioLevel: Double {
         let level = Double(audioLevel)
         return min(1.0, max(0.0, level))
+    }
+
+    private var recordingPartialText: String? {
+        guard case .recording(let partial) = status else { return nil }
+        guard let partial, !partial.isEmpty else { return nil }
+        return visibleTailText(partial)
+    }
+
+    private func visibleTailText(_ text: String) -> String {
+        let limit = 360
+        guard text.count > limit else { return text }
+        return "…" + String(text.suffix(limit))
     }
 
     private var buttonHelp: String {

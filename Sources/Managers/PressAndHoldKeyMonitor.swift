@@ -137,15 +137,18 @@ internal enum PressAndHoldSettings {
 /// when the app is not focused.
 internal final class PressAndHoldKeyMonitor {
     typealias EventMonitorFactory = (NSEvent.EventTypeMask, @escaping (NSEvent) -> Void) -> Any?
+    typealias LocalEventMonitorFactory = (NSEvent.EventTypeMask, @escaping (NSEvent) -> NSEvent?) -> Any?
     typealias EventMonitorRemoval = (Any) -> Void
 
     private let configuration: PressAndHoldConfiguration
     private let keyDownHandler: () -> Void
     private let keyUpHandler: (() -> Void)?
     private let addGlobalMonitor: EventMonitorFactory
+    private let addLocalMonitor: LocalEventMonitorFactory
     private let removeMonitor: EventMonitorRemoval
 
     private var flagsMonitor: Any?
+    private var localFlagsMonitor: Any?
     private var keyDownMonitor: Any?
     private var keyUpMonitor: Any?
     private let monitorQueue = DispatchQueue(label: "com.audiowhisper.pressAndHoldMonitor")
@@ -157,12 +160,14 @@ internal final class PressAndHoldKeyMonitor {
         keyDownHandler: @escaping () -> Void,
         keyUpHandler: (() -> Void)? = nil,
         addGlobalMonitor: @escaping EventMonitorFactory = NSEvent.addGlobalMonitorForEvents(matching:handler:),
+        addLocalMonitor: @escaping LocalEventMonitorFactory = NSEvent.addLocalMonitorForEvents(matching:handler:),
         removeMonitor: @escaping EventMonitorRemoval = NSEvent.removeMonitor(_:)
     ) {
         self.configuration = configuration
         self.keyDownHandler = keyDownHandler
         self.keyUpHandler = keyUpHandler
         self.addGlobalMonitor = addGlobalMonitor
+        self.addLocalMonitor = addLocalMonitor
         self.removeMonitor = removeMonitor
     }
 
@@ -173,6 +178,10 @@ internal final class PressAndHoldKeyMonitor {
         if modifierFlag == .command || modifierFlag == .option || modifierFlag == .control || modifierFlag == .function {
             flagsMonitor = addGlobalMonitor(.flagsChanged) { [weak self] event in
                 self?.handleModifierEvent(event)
+            }
+            localFlagsMonitor = addLocalMonitor(.flagsChanged) { [weak self] event in
+                self?.handleModifierEvent(event)
+                return event
             }
         } else {
             keyDownMonitor = addGlobalMonitor(.keyDown) { [weak self] event in
@@ -188,6 +197,10 @@ internal final class PressAndHoldKeyMonitor {
         if let monitor = flagsMonitor {
             removeMonitor(monitor)
             flagsMonitor = nil
+        }
+        if let monitor = localFlagsMonitor {
+            removeMonitor(monitor)
+            localFlagsMonitor = nil
         }
         if let monitor = keyDownMonitor {
             removeMonitor(monitor)
@@ -206,9 +219,15 @@ internal final class PressAndHoldKeyMonitor {
 
     private func handleModifierEvent(_ event: NSEvent) {
         guard event.type == .flagsChanged, event.keyCode == configuration.key.keyCode else { return }
+        let modifierIsActive = event.modifierFlags.contains(configuration.key.modifierFlag)
 
         monitorQueue.async { [weak self] in
-            self?.processTransition(isKeyDownEvent: !(self?.isPressed ?? false))
+            guard let self else { return }
+
+            // NSEvent modifier flags are side-agnostic (left/right command share .command).
+            // For the configured side key, infer transition direction from current pressed state.
+            let isKeyDownEvent = modifierIsActive ? !self.isPressed : false
+            self.processTransition(isKeyDownEvent: isKeyDownEvent)
         }
     }
 

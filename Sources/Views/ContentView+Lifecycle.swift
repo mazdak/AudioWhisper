@@ -28,6 +28,9 @@ internal extension ContentView {
         ) { notification in
             Task { @MainActor in
                 if let message = notification.object as? String {
+                    if (notification.userInfo?["aw_partial"] as? Bool) == true, !audioRecorder.isRecording {
+                        return
+                    }
                     progressMessage = enhanceProgressMessage(message)
                 }
             }

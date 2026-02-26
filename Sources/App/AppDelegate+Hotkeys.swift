@@ -59,6 +59,7 @@ internal extension AppDelegate {
             isHoldRecordingActive = true
             updateMenuBarIcon(isRecording: true)
             SoundManager().playRecordingStartSound()
+            showRecordingWindowForProcessing()
         } else {
             isHoldRecordingActive = false
             showRecordingWindowForProcessing {

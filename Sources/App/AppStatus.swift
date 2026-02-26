@@ -2,7 +2,7 @@ import SwiftUI
 
 internal enum AppStatus: Equatable {
     case error(String)
-    case recording
+    case recording(String?)
     case processing(String)
     /// Indicates a background model download is in progress while the app remains usable.
     case downloadingModel(String)
@@ -14,7 +14,10 @@ internal enum AppStatus: Equatable {
         switch self {
         case .error(let message):
             return message
-        case .recording:
+        case .recording(let partial):
+            if let partial, !partial.isEmpty {
+                return partial
+            }
             return "Recording..."
         case .processing(let message):
             return message
@@ -103,7 +106,8 @@ internal enum AppStatus: Equatable {
         } else if showSuccess {
             currentStatus = .success
         } else if isRecording {
-            currentStatus = .recording
+            let normalized = progressMessage.trimmingCharacters(in: .whitespacesAndNewlines)
+            currentStatus = .recording(normalized.isEmpty ? nil : normalized)
         } else if isProcessing {
             currentStatus = .processing(progressMessage)
         } else if !hasPermission {

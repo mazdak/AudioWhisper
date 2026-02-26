@@ -194,7 +194,7 @@ internal struct InkRippleRecordingView: View {
     // MARK: - Computed Properties
     
     private var isRecording: Bool {
-        if case .recording = status { return true }
+        if case .recording(_) = status { return true }
         return false
     }
     
@@ -210,7 +210,10 @@ internal struct InkRippleRecordingView: View {
     
     private var statusText: String {
         switch status {
-        case .recording:
+        case .recording(let partial):
+            if let partial, !partial.isEmpty {
+                return partial
+            }
             return "Listening..."
         case .processing(let message):
             return message
@@ -286,7 +289,7 @@ internal struct InkRippleRecordingView: View {
 // MARK: - Preview
 #Preview("Ink Ripple - Recording") {
     InkRippleRecordingView(
-        status: .recording,
+        status: .recording(nil),
         audioLevel: 0.5,
         onTap: {}
     )

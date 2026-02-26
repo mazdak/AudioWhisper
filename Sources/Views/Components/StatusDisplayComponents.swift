@@ -23,7 +23,7 @@ internal struct StatusDisplayView: View {
             }
             
             // Audio level indicator
-            if case .recording = status {
+            if case .recording(_) = status {
                 let clampedLevel = max(0, min(1, CGFloat(audioLevel)))
                 RoundedRectangle(cornerRadius: 2)
                     .fill(Color.gray.opacity(0.3))

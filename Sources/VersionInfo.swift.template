@@ -2,19 +2,16 @@ import Foundation
 
 struct VersionInfo {
     static let version = "VERSION_PLACEHOLDER"
+    static let buildNumber = "BUILD_NUMBER_PLACEHOLDER"
     static let gitHash = "GIT_HASH_PLACEHOLDER"
     static let buildDate = "BUILD_DATE_PLACEHOLDER"
     
     static var displayVersion: String {
-        if gitHash != "dev-build" && gitHash != "unknown" && !gitHash.isEmpty {
-            let shortHash = String(gitHash.prefix(7))
-            return "\(version) (\(shortHash))"
-        }
-        return version
+        return "\(version).\(buildNumber)"
     }
     
     static var fullVersionInfo: String {
-        var info = "AudioWhisper \(version)"
+        var info = "AudioWhisper \(version).\(buildNumber)"
         if gitHash != "dev-build" && gitHash != "unknown" && !gitHash.isEmpty {
             let shortHash = String(gitHash.prefix(7))
             info += " • \(shortHash)"
