@@ -45,6 +45,21 @@ final class PressAndHoldKeyMonitorTests: XCTestCase {
         )
     }
 
+    private func makeFlagsChangedEvent(keyCode: UInt16, flags: NSEvent.ModifierFlags) -> NSEvent? {
+        NSEvent.keyEvent(
+            with: .flagsChanged,
+            location: .zero,
+            modifierFlags: flags,
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            characters: "",
+            charactersIgnoringModifiers: "",
+            isARepeat: false,
+            keyCode: keyCode
+        )
+    }
+
     // MARK: - start()
 
     func testStartRegistersFlagMonitorForModifierKey() {
@@ -108,6 +123,34 @@ final class PressAndHoldKeyMonitorTests: XCTestCase {
 
         monitor.processTransition(isKeyDownEvent: false)
         RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.05))
+    }
+
+    func testModifierReleaseIsDetectedWhenOppositeSideRemainsHeld() {
+        let keyDownExpectation = expectation(description: "keyDown")
+        let keyUpExpectation = expectation(description: "keyUp")
+
+        let monitor = makeMonitor(
+            configuration: PressAndHoldConfiguration(enabled: true, key: .rightCommand, mode: .hold),
+            keyDownHandler: { keyDownExpectation.fulfill() },
+            keyUpHandler: { keyUpExpectation.fulfill() }
+        )
+        monitor.start()
+
+        guard let flagsHandler = addedGlobalEvents.first?.1 else {
+            XCTFail("Expected global flagsChanged handler")
+            return
+        }
+
+        guard let keyDownEvent = makeFlagsChangedEvent(keyCode: 54, flags: [.command]),
+              let keyUpEventWhileLeftHeld = makeFlagsChangedEvent(keyCode: 54, flags: [.command]) else {
+            XCTFail("Failed to create synthetic modifier events")
+            return
+        }
+
+        flagsHandler(keyDownEvent)
+        flagsHandler(keyUpEventWhileLeftHeld)
+
+        wait(for: [keyDownExpectation, keyUpExpectation], timeout: 1.0)
     }
 
     // MARK: - stop()

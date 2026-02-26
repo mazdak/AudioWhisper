@@ -219,10 +219,15 @@ internal final class PressAndHoldKeyMonitor {
 
     private func handleModifierEvent(_ event: NSEvent) {
         guard event.type == .flagsChanged, event.keyCode == configuration.key.keyCode else { return }
-        let isKeyDownEvent = event.modifierFlags.contains(configuration.key.modifierFlag)
+        let modifierIsActive = event.modifierFlags.contains(configuration.key.modifierFlag)
 
         monitorQueue.async { [weak self] in
-            self?.processTransition(isKeyDownEvent: isKeyDownEvent)
+            guard let self else { return }
+
+            // NSEvent modifier flags are side-agnostic (left/right command share .command).
+            // For the configured side key, infer transition direction from current pressed state.
+            let isKeyDownEvent = modifierIsActive ? !self.isPressed : false
+            self.processTransition(isKeyDownEvent: isKeyDownEvent)
         }
     }
 
