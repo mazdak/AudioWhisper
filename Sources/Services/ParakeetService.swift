@@ -43,8 +43,12 @@ internal class ParakeetService {
 
     func transcribe(audioFileURL: URL, pythonPath _: String? = nil) async throws -> String {
         if let liveText = await ParakeetLiveTranscriber.shared.finalizeIfAvailable(expectedRepo: selectedRepo) {
-            logger.info("Parakeet live stream finalize successful")
-            return liveText
+            if liveText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                logger.info("Parakeet live stream finalize returned empty text; falling back to full-file transcription")
+            } else {
+                logger.info("Parakeet live stream finalize successful")
+                return liveText
+            }
         }
 
         // Step 0: Do not download here; just verify model cache exists
