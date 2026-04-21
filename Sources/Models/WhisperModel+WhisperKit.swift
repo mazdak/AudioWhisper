@@ -23,7 +23,7 @@ internal extension WhisperModel {
         case .small:
             return "openai/whisper-small"
         case .largeTurbo:
-            return "openai/whisper-large-v3"
+            return "openai/whisper-large-v3-turbo"
         }
     }
 
