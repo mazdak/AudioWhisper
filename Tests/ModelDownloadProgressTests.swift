@@ -169,7 +169,7 @@ final class WhisperModelOpenAIRepoTests: XCTestCase {
         XCTAssertEqual(WhisperModel.tiny.openAIWhisperRepoName, "openai/whisper-tiny")
         XCTAssertEqual(WhisperModel.base.openAIWhisperRepoName, "openai/whisper-base")
         XCTAssertEqual(WhisperModel.small.openAIWhisperRepoName, "openai/whisper-small")
-        XCTAssertEqual(WhisperModel.largeTurbo.openAIWhisperRepoName, "openai/whisper-large-v3")
+        XCTAssertEqual(WhisperModel.largeTurbo.openAIWhisperRepoName, "openai/whisper-large-v3-turbo")
     }
 
     func testOpenAIWhisperRepoURLsAreValid() {
