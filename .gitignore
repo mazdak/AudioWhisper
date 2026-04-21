@@ -128,3 +128,6 @@ __pycache__
 AudioWhisper.iconset/
 .build-uv/
 .beads/
+
+# IDE
+.idea

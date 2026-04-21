@@ -52,7 +52,7 @@ internal extension AppDelegate {
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
             if AppSetupHelper.checkFirstRun() {
-                self.showWelcomeAndSettings()
+                Task { @MainActor in await self.showWelcomeAndSettings() }
             }
         }
     }
@@ -76,9 +76,9 @@ internal extension AppDelegate {
         KeychainService.shared.getQuietly(service: service, account: account) != nil
     }
 
-    func showWelcomeAndSettings() {
-        let shouldOpenSettings = WelcomeWindow.showWelcomeDialog()
-
+    @MainActor
+    func showWelcomeAndSettings() async {
+        let shouldOpenSettings = await WelcomeWindow.showWelcomeDialog()
         if shouldOpenSettings {
             DashboardWindowManager.shared.showDashboardWindow()
         }

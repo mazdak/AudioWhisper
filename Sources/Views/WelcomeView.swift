@@ -2,21 +2,29 @@ import SwiftUI
 import AppKit
 
 internal struct WelcomeView: View {
+    /// Called when the welcome flow is done. `true` = user completed setup, `false` = cancelled.
+    var onComplete: (Bool) -> Void = { _ in }
+
+    // The welcome flow always downloads the base model, regardless of any previously saved
+    // preference. UserDefaults survive app reinstalls on macOS, so selectedWhisperModel could
+    // hold a value the user chose before uninstalling (e.g. largeTurbo). We don't want to
+    // surprise them by downloading a large model during first-run setup.
+    private let welcomeModel: WhisperModel = .base
+
     @State private var modelManager = ModelManager.shared
     @AppStorage(AppDefaults.Keys.transcriptionProvider) private var transcriptionProvider = AppDefaults.defaultTranscriptionProvider.rawValue
-    @AppStorage(AppDefaults.Keys.selectedWhisperModel) private var selectedWhisperModel = AppDefaults.defaultWhisperModel
     @State private var isDownloadingModel = false
     @State private var downloadError: String?
     @Environment(\.dismiss) private var dismiss
-    
-    private var downloadProgress: Double {
-        modelManager.downloadProgress[selectedWhisperModel] ?? 0
-    }
-    
+
     private var downloadStage: DownloadStage {
-        modelManager.downloadStages[selectedWhisperModel] ?? .preparing
+        modelManager.downloadStages[welcomeModel] ?? .preparing
     }
-    
+
+    private var fileProgress: DownloadFileProgress? {
+        modelManager.downloadFileProgress[welcomeModel]
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             headerSection
@@ -121,6 +129,11 @@ internal struct WelcomeView: View {
                     .font(.caption)
                     .foregroundStyle(.red)
                     .fixedSize(horizontal: false, vertical: true)
+            } else if let error = modelManager.downloadErrors[welcomeModel], !error.isEmpty {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             
             smartPasteInstructions
@@ -151,10 +164,20 @@ internal struct WelcomeView: View {
             ProgressView()
                 .controlSize(.small)
 
-            Text(downloadStageText)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(fileProgress?.displayText ?? downloadStageText)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+
+                if let detailText = fileProgress?.detailText {
+                    Text(detailText)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
             
             Text("The Base model (142MB) provides good accuracy with fast performance.")
                 .font(.caption)
@@ -167,6 +190,16 @@ internal struct WelcomeView: View {
         switch downloadStage {
         case .preparing:
             return "Preparing download..."
+        case .creatingModelFolder:
+            return "Creating model folder..."
+        case .checkingExistingModels:
+            return "Checking existing models..."
+        case .checkingStorageLimit:
+            return "Checking storage limit..."
+        case .checkingFreeSpace:
+            return "Checking free disk space..."
+        case .fetchingFileList:
+            return "Fetching model file list..."
         case .downloading:
             return "Downloading model..."
         case .processing:
@@ -240,59 +273,62 @@ internal struct WelcomeView: View {
     
     
     private func startWithLocalWhisper() {
-        guard !isDownloadingModel && !isDismissing else { return }
+
+        guard !isDownloadingModel && !isDismissing else {
+            return
+        }
 
         downloadError = nil
 
-        // Ensure the default model is available before completing the welcome flow.
-        let model = selectedWhisperModel
+        let model = welcomeModel
+
+        // Check synchronously before spawning a task — avoids scheduling on the modal run loop
+        // when the model is already present, and prevents unnecessary state mutations.
         if WhisperKitStorage.isModelDownloaded(model) {
             completeWelcome()
             return
         }
 
         isDownloadingModel = true
-        Task {
+
+        // Task.detached runs on the cooperative thread pool — not on @MainActor.
+        // This is necessary because WelcomeView is presented via NSApplication.runModal(),
+        // which uses NSModalPanelRunLoopMode. Swift Concurrency's @MainActor executor
+        // only processes work in the default/event-tracking run loop modes, so a regular
+        // Task { } (which inherits @MainActor) will never start inside a modal session.
+        let manager = modelManager
+        Task.detached(priority: .userInitiated) {
             do {
-                try await modelManager.downloadModel(model)
-                await modelManager.refreshModelStates()
+                try await manager.downloadModel(model)
+                await manager.refreshModelStates()
                 await MainActor.run {
-                    isDownloadingModel = false
-                }
-                await MainActor.run {
-                    completeWelcome()
+                    self.isDownloadingModel = false
+                    self.completeWelcome()
                 }
             } catch {
                 await MainActor.run {
-                    isDownloadingModel = false
-                    downloadError = error.localizedDescription.isEmpty ? String(describing: error) : error.localizedDescription
+                    self.isDownloadingModel = false
+                    self.downloadError = error.localizedDescription.isEmpty ? String(describing: error) : error.localizedDescription
                 }
             }
         }
     }
 
+    @State private var isDismissing = false
+
     @MainActor
     private func completeWelcome() {
+        guard !isDismissing else { return }
+        isDismissing = true
+
         // Persist defaults so service-layer code that reads UserDefaults directly is deterministic.
         UserDefaults.standard.set(AppDefaults.defaultTranscriptionProvider.rawValue, forKey: AppDefaults.Keys.transcriptionProvider)
         UserDefaults.standard.set(AppDefaults.defaultWhisperModel.rawValue, forKey: AppDefaults.Keys.selectedWhisperModel)
         UserDefaults.standard.set(true, forKey: AppDefaults.Keys.hasCompletedWelcome)
         UserDefaults.standard.set(AppDefaults.currentWelcomeVersion, forKey: AppDefaults.Keys.lastWelcomeVersion)
 
-        dismissWindow()
-    }
-    
-    
-    @State private var isDismissing = false
-    
-    private func dismissWindow() {
-        // Prevent multiple dismiss attempts
-        guard !isDismissing else { return }
-        
-        isDismissing = true
-        
-        // Stop the modal - this will return control to WelcomeWindow.showWelcomeDialog()
-        NSApplication.shared.stopModal(withCode: .OK)
+        // Signal completion. WelcomeWindow closes the NSWindow and resumes the async caller.
+        onComplete(true)
     }
 }
 

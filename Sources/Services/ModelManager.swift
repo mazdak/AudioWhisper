@@ -10,6 +10,8 @@ internal class ModelManager {
     static let shared = ModelManager()
 
     var downloadProgress: [WhisperModel: Double] = [:]
+    var downloadFileProgress: [WhisperModel: DownloadFileProgress] = [:]
+    var downloadErrors: [WhisperModel: String] = [:]
     var downloadingModels: Set<WhisperModel> = []
     var downloadStages: [WhisperModel: DownloadStage] = [:]
     var downloadedModels: Set<WhisperModel> = []
@@ -20,6 +22,7 @@ internal class ModelManager {
     private var fileSystemWatcher: DispatchSourceFileSystemObject?
     private var refreshTimer: Timer?
     private var isDeleteInProgress: Set<WhisperModel> = []
+    private static let preparationTimeoutSeconds: TimeInterval = 15
     
     init() {
         // Disable automatic file system watching to prevent unwanted re-downloads
@@ -73,6 +76,7 @@ internal class ModelManager {
     }
     
     nonisolated func downloadModel(_ model: WhisperModel) async throws {
+
         // Check if already downloading and mark as downloading
         let alreadyDownloading = await MainActor.run {
             if ModelManager.shared.downloadingModels.contains(model) {
@@ -80,6 +84,12 @@ internal class ModelManager {
             }
             ModelManager.shared.downloadingModels.insert(model)
             ModelManager.shared.downloadStages[model] = .preparing
+            ModelManager.shared.downloadFileProgress[model] = DownloadFileProgress(
+                completedFiles: 0,
+                totalFiles: nil,
+                phase: .preparing
+            )
+            ModelManager.shared.downloadErrors.removeValue(forKey: model)
             return false
         }
         
@@ -87,49 +97,93 @@ internal class ModelManager {
             throw ModelError.alreadyDownloading
         }
         
-        // Check storage limits
-        let requiredSpace = model.estimatedSize
-        let currentModelsSize = await getTotalModelsSize()
-        let maxStorageGB = UserDefaults.standard.object(forKey: "maxModelStorageGB") as? Double ?? 5.0
-        let maxStorageBytes = Int64(maxStorageGB * 1024 * 1024 * 1024)
-        
-        if currentModelsSize + requiredSpace > maxStorageBytes {
-            await MainActor.run {
-                ModelManager.shared.downloadingModels.remove(model)
-                ModelManager.shared.downloadStages.removeValue(forKey: model)
-            }
-            throw ModelError.storageLimitExceeded
-        }
-        
-        // Check available disk space
-        let availableSpace = try await getAvailableStorageSpace()
-        if availableSpace < requiredSpace + (100 * 1024 * 1024) { // Add 100MB buffer
-            await MainActor.run {
-                ModelManager.shared.downloadingModels.remove(model)
-                ModelManager.shared.downloadStages.removeValue(forKey: model)
-            }
-            throw ModelError.insufficientStorage
-        }
-        
         do {
+            await updateDownloadFileProgress(model, phase: .creatingModelFolder)
+            if let modelDirectory = WhisperKitStorage.modelDirectory(for: model) {
+                try FileManager.default.createDirectory(at: modelDirectory, withIntermediateDirectories: true)
+            } else {
+            }
+
+            // Check storage limits
+            let requiredSpace = model.estimatedSize
+            await updateDownloadFileProgress(model, phase: .checkingExistingModels)
+            let currentModelsSize = try await withTimeout(seconds: Self.preparationTimeoutSeconds) {
+                await self.getTotalModelsSize()
+            }
+
+            await updateDownloadFileProgress(model, phase: .checkingStorageLimit)
+            let maxStorageGB = UserDefaults.standard.object(forKey: "maxModelStorageGB") as? Double ?? 5.0
+            let maxStorageBytes = Int64(maxStorageGB * 1024 * 1024 * 1024)
+
+            if currentModelsSize + requiredSpace > maxStorageBytes {
+                throw ModelError.storageLimitExceeded
+            }
+
+            // Check available disk space
+            await updateDownloadFileProgress(model, phase: .checkingFreeSpace)
+            let availableSpace = try await withTimeout(seconds: Self.preparationTimeoutSeconds) {
+                try await self.getAvailableStorageSpace()
+            }
+            if availableSpace < requiredSpace + (100 * 1024 * 1024) { // Add 100MB buffer
+                throw ModelError.insufficientStorage
+            }
+
             // Update stage to downloading
             await MainActor.run {
                 ModelManager.shared.downloadStages[model] = .downloading
                 ModelManager.shared.downloadEstimates[model] = estimateDownloadTime(for: model)
+                ModelManager.shared.downloadFileProgress[model] = DownloadFileProgress(
+                    completedFiles: 0,
+                    totalFiles: nil,
+                    phase: .fetchingFileList
+                )
             }
-            
-            let config = WhisperKitConfig(model: model.whisperKitModelName)
-            
-            // Update stage to processing
+
+            let supplementalFileCount = WhisperKitSupplementalFiles.requiredFilenames.count
+            let coreMLFileCount = try await WhisperKitCoreMLFiles.install(
+                for: model,
+                supplementalFileCount: supplementalFileCount
+            ) { completed, total, filename in
+                Task { @MainActor in
+                    ModelManager.shared.downloadFileProgress[model] = DownloadFileProgress(
+                        completedFiles: completed,
+                        totalFiles: total,
+                        phase: .coreML,
+                        currentFileName: filename
+                    )
+                }
+            }
+
             await MainActor.run {
                 ModelManager.shared.downloadStages[model] = .processing
             }
-            
-            _ = try await WhisperKit(config)
+
+            try await WhisperKitSupplementalFiles.install(for: model) { completed, total, filename in
+                Task { @MainActor in
+                    ModelManager.shared.downloadFileProgress[model] = DownloadFileProgress(
+                        completedFiles: coreMLFileCount + completed,
+                        totalFiles: coreMLFileCount + total,
+                        phase: .supplemental,
+                        currentFileName: filename
+                    )
+                }
+            }
             
             // Update stage to completing
             await MainActor.run {
                 ModelManager.shared.downloadStages[model] = .completing
+                if let currentProgress = ModelManager.shared.downloadFileProgress[model],
+                   let totalFiles = currentProgress.totalFiles {
+                    ModelManager.shared.downloadFileProgress[model] = DownloadFileProgress(
+                        completedFiles: totalFiles,
+                        totalFiles: totalFiles,
+                        phase: .verifying
+                    )
+                }
+            }
+
+            guard WhisperKitStorage.isModelDownloaded(model) else {
+                throw ModelError.downloadFailed
             }
             
             // Brief delay to show completion stage
@@ -139,14 +193,22 @@ internal class ModelManager {
             await MainActor.run {
                 ModelManager.shared.downloadingModels.remove(model)
                 ModelManager.shared.downloadProgress.removeValue(forKey: model)
+                ModelManager.shared.downloadFileProgress[model] = DownloadFileProgress(
+                    completedFiles: ModelManager.shared.downloadFileProgress[model]?.totalFiles ?? 0,
+                    totalFiles: ModelManager.shared.downloadFileProgress[model]?.totalFiles,
+                    phase: .ready
+                )
                 ModelManager.shared.downloadStages[model] = .ready
                 ModelManager.shared.downloadEstimates.removeValue(forKey: model)
+                ModelManager.shared.downloadErrors.removeValue(forKey: model)
                 ModelManager.shared.downloadedModels.insert(model)
             }
+
             
             // Clear the ready stage after a moment
             DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
                 ModelManager.shared.downloadStages.removeValue(forKey: model)
+                ModelManager.shared.downloadFileProgress.removeValue(forKey: model)
             }
             
             // Send system notification
@@ -157,16 +219,30 @@ internal class ModelManager {
             await MainActor.run {
                 ModelManager.shared.downloadingModels.remove(model)
                 ModelManager.shared.downloadProgress.removeValue(forKey: model)
-                ModelManager.shared.downloadStages[model] = .failed(error.localizedDescription)
+                let message = error.localizedDescription.isEmpty ? String(describing: error) : error.localizedDescription
+                ModelManager.shared.downloadStages[model] = .failed(message)
+                ModelManager.shared.downloadFileProgress[model] = DownloadFileProgress(
+                    completedFiles: ModelManager.shared.downloadFileProgress[model]?.completedFiles ?? 0,
+                    totalFiles: ModelManager.shared.downloadFileProgress[model]?.totalFiles,
+                    phase: .failed,
+                    errorMessage: message
+                )
+                ModelManager.shared.downloadErrors[model] = message
                 ModelManager.shared.downloadEstimates.removeValue(forKey: model)
             }
-            
-            // Clear the error stage after a moment
-            DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
-                ModelManager.shared.downloadStages.removeValue(forKey: model)
-            }
-            
+
             throw error
+        }
+    }
+
+    nonisolated private func updateDownloadFileProgress(_ model: WhisperModel, phase: DownloadFilePhase) async {
+        await MainActor.run {
+            ModelManager.shared.downloadStages[model] = phase.downloadStage
+            ModelManager.shared.downloadFileProgress[model] = DownloadFileProgress(
+                completedFiles: 0,
+                totalFiles: nil,
+                phase: phase
+            )
         }
     }
     
@@ -372,6 +448,11 @@ internal class ModelManager {
 
 internal enum DownloadStage: Equatable {
     case preparing
+    case creatingModelFolder
+    case checkingExistingModels
+    case checkingStorageLimit
+    case checkingFreeSpace
+    case fetchingFileList
     case downloading
     case processing
     case completing
@@ -381,6 +462,11 @@ internal enum DownloadStage: Equatable {
     var displayText: String {
         switch self {
         case .preparing: return "Preparing download..."
+        case .creatingModelFolder: return "Creating model folder..."
+        case .checkingExistingModels: return "Checking existing models..."
+        case .checkingStorageLimit: return "Checking storage limit..."
+        case .checkingFreeSpace: return "Checking free disk space..."
+        case .fetchingFileList: return "Fetching model file list..."
         case .downloading: return "Downloading model..."
         case .processing: return "Processing model files..."
         case .completing: return "Finalizing installation..."
@@ -391,15 +477,125 @@ internal enum DownloadStage: Equatable {
     
     var isActive: Bool {
         switch self {
-        case .preparing, .downloading, .processing, .completing: return true
+        case .preparing, .creatingModelFolder, .checkingExistingModels, .checkingStorageLimit, .checkingFreeSpace, .fetchingFileList, .downloading, .processing, .completing:
+            return true
         case .ready, .failed: return false
         }
     }
 }
 
-internal enum ModelError: LocalizedError {
+internal struct DownloadFileProgress: Equatable, Sendable {
+    let completedFiles: Int
+    let totalFiles: Int?
+    let phase: DownloadFilePhase
+    let currentFileName: String?
+    let errorMessage: String?
+
+    init(
+        completedFiles: Int,
+        totalFiles: Int?,
+        phase: DownloadFilePhase,
+        currentFileName: String? = nil,
+        errorMessage: String? = nil
+    ) {
+        self.completedFiles = completedFiles
+        self.totalFiles = totalFiles
+        self.phase = phase
+        self.currentFileName = currentFileName
+        self.errorMessage = errorMessage
+    }
+
+    var displayText: String {
+        if let totalFiles {
+            return "\(min(completedFiles, totalFiles)) / \(totalFiles) files downloaded"
+        }
+
+        return phase.displayText
+    }
+
+    var detailText: String? {
+        if let errorMessage {
+            return errorMessage
+        }
+
+        guard let currentFileName else {
+            return phase.displayText
+        }
+
+        return "\(phase.displayText): \(currentFileName)"
+    }
+}
+
+internal enum DownloadFilePhase: Equatable, Sendable {
+    case preparing
+    case creatingModelFolder
+    case checkingExistingModels
+    case checkingStorageLimit
+    case checkingFreeSpace
+    case fetchingFileList
+    case coreML
+    case supplemental
+    case verifying
+    case ready
+    case failed
+
+    var displayText: String {
+        switch self {
+        case .preparing:
+            return "Preparing download..."
+        case .creatingModelFolder:
+            return "Creating model folder..."
+        case .checkingExistingModels:
+            return "Checking existing models..."
+        case .checkingStorageLimit:
+            return "Checking storage limit..."
+        case .checkingFreeSpace:
+            return "Checking free disk space..."
+        case .fetchingFileList:
+            return "Fetching model file list..."
+        case .coreML:
+            return "Downloading model files..."
+        case .supplemental:
+            return "Downloading tokenizer files..."
+        case .verifying:
+            return "Verifying model files..."
+        case .ready:
+            return "Model ready!"
+        case .failed:
+            return "Download failed"
+        }
+    }
+
+    var downloadStage: DownloadStage {
+        switch self {
+        case .preparing:
+            return .preparing
+        case .creatingModelFolder:
+            return .creatingModelFolder
+        case .checkingExistingModels:
+            return .checkingExistingModels
+        case .checkingStorageLimit:
+            return .checkingStorageLimit
+        case .checkingFreeSpace:
+            return .checkingFreeSpace
+        case .fetchingFileList:
+            return .fetchingFileList
+        case .coreML:
+            return .downloading
+        case .supplemental, .verifying:
+            return .processing
+        case .ready:
+            return .ready
+        case .failed:
+            return .failed("Download failed")
+        }
+    }
+}
+
+internal enum ModelError: LocalizedError, Equatable {
     case alreadyDownloading
     case downloadFailed
+    case downloadFileFailed(fileName: String, repo: String, reason: String)
     case modelNotFound
     case applicationSupportDirectoryNotFound
     case deletionNotSupported
@@ -414,6 +610,8 @@ internal enum ModelError: LocalizedError {
             return "Model is already being downloaded"
         case .downloadFailed:
             return "Failed to download model"
+        case .downloadFileFailed(let fileName, let repo, let reason):
+            return "Failed to download \(fileName) from \(repo): \(reason)"
         case .modelNotFound:
             return "Model file not found"
         case .applicationSupportDirectoryNotFound:

@@ -62,25 +62,8 @@ internal enum WhisperKitStorage {
             return false
         }
 
-        return containsTokenizerJSON(in: modelsDir, fileManager: fileManager)
-    }
-
-    private static func containsTokenizerJSON(in directory: URL, fileManager: FileManager) -> Bool {
-        guard let enumerator = fileManager.enumerator(
-            at: directory,
-            includingPropertiesForKeys: nil,
-            options: [.skipsHiddenFiles]
-        ) else {
-            return false
-        }
-
-        for case let fileURL as URL in enumerator {
-            if fileURL.lastPathComponent == "tokenizer.json" {
-                return true
-            }
-        }
-
-        return false
+        return fileManager.fileExists(atPath: modelsDir.appendingPathComponent("tokenizer.json").path)
+            && WhisperKitSupplementalFiles.areInstalled(for: model, fileManager: fileManager)
     }
 
     static func localModelPath(for model: WhisperModel, fileManager: FileManager = .default) -> String? {
