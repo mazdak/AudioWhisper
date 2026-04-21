@@ -27,8 +27,8 @@ internal extension ContentView {
 
         if let stage = modelManager.downloadStages[model] {
             switch stage {
-            case .preparing:
-                return "Preparing \(model.displayName) model…"
+            case .preparing, .creatingModelFolder, .checkingExistingModels, .checkingStorageLimit, .checkingFreeSpace, .fetchingFileList:
+                return stage.displayText
             case .downloading:
                 return "Downloading \(model.displayName) model…"
             case .processing:

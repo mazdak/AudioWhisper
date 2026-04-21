@@ -40,7 +40,8 @@ internal struct LocalWhisperEntry: ModelEntry {
         guard let stage = stage else { return nil }
         switch stage {
         case .failed: return .red
-        case .preparing, .downloading, .processing, .completing: return .blue
+        case .preparing, .creatingModelFolder, .checkingExistingModels, .checkingStorageLimit, .checkingFreeSpace, .fetchingFileList, .downloading, .processing, .completing:
+            return .blue
         case .ready: return .green
         }
     }
@@ -68,4 +69,3 @@ internal struct MLXEntry: ModelEntry {
         return isDownloading ? .blue : nil
     }
 }
-

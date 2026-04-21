@@ -11,21 +11,24 @@ This test suite provides thorough coverage of the AudioWhisper application inclu
 - Keychain security operations
 - UI components and user interactions
 - Utility functions and helpers
+- Model download progress tracking and error reporting
 
 ## Test Structure
 
 ```
 Tests/
-├── README.md                      # This documentation
-├── Mocks/                         # Mock objects for external dependencies
-│   ├── MockAVAudioEngine.swift    # AVFoundation audio engine mock
-│   ├── MockAVAudioRecorder.swift  # Audio recorder mock
-│   ├── MockKeychain.swift         # Keychain operations mock
-│   └── MockURLSession.swift       # Network session mock
-├── AudioRecorderTests.swift       # Audio recording functionality tests
-├── SpeechToTextServiceTests.swift # API integration and transcription tests
-├── SettingsViewTests.swift        # Settings and preferences tests
-└── UtilityTests.swift             # Utility functions and helpers tests
+├── README.md                           # This documentation
+├── Mocks/                              # Mock objects for external dependencies
+│   ├── MockAVAudioEngine.swift         # AVFoundation audio engine mock
+│   ├── MockAVAudioRecorder.swift       # Audio recorder mock
+│   ├── MockKeychain.swift              # Keychain operations mock
+│   └── MockURLSession.swift            # Network session mock
+├── AudioRecorderTests.swift            # Audio recording functionality tests
+├── ModelDownloadProgressTests.swift    # Download progress types and model metadata tests
+├── ModelManagerTests.swift             # Model manager state and lifecycle tests
+├── SpeechToTextServiceTests.swift      # API integration and transcription tests
+├── SettingsViewTests.swift             # Settings and preferences tests
+└── UtilityTests.swift                  # Utility functions and helpers tests
 ```
 
 ## Running Tests
@@ -115,7 +118,29 @@ swift test --parallel
 - `testProviderSelectionPersistence()` - Tests preference persistence
 - `testConcurrentAPIKeyOperations()` - Verifies thread safety
 
-### 4. UtilityTests
+### 4. ModelDownloadProgressTests
+**Focus**: Value types and enums introduced for granular model download progress
+
+**Key Test Areas**:
+- `DownloadFileProgress` display text with and without known total file count
+- Clamping behaviour when `completedFiles` temporarily exceeds `totalFiles`
+- `detailText` priority: error message > filename + phase > phase alone
+- `DownloadFilePhase` display text completeness and mapping to `DownloadStage`
+- New `DownloadStage` preparation cases (`creatingModelFolder`, `checkingExistingModels`, etc.) are active and have display text
+- `ModelError.downloadFileFailed` error description contains file name, repo, and reason
+- `WhisperModel.openAIWhisperRepoName` and `openAIWhisperRepoURL` correctness
+
+**Critical Tests**:
+- `testDisplayTextClampedWhenCompletedExceedsTotal()` — prevents "50 / 47 files" in the UI
+- `testErrorMessageTakesPrecedenceOverFileName()` — error is always shown over in-progress file name
+- `testDownloadStageMapping` group — ensures phase→stage mapping stays consistent
+- `testNewPreparationStagesAreActive()` — spinner shows during all preparation sub-steps
+- `testDownloadFileFailedContainsFileName()` — actionable error messages for debugging
+
+**Not covered** (network I/O with no injection point):
+- `WhisperKitCoreMLFiles.install` and `WhisperKitSupplementalFiles.install` use `URLSession.shared` directly. Testing them would require either a live network call or refactoring the production code to accept a `URLSession` parameter. Both options are out of scope for this change.
+
+### 5. UtilityTests
 **Focus**: Helper functions, data conversion, and system utilities
 
 **Key Test Areas**:

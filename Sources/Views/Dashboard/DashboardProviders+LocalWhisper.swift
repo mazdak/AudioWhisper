@@ -52,6 +52,8 @@ internal extension DashboardProvidersView {
         let isDownloaded = modelManager.downloadedModels.contains(model)
         let stage = modelManager.getDownloadStage(for: model)
         let isDownloading = stage?.isActive ?? false
+        let fileProgress = modelManager.downloadFileProgress[model]
+        let modelError = modelManager.downloadErrors[model]
         
         return HStack(spacing: DashboardTheme.Spacing.md) {
             // Selection indicator
@@ -88,6 +90,14 @@ internal extension DashboardProvidersView {
                 Text(model.description)
                     .font(DashboardTheme.Fonts.sans(12, weight: .regular))
                     .foregroundStyle(DashboardTheme.inkMuted)
+
+                if let modelError, !modelError.isEmpty {
+                    Text(modelError)
+                        .font(DashboardTheme.Fonts.sans(11, weight: .regular))
+                        .foregroundStyle(Color(red: 0.75, green: 0.30, blue: 0.28))
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
             
             Spacer()
@@ -104,13 +114,26 @@ internal extension DashboardProvidersView {
                         ProgressView()
                             .controlSize(.small)
                         
-                        if let stage = stage {
-                            Text(stage.displayText)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(fileProgress?.displayText ?? stage?.displayText ?? "Downloading...")
                                 .font(DashboardTheme.Fonts.sans(10, weight: .medium))
                                 .foregroundStyle(DashboardTheme.inkMuted)
+
+                            if let detailText = fileProgress?.detailText {
+                                Text(detailText)
+                                    .font(DashboardTheme.Fonts.sans(9, weight: .regular))
+                                    .foregroundStyle(DashboardTheme.inkFaint)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                            }
                         }
                     }
-                    .frame(minWidth: 80)
+                    .frame(minWidth: 140, alignment: .leading)
+                } else if modelError != nil && !isDownloaded {
+                    Button("Retry") {
+                        downloadModel(model)
+                    }
+                    .buttonStyle(.borderedProminent)
                 } else if isDownloaded {
                     HStack(spacing: 6) {
                         Text("Installed")

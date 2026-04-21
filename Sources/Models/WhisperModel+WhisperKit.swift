@@ -13,5 +13,21 @@ internal extension WhisperModel {
             return "openai_whisper-large-v3_turbo"
         }
     }
-}
 
+    var openAIWhisperRepoName: String {
+        switch self {
+        case .tiny:
+            return "openai/whisper-tiny"
+        case .base:
+            return "openai/whisper-base"
+        case .small:
+            return "openai/whisper-small"
+        case .largeTurbo:
+            return "openai/whisper-large-v3-turbo"
+        }
+    }
+
+    var openAIWhisperRepoURL: URL {
+        URL(string: "https://huggingface.co/\(openAIWhisperRepoName)")!
+    }
+}

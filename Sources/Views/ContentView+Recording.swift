@@ -503,8 +503,8 @@ internal extension ContentView {
             if let stage {
                 await MainActor.run {
                     switch stage {
-                    case .preparing:
-                        progressMessage = "Preparing \(model.displayName) model…"
+                    case .preparing, .creatingModelFolder, .checkingExistingModels, .checkingStorageLimit, .checkingFreeSpace, .fetchingFileList:
+                        progressMessage = stage.displayText
                     case .downloading:
                         progressMessage = "Downloading \(model.displayName) model…"
                     case .processing:

@@ -27,11 +27,7 @@ internal extension AppDelegate {
     }
 
     @objc func showHelp() {
-        let shouldOpenSettings = WelcomeWindow.showWelcomeDialog()
-
-        if shouldOpenSettings {
-            DashboardWindowManager.shared.showDashboardWindow()
-        }
+        Task { @MainActor in await showWelcomeAndSettings() }
     }
 
     @objc func transcribeAudioFile() {
