@@ -519,7 +519,7 @@ internal struct DownloadFileProgress: Equatable, Sendable {
         }
 
         guard let currentFileName else {
-            return phase.displayText
+            return nil
         }
 
         return "\(phase.displayText): \(currentFileName)"

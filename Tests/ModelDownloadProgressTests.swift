@@ -48,9 +48,9 @@ final class DownloadFileProgressTests: XCTestCase {
         XCTAssertEqual(progress.detailText, "\(DownloadFilePhase.coreML.displayText): AudioEncoder.mlmodelc")
     }
 
-    func testDetailTextShowsPhaseTextWhenNoFileName() {
+    func testDetailTextIsNilWhenNoFileName() {
         let progress = DownloadFileProgress(completedFiles: 0, totalFiles: nil, phase: .checkingFreeSpace)
-        XCTAssertEqual(progress.detailText, DownloadFilePhase.checkingFreeSpace.displayText)
+        XCTAssertNil(progress.detailText)
     }
 
     func testErrorMessageTakesPrecedenceOverFileName() {

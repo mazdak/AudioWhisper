@@ -48,6 +48,7 @@ internal class WelcomeWindow {
 
             let delegate = WelcomeWindowDelegate(state: state)
             window.delegate = delegate
+            state.delegate = delegate
             state.window = window
 
             NSApplication.shared.activate(ignoringOtherApps: true)
@@ -64,6 +65,7 @@ private final class WelcomeCompletionState {
     private var resumed = false
     private var continuation: CheckedContinuation<Bool, Never>
     weak var window: NSWindow?
+    var delegate: WelcomeWindowDelegate?
 
     init(continuation: CheckedContinuation<Bool, Never>) {
         self.continuation = continuation
@@ -74,6 +76,7 @@ private final class WelcomeCompletionState {
         resumed = true
         window?.close()
         window = nil
+        delegate = nil
         continuation.resume(returning: result)
     }
 }
