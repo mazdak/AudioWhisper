@@ -8,14 +8,17 @@ let package = Package(
         .macOS(.v14)
     ],
     dependencies: [
-        .package(url: "https://github.com/soffes/HotKey", .upToNextMinor(from: "0.2.1")),
+        .package(url: "https://github.com/sindresorhus/KeyboardShortcuts", from: "2.0.0"),
         .package(url: "https://github.com/argmaxinc/WhisperKit.git", .upToNextMinor(from: "0.15.0")),
         .package(url: "https://github.com/nalexn/ViewInspector", .upToNextMinor(from: "0.10.0"))
     ],
     targets: [
         .executableTarget(
             name: "AudioWhisper",
-            dependencies: ["HotKey", "WhisperKit"],
+            dependencies: [
+                .product(name: "KeyboardShortcuts", package: "KeyboardShortcuts"),
+                "WhisperKit"
+            ],
             path: "Sources",
             exclude: ["VersionInfo.swift.template"],
             resources: [

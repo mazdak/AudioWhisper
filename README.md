@@ -234,7 +234,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Dependencies 📦
 
 - [Alamofire](https://github.com/Alamofire/Alamofire) - MIT License
-- [HotKey](https://github.com/soffes/HotKey) - MIT License
+- [KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts) - MIT License
 - [WhisperKit](https://github.com/argmaxinc/WhisperKit) - MIT License
 - [MLX](https://github.com/ml-explore/mlx) & [parakeet-mlx](https://github.com/senstella/parakeet-mlx) (Python, bundled) - MIT License
 

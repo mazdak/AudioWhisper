@@ -1,5 +1,4 @@
 import SwiftUI
-import HotKey
 import AppKit
 
 internal struct HotKeyRecorderView: View {

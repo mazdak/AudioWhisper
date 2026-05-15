@@ -1,5 +1,4 @@
 import XCTest
-import HotKey
 @testable import AudioWhisper
 
 final class HotKeyManagerTests: IsolatedXCTestCase {

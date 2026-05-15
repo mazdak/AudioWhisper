@@ -1,6 +1,5 @@
 import SwiftUI
 import AVFoundation
-import HotKey
 import AppKit
 
 internal struct DashboardRecordingView: View {
