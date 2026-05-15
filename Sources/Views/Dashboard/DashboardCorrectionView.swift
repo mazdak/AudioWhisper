@@ -339,7 +339,7 @@ internal struct DashboardCorrectionView: View {
         showSetupSheet = true
         Task {
             do {
-                _ = try UvBootstrap.ensureVenv(userPython: nil) { msg in
+                _ = try await UvBootstrap.ensureVenv(userPython: nil) { msg in
                     Task { @MainActor in
                         setupLogs += (setupLogs.isEmpty ? "" : "\n") + msg
                     }
@@ -411,9 +411,7 @@ internal struct DashboardCorrectionView: View {
         let repo = semanticCorrectionModelRepo
         Task {
             do {
-                let py = try await Task.detached(priority: .userInitiated) {
-                    try UvBootstrap.ensureVenv(userPython: nil) { _ in }
-                }.value
+                let py = try await UvBootstrap.ensureVenv(userPython: nil) { _ in }
                 let pythonPath = py.path
                 let process = Process()
                 process.executableURL = URL(fileURLWithPath: pythonPath)

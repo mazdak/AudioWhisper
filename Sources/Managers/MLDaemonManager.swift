@@ -35,6 +35,10 @@ internal actor MLDaemonManager {
 
     private struct PendingRequest {
         let completion: (Result<Data, Error>) -> Void
+        /// Hard deadline after which the request is considered abandoned and is
+        /// reaped by `sweepExpiredRequests()`. Prevents `pending` from growing
+        /// unboundedly if responses get lost.
+        let deadline: Date
     }
 
     private let logger = Logger(subsystem: "com.audiowhisper.app", category: "MLDaemon")
@@ -103,7 +107,11 @@ internal actor MLDaemonManager {
                 throw MLDaemonError.invalidResponse(error.localizedDescription)
             }
         }
-        try ensureDaemonRunning()
+        // Drop any pending entries whose deadline has passed. This is cheap
+        // (no separate timer) and guarantees the `pending` map can't grow
+        // unboundedly if responses are lost.
+        sweepExpiredRequests()
+        try await ensureDaemonRunning()
 
         let requestID = nextRequestID
         nextRequestID += 1
@@ -134,21 +142,25 @@ internal actor MLDaemonManager {
         // Use withCheckedThrowingContinuation with timeout via Task
         let timeoutNanos = requestTimeoutSeconds * 1_000_000_000
 
+        let deadline = Date().addingTimeInterval(TimeInterval(requestTimeoutSeconds))
         return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Response, Error>) in
             // Store pending request in actor context (this is synchronous within actor)
-            self.pending[requestID] = PendingRequest { result in
-                switch result {
-                case .success(let responseData):
-                    do {
-                        let decoded = try JSONDecoder().decode(Response.self, from: responseData)
-                        continuation.resume(returning: decoded)
-                    } catch {
-                        continuation.resume(throwing: MLDaemonError.invalidResponse(error.localizedDescription))
+            self.pending[requestID] = PendingRequest(
+                completion: { result in
+                    switch result {
+                    case .success(let responseData):
+                        do {
+                            let decoded = try JSONDecoder().decode(Response.self, from: responseData)
+                            continuation.resume(returning: decoded)
+                        } catch {
+                            continuation.resume(throwing: MLDaemonError.invalidResponse(error.localizedDescription))
+                        }
+                    case .failure(let error):
+                        continuation.resume(throwing: error)
                     }
-                case .failure(let error):
-                    continuation.resume(throwing: error)
-                }
-            }
+                },
+                deadline: deadline
+            )
 
             // Start timeout task.
             // SAFETY: Race condition between timeout and response is handled by actor isolation.
@@ -168,6 +180,19 @@ internal actor MLDaemonManager {
 
     private func removePendingRequest(_ id: Int) {
         pending.removeValue(forKey: id)
+    }
+
+    /// Removes any pending requests whose deadline has passed, completing each
+    /// with `.timeout`. Cheap to call on every new request — keeps `pending`
+    /// bounded without a separate timer.
+    private func sweepExpiredRequests(now: Date = Date()) {
+        let expired = pending.filter { $0.value.deadline < now }
+        guard !expired.isEmpty else { return }
+        for (id, entry) in expired {
+            pending.removeValue(forKey: id)
+            entry.completion(.failure(MLDaemonError.timeout))
+        }
+        logger.error("Reaped \(expired.count, privacy: .public) expired ML daemon request(s)")
     }
 
     private func handle(line: String) {
@@ -209,15 +234,15 @@ internal actor MLDaemonManager {
 
     // MARK: - Process lifecycle
 
-    private func ensureDaemonRunning() throws {
+    private func ensureDaemonRunning() async throws {
         if let process, process.isRunning { return }
         guard !isShuttingDown else { throw MLDaemonError.daemonUnavailable("shutting down") }
         guard restartAttempts < maxRestartAttempts else { throw MLDaemonError.restartLimitReached }
-        try startProcess(isRestart: false)
+        try await startProcess(isRestart: false)
     }
 
-    private func startProcess(isRestart: Bool) throws {
-        let python = try resolvedPython()
+    private func startProcess(isRestart: Bool) async throws {
+        let python = try await resolvedPython()
         let script = try resolvedScript()
 
         if isRestart { restartAttempts += 1 } else { restartAttempts = 0 }
@@ -297,7 +322,7 @@ internal actor MLDaemonManager {
         }
 
         do {
-            try startProcess(isRestart: true)
+            try await startProcess(isRestart: true)
         } catch {
             logger.error("Failed to restart ml_daemon: \(error.localizedDescription)")
             completeAllPending(with: error)
@@ -325,6 +350,16 @@ internal actor MLDaemonManager {
 
     func shutdown() async {
         isShuttingDown = true
+
+        // Cancel the stdout reader task and await its completion BEFORE we
+        // terminate the process or tear down pipes. This guarantees no
+        // straggler `handle(line:)` calls land on a disposed pipe and avoids
+        // leaking the reader Task across teardown.
+        let reader = stdoutReaderTask
+        stdoutReaderTask = nil
+        reader?.cancel()
+        _ = await reader?.value
+
         closePipes()
         process?.terminate()
         process = nil
@@ -345,9 +380,9 @@ internal actor MLDaemonManager {
 
     // MARK: - Helpers
 
-    private func resolvedPython() throws -> URL {
+    private func resolvedPython() async throws -> URL {
         if let pythonExecutable { return pythonExecutable }
-        let url = try UvBootstrap.ensureVenv(userPython: nil)
+        let url = try await UvBootstrap.ensureVenv(userPython: nil)
         pythonExecutable = url
         return url
     }

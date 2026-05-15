@@ -121,7 +121,7 @@ internal class SpeechToTextService {
         let semanticCorrectionMode = SemanticCorrectionMode(rawValue: modeRaw) ?? .off
         let shouldWarmup = semanticCorrectionMode != .off
         // Ensure managed Python environment with uv
-        let pyURL = try UvBootstrap.ensureVenv(userPython: nil)
+        let pyURL = try await UvBootstrap.ensureVenv(userPython: nil)
         let pythonPath = pyURL.path
         do {
             if shouldWarmup {

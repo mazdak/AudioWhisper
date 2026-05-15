@@ -425,7 +425,7 @@ internal struct DashboardProvidersView: View {
         showSetupSheet = true
         Task {
             do {
-                _ = try UvBootstrap.ensureVenv(userPython: nil) { msg in
+                _ = try await UvBootstrap.ensureVenv(userPython: nil) { msg in
                     Task { @MainActor in
                         setupLogs += (setupLogs.isEmpty ? "" : "\n") + msg
                     }

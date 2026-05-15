@@ -17,7 +17,7 @@ enum MockUvBootstrap {
 
     // MARK: - Mock Methods
 
-    static func ensureVenv(userPython: String? = nil, log: ((String) -> Void)? = nil) throws -> URL {
+    static func ensureVenv(userPython: String? = nil, log: ((String) -> Void)? = nil) async throws -> URL {
         ensureVenvCallCount += 1
 
         if let error = errorToThrow {

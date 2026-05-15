@@ -88,7 +88,7 @@ final class UvBootstrapTests: XCTestCase {
         )
     }
 
-    func testEnsureVenvCreatesAndSyncsWithDefaultPython() throws {
+    func testEnsureVenvCreatesAndSyncsWithDefaultPython() async throws {
         let logURL = tempHome.appendingPathComponent("uv_invocations.log")
         let uvURL = try writeUvStub(version: "0.8.6", logFile: logURL)
         XCTAssertTrue(FileManager.default.isExecutableFile(atPath: uvURL.path))
@@ -104,7 +104,7 @@ final class UvBootstrapTests: XCTestCase {
         var logMessages: [String] = []
         let pythonURL: URL
         do {
-            pythonURL = try UvBootstrap.ensureVenv(userPython: nil) { logMessages.append($0) }
+            pythonURL = try await UvBootstrap.ensureVenv(userPython: nil) { logMessages.append($0) }
         } catch {
             let binPath = project.appendingPathComponent(".venv/bin")
             let binContents = try? FileManager.default.contentsOfDirectory(atPath: binPath.path)

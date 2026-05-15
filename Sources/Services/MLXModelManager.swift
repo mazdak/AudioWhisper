@@ -154,7 +154,7 @@ internal final class MLXModelManager {
         // Ensure managed Python via uv
         let pythonPath: String
         do {
-            let py = try UvBootstrap.ensureVenv(userPython: nil) { msg in
+            let py = try await UvBootstrap.ensureVenv(userPython: nil) { msg in
                 self.logger.info("uv: \(msg)")
             }
             pythonPath = py.path
@@ -399,7 +399,7 @@ except Exception as e:
 
         let pythonPath: String
         do {
-            let py = try UvBootstrap.ensureVenv(userPython: nil) { msg in
+            let py = try await UvBootstrap.ensureVenv(userPython: nil) { msg in
                 self.logger.info("uv: \(msg)")
             }
             pythonPath = py.path

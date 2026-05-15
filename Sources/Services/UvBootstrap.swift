@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 internal enum UvError: Error, LocalizedError {
     case uvNotFound
@@ -6,6 +7,7 @@ internal enum UvError: Error, LocalizedError {
     case pythonNotUsable(String)
     case venvCreationFailed(String)
     case syncFailed(String)
+    case bundledBinaryTampered(expected: String, actual: String)
 
     var errorDescription: String? {
         switch self {
@@ -19,7 +21,35 @@ internal enum UvError: Error, LocalizedError {
             return "Failed to create venv: \(msg)"
         case .syncFailed(let msg):
             return "Failed to sync Python deps: \(msg)"
+        case let .bundledBinaryTampered(expected, actual):
+            return "Bundled uv binary failed integrity check.\n  expected sha256: \(expected)\n  actual sha256:   \(actual)\nReinstall AudioWhisper from a trusted source."
         }
+    }
+}
+
+/// Serializes venv-mutating operations so two callers (e.g. ParakeetService and
+/// MLXCorrectionService racing at app launch) can't tread on each other.
+internal actor VenvSerializer {
+    static let shared = VenvSerializer()
+    private var uvVerified = false
+
+    /// Serialize an async, throwing operation. Two concurrent callers will be
+    /// queued by the actor so neither can observe the venv mid-mutation.
+    func run<T>(_ op: () async throws -> T) async rethrows -> T {
+        try await op()
+    }
+
+    /// Atomically claims the right to perform bundled-uv verification once
+    /// per app launch. Returns true on the FIRST call and false thereafter.
+    func claimVerification() -> Bool {
+        if uvVerified { return false }
+        uvVerified = true
+        return true
+    }
+
+    /// Test-only reset to force re-verification on next call.
+    func resetVerificationForTesting() {
+        uvVerified = false
     }
 }
 
@@ -112,36 +142,95 @@ internal struct UvBootstrap {
 
     // Ensure project exists and dependencies are synced with uv. Returns path to project .venv python.
     // If userPython is nil, we let uv provision or use its managed interpreter (via --python 3.x)
-    static func ensureVenv(userPython: String? = nil, log: ((String)->Void)? = nil) throws -> URL {
-        let uv = try findUv()
-        let proj = try projectDir()
+    //
+    // Serialized through VenvSerializer so concurrent callers (Parakeet + MLX warmup
+    // at app launch, etc.) don't race each other while creating the venv or running
+    // `uv sync` on the same project directory.
+    static func ensureVenv(userPython: String? = nil, log: ((String)->Void)? = nil) async throws -> URL {
+        try await VenvSerializer.shared.run {
+            let uv = try findUv()
+            // Verify the bundled uv binary the first time we pick it up. Verification
+            // is a no-op when no SHA was stamped at build time (developer/SPM builds).
+            try await verifyBundledUvIfNeeded(uvURL: uv)
+            let proj = try projectDir()
 
-        let fm = FileManager.default
-        // Copy pyproject.toml and uv.lock from bundle to project dir (if present / newer)
-        try copyProjectFilesIfNeeded(to: proj)
+            let fm = FileManager.default
+            // Copy pyproject.toml and uv.lock from bundle to project dir (if present / newer)
+            try copyProjectFilesIfNeeded(to: proj)
 
-        // Ensure .venv exists using specified Python (or default)
-        let venvDir = proj.appendingPathComponent(".venv", isDirectory: true)
-        if !fm.fileExists(atPath: venvDir.path) {
-            let pythonSpecifier = userPython.flatMap { $0.isEmpty ? nil : $0 } ?? defaultPythonVersion
-            log?("Creating project .venv with Python \(pythonSpecifier)…")
-            let (out, err, status) = runInDir(uv.path, ["venv", "--python", pythonSpecifier], cwd: proj)
-            if status != 0 { throw UvError.venvCreationFailed(err.isEmpty ? out : err) }
+            // Ensure .venv exists using specified Python (or default)
+            let venvDir = proj.appendingPathComponent(".venv", isDirectory: true)
+            if !fm.fileExists(atPath: venvDir.path) {
+                let pythonSpecifier = userPython.flatMap { $0.isEmpty ? nil : $0 } ?? defaultPythonVersion
+                log?("Creating project .venv with Python \(pythonSpecifier)…")
+                let (out, err, status) = runInDir(uv.path, ["venv", "--python", pythonSpecifier], cwd: proj)
+                if status != 0 { throw UvError.venvCreationFailed(err.isEmpty ? out : err) }
+            }
+
+            // Run uv sync in project directory. We do not enforce --frozen so that
+            // a stale lock can be updated to match the bundled pyproject.toml.
+            log?("Syncing project dependencies via uv sync…")
+            let (out, err, status) = runInDir(uv.path, ["sync"], cwd: proj)
+            if status != 0 { throw UvError.syncFailed(err.isEmpty ? out : err) }
+
+            // Return the project venv python
+            let candidates = [
+                proj.appendingPathComponent(".venv/bin/python3").path,
+                proj.appendingPathComponent(".venv/bin/python").path
+            ]
+            for c in candidates { if fm.isExecutableFile(atPath: c) { return URL(fileURLWithPath: c) } }
+            throw UvError.pythonNotUsable("project venv python not found")
         }
+    }
 
-        // Run uv sync in project directory. We do not enforce --frozen so that
-        // a stale lock can be updated to match the bundled pyproject.toml.
-        log?("Syncing project dependencies via uv sync…")
-        let (out, err, status) = runInDir(uv.path, ["sync"], cwd: proj)
-        if status != 0 { throw UvError.syncFailed(err.isEmpty ? out : err) }
+    /// Verifies the bundled uv binary against the SHA-256 stamped at build time.
+    /// Runs at most once per app launch. If no hash was stamped (developer build
+    /// without `Sources/Resources/bin/uv`, or `swift run`), verification is a no-op.
+    /// Only the bundled binary is checked — Homebrew or user-installed `uv` is trusted.
+    private static func verifyBundledUvIfNeeded(uvURL: URL) async throws {
+        // Only the first caller this launch performs the actual check.
+        let shouldVerify = await VenvSerializer.shared.claimVerification()
+        guard shouldVerify else { return }
 
-        // Return the project venv python
-        let candidates = [
-            proj.appendingPathComponent(".venv/bin/python3").path,
-            proj.appendingPathComponent(".venv/bin/python").path
-        ]
-        for c in candidates { if fm.isExecutableFile(atPath: c) { return URL(fileURLWithPath: c) } }
-        throw UvError.pythonNotUsable("project venv python not found")
+        let expected = VersionInfo.bundledUvSha256
+        // Empty or unsubstituted placeholder => no hash available; skip verification.
+        guard !expected.isEmpty, expected != "BUNDLED_UV_SHA256_PLACEHOLDER" else { return }
+
+        // Only verify when we actually picked the bundled uv (not a Homebrew uv on PATH).
+        guard isBundledUv(uvURL) else { return }
+
+        let data: Data
+        do {
+            data = try Data(contentsOf: uvURL, options: .mappedIfSafe)
+        } catch {
+            throw UvError.pythonNotUsable("could not read bundled uv: \(error.localizedDescription)")
+        }
+        let actual = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        if actual.lowercased() != expected.lowercased() {
+            // Reset the flag so a subsequent attempt (e.g. after a fresh install)
+            // can re-verify rather than silently treating the binary as good.
+            await VenvSerializer.shared.resetVerificationForTesting()
+            throw UvError.bundledBinaryTampered(expected: expected.lowercased(), actual: actual)
+        }
+    }
+
+    /// Returns true if the given uv URL points at the binary we bundle inside
+    /// the app — used to scope SHA verification to our own copy only.
+    private static func isBundledUv(_ url: URL) -> Bool {
+        let bundleCandidates: [URL] = [
+            Bundle.main.resourceURL,
+            moduleBundle?.resourceURL
+        ].compactMap { $0 }
+        for resURL in bundleCandidates {
+            let paths = [
+                resURL.appendingPathComponent("bin/uv"),
+                resURL.appendingPathComponent("Resources/bin/uv")
+            ]
+            if paths.contains(where: { $0.standardizedFileURL.path == url.standardizedFileURL.path }) {
+                return true
+            }
+        }
+        return false
     }
 
     // Copy pyproject.toml and uv.lock from bundle to per-user project dir

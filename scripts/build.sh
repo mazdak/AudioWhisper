@@ -34,6 +34,12 @@ if [ -x "Sources/Resources/bin/uv" ]; then
     BUNDLED_UV_VERSION=$("Sources/Resources/bin/uv" --version 2>/dev/null | awk '{print $2}' || echo "")
 fi
 
+# Capture bundled uv SHA-256 so the app can verify the binary at runtime
+BUNDLED_UV_SHA256=""
+if [ -f "Sources/Resources/bin/uv" ]; then
+    BUNDLED_UV_SHA256=$(shasum -a 256 "Sources/Resources/bin/uv" | awk '{print $1}' || echo "")
+fi
+
 # Read version from VERSION file or use environment variable
 DEFAULT_VERSION=$(cat VERSION | tr -d '[:space:]')
 VERSION="${AUDIO_WHISPER_VERSION:-$DEFAULT_VERSION}"
@@ -64,6 +70,7 @@ if [ -f "Sources/VersionInfo.swift.template" ]; then
     -e "s/GIT_HASH_PLACEHOLDER/$GIT_HASH/g" \
     -e "s/BUILD_DATE_PLACEHOLDER/$BUILD_DATE/g" \
     -e "s/BUNDLED_UV_VERSION_PLACEHOLDER/$BUNDLED_UV_VERSION/g" \
+    -e "s/BUNDLED_UV_SHA256_PLACEHOLDER/$BUNDLED_UV_SHA256/g" \
     Sources/VersionInfo.swift.template >Sources/Utilities/VersionInfo.swift
   echo "Generated VersionInfo.swift from template"
 else
@@ -76,6 +83,7 @@ struct VersionInfo {
     static let gitHash = "$GIT_HASH"
     static let buildDate = "$BUILD_DATE"
     static let bundledUvVersion = "$BUNDLED_UV_VERSION"
+    static let bundledUvSha256 = "$BUNDLED_UV_SHA256"
 
     static var displayVersion: String {
         if gitHash != "unknown" && !gitHash.isEmpty {

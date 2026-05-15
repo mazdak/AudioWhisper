@@ -181,7 +181,7 @@ internal extension DashboardProvidersView {
         showSetupSheet = true
         Task {
             do {
-                _ = try UvBootstrap.ensureVenv(userPython: nil) { msg in
+                _ = try await UvBootstrap.ensureVenv(userPython: nil) { msg in
                     Task { @MainActor in
                         setupLogs += (setupLogs.isEmpty ? "" : "\n") + msg
                     }
@@ -248,9 +248,7 @@ internal extension DashboardProvidersView {
         parakeetVerifyMessage = "Starting verification…"
         Task {
             do {
-                let py = try await Task.detached(priority: .userInitiated) {
-                    try UvBootstrap.ensureVenv(userPython: nil) { _ in }
-                }.value
+                let py = try await UvBootstrap.ensureVenv(userPython: nil) { _ in }
                 let pythonPath = py.path
                 await MainActor.run { parakeetVerifyMessage = "Checking model (offline)…" }
 

@@ -117,7 +117,7 @@ internal final class SemanticCorrectionService {
     private func correctLocallyWithMLXThrowing(text: String, category: CategoryDefinition) async throws -> String {
         guard Arch.isAppleSilicon else { return text }
         let modelRepo = UserDefaults.standard.string(forKey: "semanticCorrectionModelRepo") ?? "mlx-community/Llama-3.2-1B-Instruct-4bit"
-        let pyURL = try UvBootstrap.ensureVenv(userPython: nil)
+        let pyURL = try await UvBootstrap.ensureVenv(userPython: nil)
         let prompt = loadPrompt(for: category)
         let output = try await mlxService.correct(text: text, modelRepo: modelRepo, pythonPath: pyURL.path, systemPrompt: prompt)
         let merged = Self.safeMerge(original: text, corrected: output, maxChangeRatio: 0.6)

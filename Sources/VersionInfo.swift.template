@@ -5,7 +5,8 @@ struct VersionInfo {
     static let gitHash = "GIT_HASH_PLACEHOLDER"
     static let buildDate = "BUILD_DATE_PLACEHOLDER"
     static let bundledUvVersion = "BUNDLED_UV_VERSION_PLACEHOLDER"
-    
+    static let bundledUvSha256 = "BUNDLED_UV_SHA256_PLACEHOLDER"
+
     static var displayVersion: String {
         if gitHash != "dev-build" && gitHash != "unknown" && !gitHash.isEmpty {
             let shortHash = String(gitHash.prefix(7))
