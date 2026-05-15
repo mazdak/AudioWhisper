@@ -342,19 +342,18 @@ internal final class DataManager: DataManagerProtocol {
     }
     
     func cleanupExpiredRecords() async throws {
-        guard let timeInterval = retentionPeriod.timeInterval else {
+        guard let cutoffDate = RetentionPolicy.cutoffDate(for: retentionPeriod) else {
             Logger.dataManager.debug("Retention period is forever, no cleanup needed")
             return
         }
-        
+
         guard let container = modelContainer else {
             throw DataManagerError.modelContainerUnavailable
         }
-        
+
         do {
             let context = ModelContext(container)
-            let cutoffDate = Date().addingTimeInterval(-timeInterval)
-            
+
             // Use SwiftData predicate for database-level filtering
             let predicate = #Predicate<TranscriptionRecord> { record in
                 record.date < cutoffDate
@@ -484,9 +483,8 @@ internal final class MockDataManager: DataManagerProtocol {
     }
     
     func cleanupExpiredRecords() async throws {
-        guard let timeInterval = retentionPeriod.timeInterval else { return }
-        
-        let cutoffDate = Date().addingTimeInterval(-timeInterval)
+        guard let cutoffDate = RetentionPolicy.cutoffDate(for: retentionPeriod) else { return }
+
         let initialCount = records.count
         records.removeAll { $0.date < cutoffDate }
         let removedCount = initialCount - records.count

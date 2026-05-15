@@ -78,19 +78,12 @@ final class RecordingViewModel {
     let semanticCorrectionService: SemanticCorrectionService
     let soundManager: SoundManager
     let statusViewModel: StatusViewModel
-    /// Pipeline that orchestrates validation → transcription → semantic
-    /// correction. After audit item B1 this is the sole owner of correction
-    /// orchestration. Built lazily from `speechService` and
-    /// `semanticCorrectionService` so dependency-injected mocks compose.
-    /// `@ObservationIgnored` because lazy stored properties are incompatible
-    /// with the `@Observable` macro's init-accessor codegen.
-    @ObservationIgnored
-    private lazy var transcriptionPipeline: TranscriptionPipeline = {
-        TranscriptionPipeline(
-            speechService: speechService,
-            correctionService: semanticCorrectionService
-        )
-    }()
+    /// Coordinator that owns the transcription pipeline and the
+    /// post-transcription tail (history save, metrics, correction-failure
+    /// surfacing, error mapping). Introduced by audit item A2 to split
+    /// orchestration concerns out of the view model. Not `private` so tests
+    /// can inject a substitute (e.g. backed by mock services).
+    let coordinator: TranscriptionCoordinator
 
     // MARK: - Internal State
 
@@ -106,13 +99,22 @@ final class RecordingViewModel {
         pasteManager: PasteManager,
         semanticCorrectionService: SemanticCorrectionService,
         soundManager: SoundManager,
-        statusViewModel: StatusViewModel
+        statusViewModel: StatusViewModel,
+        coordinator: TranscriptionCoordinator? = nil
     ) {
         self.speechService = speechService
         self.pasteManager = pasteManager
         self.semanticCorrectionService = semanticCorrectionService
         self.soundManager = soundManager
         self.statusViewModel = statusViewModel
+        self.coordinator = coordinator ?? TranscriptionCoordinator(
+            speechService: speechService,
+            correctionService: semanticCorrectionService
+        )
+        // The coordinator writes back to the VM (errorMessage, isProcessing,
+        // etc.) via a weak reference; wire it up here so callers don't have
+        // to remember to.
+        self.coordinator.viewModel = self
     }
 
     /// Convenience initializer with default dependencies.
@@ -124,6 +126,13 @@ final class RecordingViewModel {
             soundManager: SoundManager(),
             statusViewModel: StatusViewModel()
         )
+    }
+
+    /// Allows the coordinator (and other internal helpers) to clear the
+    /// `isProcessing` flag without exposing a public setter — the property
+    /// remains `private(set)` for the view layer.
+    func markProcessingFinished() {
+        isProcessing = false
     }
 
     // MARK: - Lifecycle
@@ -214,13 +223,15 @@ final class RecordingViewModel {
                 }
 
                 // After audit item B1, correction is owned by TranscriptionPipeline.
+                // After audit item A2, the pipeline is owned by the
+                // coordinator so the view model only sees the result.
                 let pipelineConfig = TranscriptionPipelineConfig(
                     provider: transcriptionProvider,
                     whisperModel: transcriptionProvider == .local ? selectedWhisperModel : nil,
                     applySemanticCorrection: mode != .off,
                     sourceAppBundleId: sourceBundleId
                 )
-                let result = try await transcriptionPipeline.transcribe(
+                let result = try await coordinator.runTranscription(
                     audioURL: audioURL,
                     config: pipelineConfig
                 )
@@ -314,27 +325,15 @@ final class RecordingViewModel {
         return AppDefaults.semanticCorrectionMode == .localMLX
     }
 
-    private func recordSourceUsage(words: Int, characters: Int) {
-        guard words > 0 else { return }
-        let info = currentSourceAppInfo()
-        SourceUsageStore.shared.recordUsage(for: info, words: words, characters: characters)
-    }
+    // MARK: - Coordinator Forwarders (audit item A2)
+    //
+    // These forwarders preserve the public surface that `ContentView+Recording`
+    // and tests already use, while delegating the actual logic to
+    // `TranscriptionCoordinator`. They are thin and intentionally unchanged
+    // in signature.
 
-    // MARK: - Shared Transcription Tail (audit item C1)
-
-    /// Common tail run after a successful transcription, regardless of whether
-    /// the audio came from a live recording or an imported file.
-    ///
-    /// Order of operations preserved from the prior duplicated branches:
-    /// 1. Copy `text` to the clipboard.
-    /// 2. Save a `TranscriptionRecord` to history if enabled.
-    /// 3. Record session metrics + per-source usage.
-    /// 4. Clear `transcriptionStartTime`.
-    /// 5. Show the success UI / chime / schedule smart paste.
-    /// 6. Advance the first-model-use hint flag if applicable.
-    ///
-    /// `isProcessing` is reset inside `showConfirmationAndPaste(_:)` to match
-    /// the prior behaviour where the success UI appears in the same tick.
+    /// Forwards to `TranscriptionCoordinator.finishTranscription(...)`. See
+    /// the coordinator for behaviour.
     func finishTranscription(
         text: String,
         correctionOutcome: CorrectionOutcome? = nil,
@@ -344,71 +343,19 @@ final class RecordingViewModel {
         shouldHintThisRun: Bool,
         setHintShown: @escaping () -> Void
     ) async {
-        let wordCount = UsageMetricsStore.estimatedWordCount(for: text)
-        let characterCount = text.count
-
-        PasteManager.copyToClipboard(text)
-
-        if DataManager.shared.isHistoryEnabled {
-            let modelUsed: String? = (transcriptionProvider == .local)
-                ? selectedWhisperModel.rawValue
-                : nil
-            let sourceInfo = currentSourceAppInfo()
-            let record = TranscriptionRecord(
-                text: text,
-                provider: transcriptionProvider,
-                duration: source.duration,
-                modelUsed: modelUsed,
-                wordCount: wordCount,
-                characterCount: characterCount,
-                sourceAppBundleId: sourceInfo.bundleIdentifier,
-                sourceAppName: sourceInfo.displayName,
-                sourceAppIconData: sourceInfo.iconData
-            )
-            await DataManager.shared.saveTranscriptionQuietly(record)
-        }
-
-        UsageMetricsStore.shared.recordSession(
-            duration: source.duration,
-            wordCount: wordCount,
-            characterCount: characterCount
+        await coordinator.finishTranscription(
+            text: text,
+            correctionOutcome: correctionOutcome,
+            source: source,
+            transcriptionProvider: transcriptionProvider,
+            selectedWhisperModel: selectedWhisperModel,
+            shouldHintThisRun: shouldHintThisRun,
+            setHintShown: setHintShown
         )
-        recordSourceUsage(words: wordCount, characters: characterCount)
-        transcriptionStartTime = nil
-
-        // Surface silent correction failures to the UI (audit item A4). The
-        // raw transcript is still copied/pasted via showConfirmationAndPaste;
-        // this just shows a brief warning so the user knows correction was
-        // attempted but didn't apply.
-        if case .failed = correctionOutcome {
-            presentCorrectionFailure()
-        }
-
-        showConfirmationAndPaste(text: text)
-
-        if shouldHintThisRun {
-            setHintShown()
-            showFirstModelUseHint = false
-        }
     }
 
-    /// Sets `correctionFailedMessage` and schedules an auto-clear. Matches the
-    /// existing success-toast pattern (delay then clear).
-    private func presentCorrectionFailure() {
-        correctionFailedMessage = "Correction failed; raw transcript copied"
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
-            self?.correctionFailedMessage = nil
-        }
-    }
-
-    /// Public-facing error handler used by both VM `stopAndProcess` and the
-    /// ContentView file/live entry points. Routes "model not downloaded"
-    /// errors to a dashboard presenter via `presentDashboard`; all other
-    /// errors set `errorMessage` / `showError`.
-    ///
-    /// `presentDashboard` is a closure so the ContentView can route through
-    /// `WindowCoordinator.presentDashboard(reason:)` while the VM's own
-    /// `stopAndProcess` falls back to `DashboardWindowManager.shared`.
+    /// Forwards to `TranscriptionCoordinator.handleTranscriptionError(...)`.
+    /// See the coordinator for behaviour.
     func handleTranscriptionError(
         _ error: Error,
         source: TranscriptionSource,
@@ -417,41 +364,20 @@ final class RecordingViewModel {
         setHintShown: @escaping () -> Void,
         presentDashboard: ((String) -> Void)? = nil
     ) {
-        // Default to opening the dashboard via the shared manager when the
-        // caller didn't provide its own presenter. Inlined here so the default
-        // parameter doesn't need to capture a `@MainActor`-isolated symbol.
-        let present = presentDashboard ?? { _ in
-            DashboardWindowManager.shared.showDashboardWindow()
-        }
-
-        if case let SpeechToTextError.localTranscriptionFailed(inner) = error,
-           let lwError = inner as? LocalWhisperError,
-           lwError == .modelNotDownloaded {
-            errorMessage = "Local Whisper model not downloaded. Opening Settings…"
-            showError = true
-            isProcessing = false
-            transcriptionStartTime = nil
-            present(source.dashboardReason(for: transcriptionProvider))
-        } else if let pe = error as? ParakeetError, pe == .modelNotReady {
-            errorMessage = "Parakeet model not downloaded. Opening Settings…"
-            showError = true
-            isProcessing = false
-            transcriptionStartTime = nil
-            present(source.dashboardReason(for: transcriptionProvider))
-        } else {
-            errorMessage = error.localizedDescription
-            showError = true
-            isProcessing = false
-            transcriptionStartTime = nil
-        }
-
-        if shouldHintThisRun {
-            setHintShown()
-            showFirstModelUseHint = false
-        }
+        coordinator.handleTranscriptionError(
+            error,
+            source: source,
+            transcriptionProvider: transcriptionProvider,
+            shouldHintThisRun: shouldHintThisRun,
+            setHintShown: setHintShown,
+            presentDashboard: presentDashboard
+        )
     }
 
-    private func showConfirmationAndPaste(text: String) {
+    /// Drives the success UI (chime, paste scheduling, fade-out). Called by
+    /// `TranscriptionCoordinator.finishTranscription(...)` after the history
+    /// save + metrics tail. Internal so the coordinator can invoke it.
+    func showConfirmationAndPaste(text: String) {
         Logger.paste.debug("showConfirmationAndPaste called with text length: \(text.count)")
         showSuccess = true
         isProcessing = false

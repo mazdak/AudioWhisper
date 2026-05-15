@@ -257,110 +257,34 @@ internal extension ContentView {
         processingTask = Task {
             viewModel.progressMessage = "Retrying transcription..."
 
+            // Retry replays an existing live recording, so use `.liveRecording`
+            // with a nil session duration to match the prior behaviour where
+            // the retry path passed `duration: nil` to history.
+            let source: TranscriptionSource = .liveRecording(sessionDuration: nil)
+
             do {
                 try Task.checkCancellation()
 
-                let text: String
-                if transcriptionProvider == .local {
-                    text = try await viewModel.speechService.transcribeRaw(audioURL: audioURL, provider: transcriptionProvider, model: selectedWhisperModel)
-                } else {
-                    text = try await viewModel.speechService.transcribeRaw(audioURL: audioURL, provider: transcriptionProvider)
-                }
+                // Audit item B1: route retry through TranscriptionPipeline so
+                // it shares the single semantic-correction orchestration path
+                // with stopAndProcess and the file-import flow. Previously the
+                // retry path copied raw text to the clipboard before correction
+                // ran; the pipeline now returns only the final text, so the
+                // brief raw-paste window is gone. This is a UX improvement —
+                // the target field no longer flashes the uncorrected version.
+                let pipelineResult = try await runTranscriptionPipeline(audioURL: audioURL)
 
                 try Task.checkCancellation()
 
-                await MainActor.run { PasteManager.copyToClipboard(text) }
-
-                let enableSmartPaste = AppDefaults.enableSmartPaste
-                let mode = AppDefaults.semanticCorrectionMode
-                let shouldAwaitSemanticForPaste = enableSmartPaste && (mode == .localMLX)
-
-                if shouldAwaitSemanticForPaste {
-                    await MainActor.run {
-                        viewModel.awaitingSemanticPaste = true
-                        viewModel.progressMessage = "Semantic correction..."
-                    }
-                    // Capture all values before async work to avoid implicit self capture
-                    // Use regular Task instead of Task.detached so it can be cancelled
-                    let capturedBundleId: String? = await MainActor.run { currentSourceAppInfo().bundleIdentifier }
-                    let capturedModelUsed: String? = await MainActor.run { (transcriptionProvider == .local) ? selectedWhisperModel.rawValue : nil }
-                    let capturedSourceInfo: SourceAppInfo = await MainActor.run { currentSourceAppInfo() }
-                    let shouldSave2: Bool = await MainActor.run { DataManager.shared.isHistoryEnabled }
-                    let capturedSemanticService = viewModel.semanticCorrectionService
-
-                    // Check for cancellation before starting semantic correction
-                    try Task.checkCancellation()
-
-                    let corrected = await capturedSemanticService.correct(text: text, providerUsed: transcriptionProvider, sourceAppBundleId: capturedBundleId)
-
-                    // Check for cancellation after semantic correction
-                    try Task.checkCancellation()
-
-                    let wordCount = UsageMetricsStore.estimatedWordCount(for: corrected)
-                    let characterCount = corrected.count
-                    if shouldSave2 {
-                        let record = TranscriptionRecord(
-                            text: corrected,
-                            provider: transcriptionProvider,
-                            duration: nil,
-                            modelUsed: capturedModelUsed,
-                            wordCount: wordCount,
-                            characterCount: characterCount,
-                            sourceAppBundleId: capturedSourceInfo.bundleIdentifier,
-                            sourceAppName: capturedSourceInfo.displayName,
-                            sourceAppIconData: capturedSourceInfo.iconData
-                        )
-                        await DataManager.shared.saveTranscriptionQuietly(record)
-                    }
-                    await MainActor.run {
-                        PasteManager.copyToClipboard(corrected)
-                        viewModel.transcriptionStartTime = nil
-                        isProcessing = false
-                        showConfirmationAndPaste(text: corrected)
-                        if viewModel.awaitingSemanticPaste {
-                            performUserTriggeredPaste()
-                            viewModel.awaitingSemanticPaste = false
-                        }
-                    }
-                } else {
-                    // Only apply semantic correction if mode is not off
-                    let finalText: String
-                    if mode != .off {
-                        let capturedBundleId2: String? = await MainActor.run { currentSourceAppInfo().bundleIdentifier }
-                        finalText = await viewModel.semanticCorrectionService.correct(text: text, providerUsed: transcriptionProvider, sourceAppBundleId: capturedBundleId2)
-                    } else {
-                        finalText = text  // Skip semantic correction entirely when off
-                    }
-
-                    let wordCount = UsageMetricsStore.estimatedWordCount(for: finalText)
-                    let characterCount = finalText.count
-
-                    await MainActor.run { PasteManager.copyToClipboard(finalText) }
-
-                    let shouldSave3: Bool = await MainActor.run { DataManager.shared.isHistoryEnabled }
-                    if shouldSave3 {
-                        let modelUsed: String? = await MainActor.run { (transcriptionProvider == .local) ? self.selectedWhisperModel.rawValue : nil }
-                        let sourceInfo: SourceAppInfo = await MainActor.run { self.currentSourceAppInfo() }
-                        let record = TranscriptionRecord(
-                            text: finalText,
-                            provider: transcriptionProvider,
-                            duration: nil,
-                            modelUsed: modelUsed,
-                            wordCount: wordCount,
-                            characterCount: characterCount,
-                            sourceAppBundleId: sourceInfo.bundleIdentifier,
-                            sourceAppName: sourceInfo.displayName,
-                            sourceAppIconData: sourceInfo.iconData
-                        )
-                        await DataManager.shared.saveTranscriptionQuietly(record)
-                    }
-
-                    await MainActor.run {
-                        viewModel.transcriptionStartTime = nil
-                        isProcessing = false  // Reset flag when smart paste disabled
-                        showConfirmationAndPaste(text: finalText)
-                    }
-                }
+                await viewModel.finishTranscription(
+                    text: pipelineResult.text,
+                    correctionOutcome: pipelineResult.correctionOutcome,
+                    source: source,
+                    transcriptionProvider: transcriptionProvider,
+                    selectedWhisperModel: selectedWhisperModel,
+                    shouldHintThisRun: false,
+                    setHintShown: { }
+                )
             } catch is CancellationError {
                 await MainActor.run {
                     isProcessing = false
