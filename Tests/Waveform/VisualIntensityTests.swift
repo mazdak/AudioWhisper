@@ -3,7 +3,7 @@ import SwiftUI
 @testable import AudioWhisper
 
 // MARK: - VisualIntensity Tests
-final class VisualIntensityTests: XCTestCase {
+final class VisualIntensityTests: IsolatedXCTestCase {
 
     func testAllCasesExist() {
         let allCases = VisualIntensity.allCases
@@ -171,7 +171,11 @@ final class VisualIntensityTests: XCTestCase {
 }
 
 // MARK: - VisualIntensity UserDefaults Tests
-final class VisualIntensityUserDefaultsTests: XCTestCase {
+final class VisualIntensityUserDefaultsTests: IsolatedXCTestCase {
+    // TODO(D1): `UserDefaults.visualIntensity` is an extension on
+    // UserDefaults.standard. Once a non-standard accessor exists, route
+    // writes through a UUID-scoped suite and re-enable isolation.
+    override var enforcesStandardUserDefaultsIsolation: Bool { false }
 
     func testDefaultVisualIntensityIsBalanced() {
         // Default should be balanced
@@ -194,7 +198,7 @@ final class VisualIntensityUserDefaultsTests: XCTestCase {
 }
 
 // MARK: - VisualIntensity Ordering Tests
-final class VisualIntensityOrderingTests: XCTestCase {
+final class VisualIntensityOrderingTests: IsolatedXCTestCase {
 
     func testGlowIntensityDecreases() {
         // Glow > Balanced > Burst for glow intensity

@@ -4,7 +4,11 @@ import AppKit
 
 /// Tests for error handling in app initialization and edge cases
 @MainActor
-final class AppDelegateErrorTests: XCTestCase {
+final class AppDelegateErrorTests: IsolatedXCTestCase {
+    // TODO(D1): AppDelegate error path tests toggle synthetic keys on
+    // UserDefaults.standard. Migrate to a UUID-scoped suite once the
+    // production paths accept an injected UserDefaults.
+    override var enforcesStandardUserDefaultsIsolation: Bool { false }
 
     var appDelegate: AppDelegate!
 

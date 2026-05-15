@@ -1,8 +1,12 @@
 import XCTest
 @testable import AudioWhisper
 
-final class SemanticCorrectionTests: XCTestCase {
-    
+final class SemanticCorrectionTests: IsolatedXCTestCase {
+    // TODO(D1): Semantic correction config keys live in UserDefaults.standard.
+    // Once the consumers accept an injected UserDefaults, route writes
+    // through a UUID-scoped suite and re-enable isolation.
+    override var enforcesStandardUserDefaultsIsolation: Bool { false }
+
     // MARK: - SemanticCorrectionMode Tests
     
     func testSemanticCorrectionModeRawValues() {

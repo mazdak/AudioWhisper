@@ -2,7 +2,12 @@ import XCTest
 @testable import AudioWhisper
 
 @MainActor
-final class AppDefaultsTests: XCTestCase {
+final class AppDefaultsTests: IsolatedXCTestCase {
+    // TODO(D1): AppDefaults reads/writes UserDefaults.standard directly and
+    // is the canonical accessor; these tests exercise it against `.standard`
+    // by design. Re-enable isolation once AppDefaults accepts an injected
+    // UserDefaults instance.
+    override var enforcesStandardUserDefaultsIsolation: Bool { false }
 
     private var testDefaults: UserDefaults!
     private var originalDefaults: [String: Any] = [:]

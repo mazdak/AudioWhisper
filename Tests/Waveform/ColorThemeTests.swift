@@ -3,7 +3,7 @@ import SwiftUI
 @testable import AudioWhisper
 
 // MARK: - ColorTheme Tests
-final class ColorThemeTests: XCTestCase {
+final class ColorThemeTests: IsolatedXCTestCase {
 
     func testAllCasesExist() {
         let allCases = ColorTheme.allCases
@@ -86,7 +86,11 @@ final class ColorThemeTests: XCTestCase {
 }
 
 // MARK: - ColorTheme UserDefaults Tests
-final class ColorThemeUserDefaultsTests: XCTestCase {
+final class ColorThemeUserDefaultsTests: IsolatedXCTestCase {
+    // TODO(D1): `UserDefaults.colorTheme` is an extension on
+    // UserDefaults.standard. Once a non-standard accessor exists, route
+    // writes through the existing UUID-scoped suite below and re-enable.
+    override var enforcesStandardUserDefaultsIsolation: Bool { false }
 
     private var defaults: UserDefaults!
     private let suiteName = "ColorThemeTests"

@@ -3,7 +3,11 @@ import AppKit
 @testable import AudioWhisper
 
 @MainActor
-final class PasteManagerTests: XCTestCase {
+final class PasteManagerTests: IsolatedXCTestCase {
+    // TODO(D1): PasteManager reads `enableSmartPaste` from
+    // UserDefaults.standard directly. Once it accepts an injected
+    // UserDefaults, route writes through a UUID-scoped suite and re-enable.
+    override var enforcesStandardUserDefaultsIsolation: Bool { false }
 
     override func setUp() {
         super.setUp()

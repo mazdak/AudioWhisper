@@ -3,7 +3,12 @@ import SwiftUI
 @testable import AudioWhisper
 
 // MARK: - RecordingButton Tests
-final class RecordingButtonTests: XCTestCase {
+final class RecordingButtonTests: IsolatedXCTestCase {
+    // TODO(D1): RecordingButton reads `enableSmartPaste` from
+    // UserDefaults.standard via AppStorage. Once the component accepts an
+    // injected UserDefaults, route writes through a UUID-scoped suite and
+    // re-enable isolation.
+    override var enforcesStandardUserDefaultsIsolation: Bool { false }
 
     override func setUp() {
         super.setUp()

@@ -4,7 +4,13 @@ import SwiftUI
 
 /// Tests for waveform visualization views
 @MainActor
-final class WaveformViewsTests: XCTestCase {
+final class WaveformViewsTests: IsolatedXCTestCase {
+    // TODO(D1): The UserDefaults extension accessors (waveformStyle,
+    // visualIntensity) live on UserDefaults.standard. Once non-standard
+    // accessors exist, route writes through a UUID-scoped suite and
+    // re-enable isolation.
+    override var enforcesStandardUserDefaultsIsolation: Bool { false }
+
 
     // MARK: - CircularSpectrumView Tests
 

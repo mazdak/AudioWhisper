@@ -2,8 +2,12 @@ import XCTest
 import HotKey
 @testable import AudioWhisper
 
-final class HotKeyManagerTests: XCTestCase {
-    
+final class HotKeyManagerTests: IsolatedXCTestCase {
+    // TODO(D1): HotKeyManager reads `globalHotkey` from UserDefaults.standard
+    // directly. Once it accepts an injected UserDefaults, route writes
+    // through a UUID-scoped suite and re-enable isolation.
+    override var enforcesStandardUserDefaultsIsolation: Bool { false }
+
     var hotKeyManager: HotKeyManager!
     var hotkeyPressedCount: Int = 0
     

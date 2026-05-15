@@ -3,8 +3,12 @@ import AppKit
 import SwiftUI
 @testable import AudioWhisper
 
-final class WindowControllerTests: XCTestCase {
-    
+final class WindowControllerTests: IsolatedXCTestCase {
+    // TODO(D1): WindowController reads `hasCompletedWelcome` from
+    // UserDefaults.standard directly. Once it accepts an injected
+    // UserDefaults, route writes through a UUID-scoped suite and re-enable.
+    override var enforcesStandardUserDefaultsIsolation: Bool { false }
+
     var windowController: WindowController!
     
     override func setUp() {

@@ -68,16 +68,19 @@ deterministic. Use `swift test --no-parallel` only when diagnosing a flake.
 ## Test isolation
 
 `Tests/Utilities/IsolatedXCTestCase.swift` provides a base class that
-detects tests which mutate `UserDefaults.standard`. The migration is in
-progress; the base class is intentionally **off** by default so converting
-a test is a pure structural change with no behavior risk. To activate it:
+detects tests which mutate `UserDefaults.standard`. Most service, store,
+and manager tests now inherit from it. The default enforcement mode is
+**warn**: a test that leaks/mutates `.standard` prints
+`[IsolatedXCTestCase] WARNING:` but does not fail. Tests can override:
 
-- `AUDIOWHISPER_TEST_ISOLATION=warn swift test --parallel` — print
-  `[IsolatedXCTestCase] WARNING:` whenever a test leaks state into
-  `.standard`. Useful while finding offenders.
+- `AUDIOWHISPER_TEST_ISOLATION=off swift test --parallel` — silence the
+  warning entirely (use only when debugging unrelated output noise).
+- `AUDIOWHISPER_TEST_ISOLATION=warn swift test --parallel` — explicit
+  warn mode (same as default).
 - `AUDIOWHISPER_TEST_ISOLATION=strict swift test --parallel` — `XCTFail`
   on leaks/mutations and roll `.standard` back to its pre-test value. This
-  is the target mode for CI once every test has been migrated.
+  is the target mode for CI once every offender has been migrated to a
+  UUID-scoped suite or explicitly opted out.
 
 To write a new isolated test, prefer a UUID-scoped suite over `.standard`:
 
@@ -279,13 +282,20 @@ Currently:
 
 | Env Var | What it runs | Cost |
 |---------|--------------|------|
-| `RUN_PARAKEET_E2E=1` | Full Parakeet flow incl. venv bootstrap, model load, real transcription | ~30s + first-run 2.5 GB download |
+| `RUN_E2E=1` | Full Parakeet flow (and any future MLX e2e tests) incl. venv bootstrap, model download, real transcription | ~30s + first-run 2.5 GB download |
+
+`RUN_PARAKEET_E2E=1` is still honored as a deprecated alias for the
+Parakeet-specific path; new tests should gate on `RUN_E2E`.
 
 Example:
 
 ```bash
-RUN_PARAKEET_E2E=1 swift test --filter ParakeetEndToEndTests
+RUN_E2E=1 swift test --filter ParakeetEndToEndTests
 ```
+
+The Parakeet test self-downloads the model via the same `MLXModelManager`
+flow used by Settings, so a clean CI runner only needs network access on
+the first run. Subsequent runs reuse the HuggingFace cache.
 
 Without the env var these tests skip cleanly, so `swift test` and CI remain fast.
 

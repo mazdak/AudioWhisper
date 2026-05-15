@@ -3,8 +3,12 @@ import Foundation
 import AVFoundation
 @testable import AudioWhisper
 
-class UtilityTests: XCTestCase {
-    
+class UtilityTests: IsolatedXCTestCase {
+    // TODO(D1): Generic utility tests exercise UserDefaults.standard
+    // directly under synthetic keys. Migrate to a UUID-scoped suite once
+    // the assertions can target a non-standard domain.
+    override var enforcesStandardUserDefaultsIsolation: Bool { false }
+
     // MARK: - File System Tests
     
     func testTemporaryFileCreation() {

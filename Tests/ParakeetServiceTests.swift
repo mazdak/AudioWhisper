@@ -2,8 +2,13 @@ import XCTest
 import Foundation
 @testable import AudioWhisper
 
-class ParakeetServiceTests: XCTestCase {
-    
+class ParakeetServiceTests: IsolatedXCTestCase {
+    // TODO(D1): ParakeetService reads `selectedParakeetModel` from
+    // UserDefaults.standard via AppDefaults. Once AppDefaults accepts an
+    // injected UserDefaults, route writes through a UUID-scoped suite and
+    // re-enable isolation.
+    override var enforcesStandardUserDefaultsIsolation: Bool { false }
+
     var parakeetService: ParakeetService!
     var originalRepo: String?
     

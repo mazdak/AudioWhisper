@@ -2,7 +2,13 @@ import XCTest
 @testable import AudioWhisper
 
 @MainActor
-final class MLXModelManagerTests: XCTestCase {
+final class MLXModelManagerTests: IsolatedXCTestCase {
+    // TODO(D1): MLXModelManager reads `selectedParakeetModel` from
+    // UserDefaults.standard via AppDefaults. Once AppDefaults accepts an
+    // injected UserDefaults, route writes through a UUID-scoped suite and
+    // re-enable isolation.
+    override var enforcesStandardUserDefaultsIsolation: Bool { false }
+
 
     // MARK: - MLXModel Tests
 

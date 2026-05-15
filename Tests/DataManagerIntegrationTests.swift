@@ -3,7 +3,13 @@ import SwiftData
 @testable import AudioWhisper
 
 @MainActor
-final class DataManagerIntegrationTests: XCTestCase {
+final class DataManagerIntegrationTests: IsolatedXCTestCase {
+    // TODO(D1): DataManager reads `transcriptionHistoryEnabled` and
+    // `transcriptionRetentionPeriod` from UserDefaults.standard. Once
+    // DataManager accepts an injected UserDefaults, route writes through a
+    // UUID-scoped suite and re-enable isolation.
+    override var enforcesStandardUserDefaultsIsolation: Bool { false }
+
     var dataManager: MockDataManager!
     
     override func setUp() async throws {

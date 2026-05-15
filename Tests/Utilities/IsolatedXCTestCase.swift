@@ -10,15 +10,16 @@ import Foundation
 /// known to read/write UserDefaults — Services, Stores, Managers, and most
 /// integration tests.
 ///
-/// Enforcement is OFF by default during the gradual migration so that
-/// converting a test to `IsolatedXCTestCase` is a pure structural change
-/// with no behavior risk. The base class still serves as documentation
-/// (which tests *are* isolated) and as the seam for opting in when ready.
+/// Enforcement defaults to `.warn` once enough test files have been
+/// converted: tests log `[IsolatedXCTestCase] WARNING:` when they leak or
+/// mutate `.standard`, without failing. Tests that *must* mutate `.standard`
+/// (e.g. exercising production code that reads from the global domain)
+/// should opt out via `enforcesStandardUserDefaultsIsolation = false` with
+/// a `// TODO(D1):` comment explaining the constraint.
 ///
-/// To turn on enforcement, set one of:
-///   - `AUDIOWHISPER_TEST_ISOLATION=warn`   — print `[IsolatedXCTestCase]
-///     WARNING:` for any test that leaks/mutates `.standard`. Does NOT fail
-///     the test. Useful for finding offenders during the migration.
+/// Override via the `AUDIOWHISPER_TEST_ISOLATION` env var:
+///   - `AUDIOWHISPER_TEST_ISOLATION=off`    — silence warnings entirely.
+///   - `AUDIOWHISPER_TEST_ISOLATION=warn`   — explicit warn mode (default).
 ///   - `AUDIOWHISPER_TEST_ISOLATION=strict` — `XCTFail` on leak/mutation
 ///     and restore `.standard` to its original state. Use once every test
 ///     has been migrated so CI catches regressions.
@@ -53,21 +54,27 @@ open class IsolatedXCTestCase: XCTestCase {
 
     private var enforcement: Enforcement {
         guard enforcesStandardUserDefaultsIsolation else { return .off }
+        // Default to `.warn` so tests that have been migrated to this base
+        // class surface accidental `.standard` writes during local runs,
+        // without failing CI for the legacy tail. Opt in to strict mode via
+        // the env var once every offender has either been migrated to a
+        // UUID-scoped suite or explicitly opted out.
         switch ProcessInfo.processInfo.environment["AUDIOWHISPER_TEST_ISOLATION"] {
         case "strict": return .strict
         case "warn":   return .warn
-        default:       return .off
+        case "off":    return .off
+        default:       return .warn
         }
     }
 
-    open override func setUp() {
+    @MainActor open override func setUp() {
         super.setUp()
         if enforcement != .off {
             initialSnapshot = currentDomain()
         }
     }
 
-    open override func tearDown() {
+    @MainActor open override func tearDown() {
         if enforcement != .off {
             let after = currentDomain()
             let leakedKeys = Set(after.keys).subtracting(initialSnapshot.keys)

@@ -3,7 +3,12 @@ import AVFoundation
 @testable import AudioWhisper
 
 @MainActor
-final class AudioRecorderTests: XCTestCase {
+final class AudioRecorderTests: IsolatedXCTestCase {
+    // TODO(D1): AudioRecorder reads `autoBoostMicrophoneVolume` from
+    // UserDefaults.standard directly. Once it accepts an injected
+    // UserDefaults, route writes through a UUID-scoped suite and re-enable.
+    override var enforcesStandardUserDefaultsIsolation: Bool { false }
+
     override func setUp() {
         super.setUp()
         // Reset permission state for each test

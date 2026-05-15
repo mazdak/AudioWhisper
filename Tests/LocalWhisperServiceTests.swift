@@ -5,7 +5,13 @@ import AVFoundation
 @testable import AudioWhisper
 
 // MARK: - Simple Test Implementation
-class LocalWhisperServiceTests: XCTestCase {
+class LocalWhisperServiceTests: IsolatedXCTestCase {
+    // TODO(D1): LocalWhisperService reads `selectedWhisperModel` from
+    // UserDefaults.standard via AppDefaults. Once AppDefaults accepts an
+    // injected UserDefaults, route writes through a UUID-scoped suite and
+    // re-enable isolation.
+    override var enforcesStandardUserDefaultsIsolation: Bool { false }
+
     var service: LocalWhisperService!
     var testAudioURL: URL!
     

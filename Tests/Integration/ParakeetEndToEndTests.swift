@@ -7,21 +7,24 @@ import XCTest
 /// This test is OPT-IN. It requires:
 ///   - Apple Silicon (Parakeet-MLX requires arm64)
 ///   - Network access on first run (downloads ~2.5 GB model)
-///   - A pre-downloaded Parakeet model in ~/.cache/huggingface (the service
-///     deliberately does not auto-download from this entry point; download via
-///     the in-app Settings -> Parakeet pane first if needed)
-///   - The env var `RUN_PARAKEET_E2E=1`
+///   - One of:
+///       * `RUN_E2E=1` — the new generic e2e gate (preferred), or
+///       * `RUN_PARAKEET_E2E=1` — backwards-compatible alias
+///
+/// The test self-bootstraps the model if it isn't cached, so nightly CI can
+/// run it from a clean machine. Subsequent runs reuse the HuggingFace cache.
 ///
 /// Run from the command line:
-///   RUN_PARAKEET_E2E=1 swift test --filter ParakeetEndToEndTests
+///   RUN_E2E=1 swift test --filter ParakeetEndToEndTests
 ///
 /// CI runs this nightly only; per-PR runs skip it via XCTSkip below.
 final class ParakeetEndToEndTests: XCTestCase {
 
     func test_e2e_transcribeShortClip() async throws {
         try XCTSkipUnless(
-            ProcessInfo.processInfo.environment["RUN_PARAKEET_E2E"] == "1",
-            "Parakeet E2E test is gated. Set RUN_PARAKEET_E2E=1 to run."
+            ProcessInfo.processInfo.environment["RUN_E2E"] == "1"
+                || ProcessInfo.processInfo.environment["RUN_PARAKEET_E2E"] == "1",
+            "Parakeet E2E test is gated. Set RUN_E2E=1 (or RUN_PARAKEET_E2E=1) to run."
         )
 
         try XCTSkipUnless(
@@ -38,13 +41,21 @@ final class ParakeetEndToEndTests: XCTestCase {
             return
         }
 
-        let service = ParakeetService.shared
+        // Step 1: Ensure the model is on disk. MLXModelManager is the
+        // canonical entry point used by the in-app Settings flow; calling it
+        // here means a fresh CI box can run this test end-to-end without a
+        // manual pre-cache step. `ensureParakeetModel()` short-circuits when
+        // the cache is already populated.
+        await MLXModelManager.shared.ensureParakeetModel()
 
-        // Preflight: ensures the model cache is present and the MLX daemon
-        // warms up. If the model has not been downloaded yet this will throw
-        // `ParakeetError.modelNotReady` -- download via Settings first.
+        // Step 2: Warm up the daemon and verify the cache is consistent. This
+        // throws `ParakeetError.modelNotReady` if the download above failed
+        // (e.g. no network on a sandboxed runner) so the test fails with a
+        // clear signal instead of a generic transcription error.
+        let service = ParakeetService.shared
         try await service.validateSetup()
 
+        // Step 3: Transcribe the fixture.
         let text = try await service.transcribe(audioFileURL: fixtureURL)
 
         XCTAssertFalse(

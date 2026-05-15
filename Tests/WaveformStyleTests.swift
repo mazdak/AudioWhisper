@@ -1,7 +1,12 @@
 import XCTest
 @testable import AudioWhisper
 
-final class WaveformStyleTests: XCTestCase {
+final class WaveformStyleTests: IsolatedXCTestCase {
+    // TODO(D1): WaveformStyle is persisted via UserDefaults.standard. Once
+    // the persistence helper accepts an injected UserDefaults, route writes
+    // through a UUID-scoped suite and re-enable isolation.
+    override var enforcesStandardUserDefaultsIsolation: Bool { false }
+
     private let testDefaultsKey = "waveformStyle"
 
     override func setUp() {

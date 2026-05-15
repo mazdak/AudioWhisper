@@ -2,7 +2,12 @@ import XCTest
 @testable import AudioWhisper
 
 @MainActor
-final class HotkeyIntegrationTests: XCTestCase {
+final class HotkeyIntegrationTests: IsolatedXCTestCase {
+    // TODO(D1): AppDelegate reads `immediateRecording` and press-and-hold
+    // keys directly from UserDefaults.standard. Once those code paths accept
+    // an injected UserDefaults, switch to a UUID-scoped suite and re-enable.
+    override var enforcesStandardUserDefaultsIsolation: Bool { false }
+
 
     // MARK: - Notification Tests
 

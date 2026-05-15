@@ -3,7 +3,12 @@ import AVFoundation
 @testable import AudioWhisper
 
 @MainActor
-final class AudioEngineRecorderTests: XCTestCase {
+final class AudioEngineRecorderTests: IsolatedXCTestCase {
+    // TODO(D1): AudioEngineRecorder reads `autoBoostMicrophoneVolume` from
+    // UserDefaults.standard directly. Once it accepts an injected
+    // UserDefaults, route writes through a UUID-scoped suite and re-enable.
+    override var enforcesStandardUserDefaultsIsolation: Bool { false }
+
     var recorder: AudioEngineRecorder!
     fileprivate var mockVolumeManager: MockMicrophoneVolumeManager!
     var dateCallCount: Int = 0

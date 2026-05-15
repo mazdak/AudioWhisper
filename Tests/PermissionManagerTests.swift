@@ -2,7 +2,11 @@ import XCTest
 @testable import AudioWhisper
 
 @MainActor
-final class PermissionManagerTests: XCTestCase {
+final class PermissionManagerTests: IsolatedXCTestCase {
+    // TODO(D1): PermissionManager and its call sites read `enableSmartPaste`
+    // from UserDefaults.standard directly. Once they accept an injected
+    // UserDefaults, route writes through a UUID-scoped suite and re-enable.
+    override var enforcesStandardUserDefaultsIsolation: Bool { false }
 
     var permissionManager: PermissionManager!
 

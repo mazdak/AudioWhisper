@@ -2,7 +2,12 @@ import XCTest
 import Foundation
 @testable import AudioWhisper
 
-class SpeechToTextServiceTests: XCTestCase {
+class SpeechToTextServiceTests: IsolatedXCTestCase {
+    // TODO(D1): SpeechToTextService reads `parakeetPythonPath` from
+    // UserDefaults.standard directly. Once the service accepts an injected
+    // UserDefaults, route writes through a UUID-scoped suite and re-enable.
+    override var enforcesStandardUserDefaultsIsolation: Bool { false }
+
     var service: SpeechToTextService!
     var mockKeychain: MockKeychainService!
     var testAudioURL: URL!

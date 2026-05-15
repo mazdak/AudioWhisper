@@ -2,7 +2,13 @@ import XCTest
 @testable import AudioWhisper
 
 @MainActor
-final class AppDelegateExtensionTests: XCTestCase {
+final class AppDelegateExtensionTests: IsolatedXCTestCase {
+    // TODO(D1): AppDelegate reads `immediateRecording` from
+    // UserDefaults.standard directly. Once that code path accepts an
+    // injected UserDefaults, route writes through a UUID-scoped suite and
+    // re-enable isolation.
+    override var enforcesStandardUserDefaultsIsolation: Bool { false }
+
 
     // MARK: - Lifecycle Tests
 

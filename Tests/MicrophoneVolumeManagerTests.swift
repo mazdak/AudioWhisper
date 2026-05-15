@@ -1,7 +1,11 @@
 import XCTest
 @testable import AudioWhisper
 
-final class MicrophoneVolumeManagerTests: XCTestCase {
+final class MicrophoneVolumeManagerTests: IsolatedXCTestCase {
+    // TODO(D1): MicrophoneVolumeManager reads `autoBoostMicrophoneVolume`
+    // from UserDefaults.standard. Once it accepts an injected UserDefaults,
+    // route writes through a UUID-scoped suite and re-enable isolation.
+    override var enforcesStandardUserDefaultsIsolation: Bool { false }
 
     override func tearDown() {
         // Clean up UserDefaults
