@@ -4,7 +4,7 @@ import SwiftData
 
 /// Integration tests for app lifecycle events and state management
 @MainActor
-final class AppLifecycleIntegrationTests: XCTestCase {
+final class AppLifecycleIntegrationTests: IsolatedXCTestCase {
 
     var modelContainer: ModelContainer!
     var modelContext: ModelContext!

@@ -42,8 +42,8 @@ Tests/
 # Run all tests (recommended - uses make)
 make test
 
-# Run all tests directly (sequential to prevent flaky tests)
-swift test --no-parallel
+# Run all tests directly in parallel (matches CI)
+swift test --parallel
 
 # Run specific test file
 swift test --filter AudioRecorderTests
@@ -52,10 +52,62 @@ swift test --filter AudioRecorderTests
 swift test --filter AudioRecorderTests.testStartRecordingUpdatesState
 
 # Run tests with verbose output
-swift test --no-parallel --verbose
+swift test --parallel --verbose
+
+# Run tests sequentially when debugging a flaky test
+swift test --no-parallel
 ```
 
-**Note**: Tests run sequentially (`--no-parallel`) to prevent flaky behavior from shared UserDefaults state between test classes. Do not use `--parallel` as it can cause intermittent test failures.
+**Note**: Tests run in parallel by default to match CI
+(`.github/workflows/ci.yml` invokes `swift test --parallel
+--enable-code-coverage`). Tests that touch `UserDefaults.standard` should
+subclass `IsolatedXCTestCase` (see the [Test isolation](#test-isolation)
+section below) and use a UUID-scoped suite so parallel runs stay
+deterministic. Use `swift test --no-parallel` only when diagnosing a flake.
+
+## Test isolation
+
+`Tests/Utilities/IsolatedXCTestCase.swift` provides a base class that
+detects tests which mutate `UserDefaults.standard`. The migration is in
+progress; the base class is intentionally **off** by default so converting
+a test is a pure structural change with no behavior risk. To activate it:
+
+- `AUDIOWHISPER_TEST_ISOLATION=warn swift test --parallel` — print
+  `[IsolatedXCTestCase] WARNING:` whenever a test leaks state into
+  `.standard`. Useful while finding offenders.
+- `AUDIOWHISPER_TEST_ISOLATION=strict swift test --parallel` — `XCTFail`
+  on leaks/mutations and roll `.standard` back to its pre-test value. This
+  is the target mode for CI once every test has been migrated.
+
+To write a new isolated test, prefer a UUID-scoped suite over `.standard`:
+
+```swift
+final class MyServiceTests: IsolatedXCTestCase {
+    var defaults: UserDefaults!
+
+    override func setUp() async throws {
+        try await super.setUp()
+        defaults = UserDefaults(suiteName: UUID().uuidString)!
+    }
+
+    func testReadsInjectedDefaults() {
+        defaults.set("expected", forKey: "myKey")
+        let sut = MyService(defaults: defaults)
+        XCTAssertEqual(sut.read(), "expected")
+    }
+}
+```
+
+If a test legitimately must mutate `.standard` (e.g. it exercises a
+migration that targets the global domain), opt out with:
+
+```swift
+override var enforcesStandardUserDefaultsIsolation: Bool { false }
+```
+
+…and add a `// TODO(D2): …` comment explaining the constraint so the
+exception can be revisited once the relevant production code accepts an
+injected `UserDefaults`.
 
 ### Xcode
 
@@ -219,6 +271,23 @@ Performance tests are included to ensure the application remains responsive:
 - **Performance**: Response time requirements
 - **Security**: Keychain and API key handling
 - **Concurrency**: Thread safety and race conditions
+
+## End-to-End Tests
+
+Opt-in integration tests are gated by env vars to keep per-PR runs fast.
+Currently:
+
+| Env Var | What it runs | Cost |
+|---------|--------------|------|
+| `RUN_PARAKEET_E2E=1` | Full Parakeet flow incl. venv bootstrap, model load, real transcription | ~30s + first-run 2.5 GB download |
+
+Example:
+
+```bash
+RUN_PARAKEET_E2E=1 swift test --filter ParakeetEndToEndTests
+```
+
+Without the env var these tests skip cleanly, so `swift test` and CI remain fast.
 
 ## Common Test Patterns
 

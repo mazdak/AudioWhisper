@@ -4,7 +4,7 @@ import SwiftData
 
 /// Integration tests for switching between transcription providers
 @MainActor
-final class MultiProviderSwitchingTests: XCTestCase {
+final class MultiProviderSwitchingTests: IsolatedXCTestCase {
 
     var modelContainer: ModelContainer!
     var modelContext: ModelContext!

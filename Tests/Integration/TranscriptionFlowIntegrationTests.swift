@@ -5,7 +5,7 @@ import SwiftData
 /// Integration tests for the full transcription flow:
 /// AudioRecorder -> SpeechToTextService -> SemanticCorrectionService -> DataManager -> UsageMetricsStore
 @MainActor
-final class TranscriptionFlowIntegrationTests: XCTestCase {
+final class TranscriptionFlowIntegrationTests: IsolatedXCTestCase {
     var modelContainer: ModelContainer!
     var modelContext: ModelContext!
     var mockKeychain: MockKeychainService!

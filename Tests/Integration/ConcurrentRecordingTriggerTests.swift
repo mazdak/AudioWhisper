@@ -5,7 +5,13 @@ import XCTest
 /// cannot start duplicate recordings. Both paths route through @MainActor-isolated
 /// methods, ensuring serialization. These tests document and verify that guarantee.
 @MainActor
-final class ConcurrentRecordingTriggerTests: XCTestCase {
+final class ConcurrentRecordingTriggerTests: IsolatedXCTestCase {
+
+    // TODO(D2): This test currently writes "immediateRecording" to
+    // UserDefaults.standard because AppDelegate.handleHotkey reads it directly
+    // from `.standard`. Refactor (alongside A1 PreferencesService) so the
+    // hotkey path can take an injected UserDefaults, then re-enable isolation.
+    override var enforcesStandardUserDefaultsIsolation: Bool { false }
 
     // MARK: - PressAndHoldKeyMonitor Concurrent Trigger Tests
 

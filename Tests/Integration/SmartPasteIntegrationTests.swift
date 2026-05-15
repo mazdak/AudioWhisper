@@ -5,7 +5,7 @@ import AppKit
 /// Integration tests for SmartPaste flow:
 /// Transcription -> PasteManager -> Clipboard -> Notification
 @MainActor
-final class SmartPasteIntegrationTests: XCTestCase {
+final class SmartPasteIntegrationTests: IsolatedXCTestCase {
     var testDefaults: UserDefaults!
 
     override func setUp() async throws {

@@ -3,7 +3,7 @@ import XCTest
 
 /// Integration tests for provider selection and KeychainService
 @MainActor
-final class ProviderSelectionIntegrationTests: XCTestCase {
+final class ProviderSelectionIntegrationTests: IsolatedXCTestCase {
     var mockKeychain: MockKeychainService!
     var speechService: SpeechToTextService!
     var testDefaults: UserDefaults!

@@ -5,7 +5,7 @@ import SwiftData
 /// Integration tests for cross-service error propagation
 /// Verifies that errors flow correctly through the service chain
 @MainActor
-final class ErrorPropagationIntegrationTests: XCTestCase {
+final class ErrorPropagationIntegrationTests: IsolatedXCTestCase {
     var mockKeychain: MockKeychainService!
     var speechService: SpeechToTextService!
     var testDefaults: UserDefaults!

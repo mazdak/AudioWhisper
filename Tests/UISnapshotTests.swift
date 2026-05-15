@@ -461,6 +461,175 @@ final class UISnapshotTests: SnapshotTestCase {
             colorScheme: .light
         )
     }
+
+    // MARK: - Additional Waveform Style Snapshots (D3)
+    //
+    // The existing waveform tests only exercise the `classic` style. These add
+    // baselines for the remaining 5 styles so visual regressions in any one
+    // renderer are caught by the snapshot suite.
+
+    private static let sampleWaveformSamples: [Float] = (0..<64).map { i in
+        // Deterministic pseudo-samples so the snapshot is stable across runs.
+        let phase = Float(i) * 0.25
+        return sin(phase) * 0.4 + cos(phase * 1.7) * 0.2
+    }
+
+    private static let sampleFrequencyBands: [Float] = [
+        0.85, 0.70, 0.60, 0.50, 0.40, 0.30, 0.22, 0.15
+    ]
+
+    func testWaveformContainerNeonDarkSnapshot() {
+        defaults.set(WaveformStyle.neon.rawValue, forKey: "waveformStyle")
+        defaults.set(VisualIntensity.balanced.rawValue, forKey: "visualIntensity")
+
+        let view = WaveformContainer(
+            status: .recording,
+            audioLevel: 0.5,
+            waveformSamples: Self.sampleWaveformSamples,
+            frequencyBands: Self.sampleFrequencyBands,
+            onTap: {}
+        )
+        .frame(width: 280, height: 160)
+
+        assertSnapshot(
+            view,
+            named: "Waveform-neon-dark",
+            size: CGSize(width: 320, height: 200),
+            colorScheme: .dark
+        )
+    }
+
+    func testWaveformContainerSpectrumDarkSnapshot() {
+        defaults.set(WaveformStyle.spectrum.rawValue, forKey: "waveformStyle")
+        defaults.set(VisualIntensity.balanced.rawValue, forKey: "visualIntensity")
+
+        let view = WaveformContainer(
+            status: .recording,
+            audioLevel: 0.5,
+            waveformSamples: Self.sampleWaveformSamples,
+            frequencyBands: Self.sampleFrequencyBands,
+            onTap: {}
+        )
+        .frame(width: 280, height: 160)
+
+        assertSnapshot(
+            view,
+            named: "Waveform-spectrum-dark",
+            size: CGSize(width: 320, height: 200),
+            colorScheme: .dark
+        )
+    }
+
+    func testWaveformContainerCircularDarkSnapshot() {
+        defaults.set(WaveformStyle.circular.rawValue, forKey: "waveformStyle")
+        defaults.set(VisualIntensity.balanced.rawValue, forKey: "visualIntensity")
+
+        let view = WaveformContainer(
+            status: .recording,
+            audioLevel: 0.5,
+            waveformSamples: Self.sampleWaveformSamples,
+            frequencyBands: Self.sampleFrequencyBands,
+            onTap: {}
+        )
+        .frame(width: 280, height: 160)
+
+        assertSnapshot(
+            view,
+            named: "Waveform-circular-dark",
+            size: CGSize(width: 320, height: 200),
+            colorScheme: .dark
+        )
+    }
+
+    func testWaveformContainerPulseRingsDarkSnapshot() {
+        defaults.set(WaveformStyle.pulseRings.rawValue, forKey: "waveformStyle")
+        defaults.set(VisualIntensity.balanced.rawValue, forKey: "visualIntensity")
+
+        let view = WaveformContainer(
+            status: .recording,
+            audioLevel: 0.5,
+            waveformSamples: Self.sampleWaveformSamples,
+            frequencyBands: Self.sampleFrequencyBands,
+            onTap: {}
+        )
+        .frame(width: 280, height: 160)
+
+        assertSnapshot(
+            view,
+            named: "Waveform-pulseRings-dark",
+            size: CGSize(width: 320, height: 200),
+            colorScheme: .dark
+        )
+    }
+
+    // NOTE: The `particles` style is intentionally NOT snapshot-tested here.
+    // ParticleFieldView seeds its particle positions/velocities with
+    // `CGFloat.random(...)` at view construction, so each render produces a
+    // different image. Snapshotting that view would yield false-positive
+    // mismatches. If this view is ever refactored to use a deterministic
+    // seed in test environments, a `Waveform-particles-dark` test can be
+    // added by following the pattern of the sibling style tests above.
+
+    // Light-mode contrast: spectrum genuinely looks different against a
+    // light background because the bg color is themed.
+    func testWaveformContainerSpectrumLightSnapshot() {
+        defaults.set(WaveformStyle.spectrum.rawValue, forKey: "waveformStyle")
+        defaults.set(VisualIntensity.balanced.rawValue, forKey: "visualIntensity")
+
+        let view = WaveformContainer(
+            status: .recording,
+            audioLevel: 0.5,
+            waveformSamples: Self.sampleWaveformSamples,
+            frequencyBands: Self.sampleFrequencyBands,
+            onTap: {}
+        )
+        .frame(width: 280, height: 160)
+
+        assertSnapshot(
+            view,
+            named: "Waveform-spectrum-light",
+            size: CGSize(width: 320, height: 200),
+            colorScheme: .light
+        )
+    }
+
+    // Classic recording in light mode — complements the existing dark variant
+    // so the recording-state visual is locked down across color schemes.
+    func testWaveformContainerClassicRecordingLightSnapshot() {
+        defaults.set(WaveformStyle.classic.rawValue, forKey: "waveformStyle")
+        defaults.set(VisualIntensity.balanced.rawValue, forKey: "visualIntensity")
+
+        let view = WaveformContainer(
+            status: .recording,
+            audioLevel: 0.5,
+            waveformSamples: [],
+            frequencyBands: Array(repeating: 0.5, count: 8),
+            onTap: {}
+        )
+        .frame(width: 280, height: 160)
+
+        assertSnapshot(
+            view,
+            named: "WaveformContainer-classic-recording-light",
+            size: CGSize(width: 320, height: 200),
+            colorScheme: .light
+        )
+    }
+
+    // MARK: - Additional Provider View Snapshots (D3)
+
+    func testDashboardProvidersViewLocalDarkSnapshot() {
+        defaults.set(TranscriptionProvider.local.rawValue, forKey: "transcriptionProvider")
+        defaults.set(WhisperModel.base.rawValue, forKey: "selectedWhisperModel")
+
+        let view = DashboardProvidersView()
+        assertSnapshot(
+            view,
+            named: "DashboardProvidersView-local-dark",
+            size: CGSize(width: 750, height: 800),
+            colorScheme: .dark
+        )
+    }
 }
 
 // MARK: - Helpers

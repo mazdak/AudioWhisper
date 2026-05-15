@@ -5,7 +5,7 @@ import SwiftData
 /// Integration tests for DataManager <-> UsageMetricsStore interaction
 /// Verifies that saving/deleting records correctly updates metrics
 @MainActor
-final class HistoryManagementIntegrationTests: XCTestCase {
+final class HistoryManagementIntegrationTests: IsolatedXCTestCase {
     var modelContainer: ModelContainer!
     var modelContext: ModelContext!
     var metricsStore: UsageMetricsStore!
