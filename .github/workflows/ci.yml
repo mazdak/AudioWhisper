@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ main, 'claude/**' ]
+    branches: [ main, master, 'claude/**', 'grade-report-sweep' ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, master ]
 
 jobs:
   build-and-test:

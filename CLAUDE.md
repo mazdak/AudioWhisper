@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Pull Requests — Critical
+
+**ALWAYS open pull requests against this repository (`jtn0123/AudioWhisper`), never against any upstream/fork parent.** This repo is a fork; `gh pr create` will default to the upstream parent (`mazdak/AudioWhisper`) — that default is WRONG. Always pass `--repo jtn0123/AudioWhisper` and target the `master` branch of this repo. Never create, push, or retarget a PR to a different repository.
+
 ## Build Commands
 
 ```bash
