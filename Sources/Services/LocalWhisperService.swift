@@ -101,7 +101,22 @@ private actor WhisperKitCache {
 
 internal final class LocalWhisperService: Sendable {
     static let shared = LocalWhisperService()
-    
+
+    /// Default model used when the stored `selectedWhisperModel` value is missing
+    /// or doesn't match a known `WhisperModel` case. Mirrors `AppDefaults.selectedWhisperModel`.
+    static let defaultModel: WhisperModel = .base
+
+    /// Reads the persisted `selectedWhisperModel` and returns a `WhisperModel`,
+    /// falling back to `defaultModel` if the stored value is empty or no longer
+    /// matches a known enum case. Use this any time a raw read of
+    /// `UserDefaults.standard.string(forKey: "selectedWhisperModel")` is needed
+    /// so that stale / hand-edited preferences cannot crash or silently
+    /// short-circuit the WhisperKit lookup.
+    static var safeSelectedWhisperModel: WhisperModel {
+        let stored = UserDefaults.standard.string(forKey: "selectedWhisperModel") ?? ""
+        return WhisperModel(rawValue: stored) ?? defaultModel
+    }
+
     // Use actor isolation for thread-safe access to mutable state
     private let cache = WhisperKitCache()
     private let maxCachedModels = 3 // Limit cache to prevent excessive memory usage

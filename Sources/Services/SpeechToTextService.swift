@@ -34,26 +34,36 @@ internal class SpeechToTextService {
         // keychainService parameter kept for API compatibility but no longer used
     }
 
+    /// Runs `AudioValidator` on `url` and surfaces any failure as
+    /// `SpeechToTextError.transcriptionFailed(...)`. Returns the URL unchanged
+    /// so callers can chain. Centralising the validation here ensures both
+    /// `transcribe(audioURL:provider:model:)` and `transcribeRaw(...)` apply the
+    /// same checks even if `AudioValidator` evolves.
+    @discardableResult
+    private func validatedAudioURL(_ url: URL) async throws -> URL {
+        let validationResult = await AudioValidator.validateAudioFile(at: url)
+        switch validationResult {
+        case .valid:
+            return url
+        case .invalid(let error):
+            throw SpeechToTextError.transcriptionFailed(error.localizedDescription)
+        }
+    }
+
     /// Raw transcription without semantic correction.
     /// Validates the audio file then delegates to the selected provider.
     /// Throws `SpeechToTextError` on validation or transcription failure.
     /// Unlike `transcribe(_:)`, this returns the provider's raw output with no post-processing.
     func transcribeRaw(audioURL: URL, provider: TranscriptionProvider, model: WhisperModel? = nil) async throws -> String {
-        // Validate audio file before processing
-        let validationResult = await AudioValidator.validateAudioFile(at: audioURL)
-        switch validationResult {
-        case .valid(_): break
-        case .invalid(let error):
-            throw SpeechToTextError.transcriptionFailed(error.localizedDescription)
-        }
+        let validated = try await validatedAudioURL(audioURL)
         switch provider {
         case .local:
             guard let model = model else {
                 throw SpeechToTextError.transcriptionFailed("Whisper model required for local transcription")
             }
-            return try await transcribeWithLocal(audioURL: audioURL, model: model)
+            return try await transcribeWithLocal(audioURL: validated, model: model)
         case .parakeet:
-            return try await transcribeWithParakeet(audioURL: audioURL)
+            return try await transcribeWithParakeet(audioURL: validated)
         }
     }
 
@@ -70,24 +80,17 @@ internal class SpeechToTextService {
     /// uncorrected output. Note: correction is applied here today; audit item B1 plans
     /// to consolidate correction in `TranscriptionPipeline` instead.
     func transcribe(audioURL: URL, provider: TranscriptionProvider, model: WhisperModel? = nil) async throws -> String {
-        // Validate audio file before processing
-        let validationResult = await AudioValidator.validateAudioFile(at: audioURL)
-        switch validationResult {
-        case .valid(_):
-            break // Audio file validated successfully
-        case .invalid(let error):
-            throw SpeechToTextError.transcriptionFailed(error.localizedDescription)
-        }
+        let validated = try await validatedAudioURL(audioURL)
 
         switch provider {
         case .local:
             guard let model = model else {
                 throw SpeechToTextError.transcriptionFailed("Whisper model required for local transcription")
             }
-            let text = try await transcribeWithLocal(audioURL: audioURL, model: model)
+            let text = try await transcribeWithLocal(audioURL: validated, model: model)
             return await correctionService.correct(text: text, providerUsed: .local)
         case .parakeet:
-            let text = try await transcribeWithParakeet(audioURL: audioURL)
+            let text = try await transcribeWithParakeet(audioURL: validated)
             return await correctionService.correct(text: text, providerUsed: .parakeet)
         }
     }

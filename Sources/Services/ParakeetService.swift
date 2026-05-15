@@ -60,8 +60,23 @@ internal class ParakeetService {
         return try await transcribeWithRawPCM(pcmDataURL: pcmDataURL)
     }
 
+    /// Default Parakeet model used when the stored `selectedParakeetModel` value
+    /// is missing or doesn't match a known `ParakeetModel` case. Mirrors
+    /// `AppDefaults.selectedParakeetModel`.
+    static let defaultModel: ParakeetModel = .v3Multilingual
+
+    /// Validates the persisted `selectedParakeetModel` against the
+    /// `ParakeetModel` enum and falls back to `defaultModel` when the stored
+    /// value is empty or no longer matches a known case. Prevents stale or
+    /// hand-edited preferences from pointing the MLX daemon at a repo string
+    /// that the app no longer recognises.
+    var safeSelectedParakeetModel: ParakeetModel {
+        let stored = UserDefaults.standard.string(forKey: "selectedParakeetModel") ?? ""
+        return ParakeetModel(rawValue: stored) ?? Self.defaultModel
+    }
+
     private var selectedRepo: String {
-        UserDefaults.standard.string(forKey: "selectedParakeetModel") ?? ParakeetModel.v3Multilingual.rawValue
+        safeSelectedParakeetModel.rawValue
     }
 
     /// Checks if the model is cached on disk.

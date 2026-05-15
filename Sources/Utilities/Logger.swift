@@ -49,3 +49,14 @@ internal func tryWithLogging<T>(
         return nil
     }
 }
+
+extension String {
+    /// Returns a copy with the current user's home directory replaced by `<home>`,
+    /// for safe inclusion in log messages. Use this on any path string before
+    /// passing it to a logger.
+    var redactingHomeDirectory: String {
+        let home = NSHomeDirectory()
+        guard !home.isEmpty else { return self }
+        return self.replacingOccurrences(of: home, with: "<home>")
+    }
+}

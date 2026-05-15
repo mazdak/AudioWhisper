@@ -27,7 +27,7 @@ internal enum WhisperKitStorage {
         do {
             contents = try fileManager.contentsOfDirectory(atPath: modelDirectory.path)
         } catch {
-            Logger.fileSystem.error("Failed to read model directory contents at \(modelDirectory.path): \(error.localizedDescription)")
+            Logger.fileSystem.error("Failed to read model directory contents at \(modelDirectory.path.redactingHomeDirectory): \(error.localizedDescription)")
             return false
         }
         return contents.contains { $0.hasSuffix(".json") || $0.hasSuffix(".bin") || $0.hasSuffix(".mlmodelc") }
@@ -46,7 +46,7 @@ internal enum WhisperKitStorage {
         do {
             try fileManager.createDirectory(at: baseDirectory, withIntermediateDirectories: true)
         } catch {
-            Logger.fileSystem.error("Failed to create WhisperKit base directory at \(baseDirectory.path): \(error.localizedDescription)")
+            Logger.fileSystem.error("Failed to create WhisperKit base directory at \(baseDirectory.path.redactingHomeDirectory): \(error.localizedDescription)")
         }
     }
 }

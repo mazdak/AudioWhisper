@@ -166,7 +166,7 @@ internal final class MLXModelManager {
             }
             return
         }
-        logger.info("Using managed Python at: \(pythonPath)")
+        logger.info("Using managed Python at: \(pythonPath.redactingHomeDirectory)")
         
         await MainActor.run {
             isDownloading[repo] = true

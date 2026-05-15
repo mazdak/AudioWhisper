@@ -56,6 +56,33 @@ class LocalWhisperServiceTests: XCTestCase {
         let newService = LocalWhisperService()
         XCTAssertNotNil(newService)
     }
+
+    // MARK: - B4: Persisted model validation
+
+    func test_invalidStoredModelName_fallsBackToDefault() {
+        // Capture and restore real preference so this test is hermetic.
+        let key = "selectedWhisperModel"
+        let original = UserDefaults.standard.string(forKey: key)
+        defer {
+            if let original {
+                UserDefaults.standard.set(original, forKey: key)
+            } else {
+                UserDefaults.standard.removeObject(forKey: key)
+            }
+        }
+
+        // Bogus stored value should resolve to the documented default model.
+        UserDefaults.standard.set("nonexistent-model-name", forKey: key)
+        XCTAssertEqual(LocalWhisperService.safeSelectedWhisperModel, LocalWhisperService.defaultModel)
+
+        // Empty/missing value should likewise fall back to the default.
+        UserDefaults.standard.removeObject(forKey: key)
+        XCTAssertEqual(LocalWhisperService.safeSelectedWhisperModel, LocalWhisperService.defaultModel)
+
+        // A valid stored value round-trips back to the matching enum case.
+        UserDefaults.standard.set(WhisperModel.largeTurbo.rawValue, forKey: key)
+        XCTAssertEqual(LocalWhisperService.safeSelectedWhisperModel, .largeTurbo)
+    }
 }
 
 // MARK: - LocalWhisperError Tests

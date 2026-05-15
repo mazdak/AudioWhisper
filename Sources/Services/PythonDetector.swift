@@ -71,7 +71,7 @@ internal struct PythonDetector {
                 }
             }
         } catch {
-            logger.debug("Failed to check Python at \(path): \(error)")
+            logger.debug("Failed to check Python at \(path.redactingHomeDirectory): \(error)")
         }
         
         return false

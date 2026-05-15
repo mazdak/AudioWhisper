@@ -252,7 +252,7 @@ internal class ModelManager {
         do {
             try FileManager.default.createDirectory(at: whisperKitPath, withIntermediateDirectories: true)
         } catch {
-            Logger.modelManager.error("Failed to create WhisperKit directory at \(whisperKitPath.path): \(error.localizedDescription)")
+            Logger.modelManager.error("Failed to create WhisperKit directory at \(whisperKitPath.path.redactingHomeDirectory): \(error.localizedDescription)")
         }
         
         let descriptor = open(whisperKitPath.path, O_EVTONLY)
