@@ -3,8 +3,8 @@ import AppKit
 
 internal struct WelcomeView: View {
     @State private var modelManager = ModelManager()
-    @AppStorage("transcriptionProvider") private var transcriptionProvider = TranscriptionProvider.local.rawValue
-    @AppStorage("selectedWhisperModel") private var selectedWhisperModel = WhisperModel.base
+    @AppDefault(\.transcriptionProvider) private var transcriptionProvider
+    @AppDefault(\.selectedWhisperModel) private var selectedWhisperModel
     @State private var isDownloadingModel = false
     @Environment(\.dismiss) private var dismiss
     

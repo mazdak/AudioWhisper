@@ -180,9 +180,13 @@ extension DashboardCorrectionView {
 
             // Status/Action
             if entry.isDownloading {
-                ProgressView()
-                    .controlSize(.small)
-                    .frame(width: 60)
+                DownloadProgressView(
+                    state: .downloading(
+                        progress: 0,
+                        statusText: entry.statusText
+                    )
+                )
+                .frame(maxWidth: 160)
             } else if entry.isDownloaded {
                 HStack(spacing: 4) {
                     Text("Installed")

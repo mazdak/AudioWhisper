@@ -29,8 +29,8 @@ struct WaveformContainer: View {
         self.onTap = onTap
     }
 
-    @AppStorage("waveformStyle") private var styleRaw = WaveformStyle.classic.rawValue
-    @AppStorage("visualIntensity") private var intensityRaw = VisualIntensity.balanced.rawValue
+    @AppDefault(\.waveformStyle) private var waveformStyle
+    @AppDefault(\.visualIntensity) private var visualIntensity
 
     // Track previous status for transitions
     @State private var previousStatus: AppStatus?
@@ -43,13 +43,9 @@ struct WaveformContainer: View {
     private let successColor = WaveformPalette.success
     private let accentColor = WaveformPalette.accent
 
-    private var style: WaveformStyle {
-        WaveformStyle(rawValue: styleRaw) ?? .classic
-    }
+    private var style: WaveformStyle { waveformStyle }
 
-    private var intensity: VisualIntensity {
-        VisualIntensity(rawValue: intensityRaw) ?? .balanced
-    }
+    private var intensity: VisualIntensity { visualIntensity }
 
     var body: some View {
         Button(action: onTap) {

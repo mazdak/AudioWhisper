@@ -3,10 +3,10 @@ import AppKit
 
 internal struct DashboardCorrectionView: View {
     // Stored preferences
-    @AppStorage("semanticCorrectionMode") var semanticCorrectionModeRaw = SemanticCorrectionMode.off.rawValue
-    @AppStorage("semanticCorrectionModelRepo") var semanticCorrectionModelRepo = "mlx-community/Qwen3-1.7B-4bit"
-    @AppStorage("hasSetupLocalLLM") var hasSetupLocalLLM = false
-    @AppStorage("hasSetupParakeet") var hasSetupParakeet = false
+    @AppDefault(\.semanticCorrectionMode) var semanticCorrectionMode
+    @AppDefault(\.semanticCorrectionModelRepo) var semanticCorrectionModelRepo
+    @AppDefault(\.hasSetupLocalLLM) var hasSetupLocalLLM
+    @AppDefault(\.hasSetupParakeet) var hasSetupParakeet
 
     // Model management
     @Environment(MLXModelManager.self) var modelManager
@@ -32,8 +32,7 @@ internal struct DashboardCorrectionView: View {
 
                 modeSelectorSection
 
-                let mode = SemanticCorrectionMode(rawValue: semanticCorrectionModeRaw) ?? .off
-                switch mode {
+                switch semanticCorrectionMode {
                 case .off:
                     SettingsSectionCard(title: "Correction Disabled", icon: "pause.circle") {
                         Text("Semantic correction is turned off. Turn it on to improve readability and formatting of transcriptions.")
@@ -49,7 +48,7 @@ internal struct DashboardCorrectionView: View {
         }
         .background(DashboardTheme.pageBg)
         .onAppear {
-            if (SemanticCorrectionMode(rawValue: semanticCorrectionModeRaw) ?? .off) == .localMLX {
+            if semanticCorrectionMode == .localMLX {
                 checkEnvReady()
             }
             Task {
@@ -58,8 +57,8 @@ internal struct DashboardCorrectionView: View {
                 await MainActor.run { isRefreshingModels = false }
             }
         }
-        .onChange(of: semanticCorrectionModeRaw) { _, newValue in
-            if SemanticCorrectionMode(rawValue: newValue) == .localMLX {
+        .onChange(of: semanticCorrectionMode) { _, newValue in
+            if newValue == .localMLX {
                 checkEnvReady()
             }
         }

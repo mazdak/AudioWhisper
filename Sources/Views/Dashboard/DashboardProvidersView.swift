@@ -3,16 +3,16 @@ import AppKit
 
 internal struct DashboardProvidersView: View {
     // Persistent settings - Transcription
-    @AppStorage("transcriptionProvider") var transcriptionProvider = TranscriptionProvider.parakeet
-    @AppStorage("selectedWhisperModel") var selectedWhisperModel = WhisperModel.base
-    @AppStorage("selectedParakeetModel") var selectedParakeetModel = ParakeetModel.v3Multilingual
-    @AppStorage("hasSetupParakeet") var hasSetupParakeet = false
-    @AppStorage("hasSetupLocalLLM") var hasSetupLocalLLM = false
-    @AppStorage("maxModelStorageGB") var maxModelStorageGB = 5.0
+    @AppDefault(\.transcriptionProvider) var transcriptionProvider
+    @AppDefault(\.selectedWhisperModel) var selectedWhisperModel
+    @AppDefault(\.selectedParakeetModel) var selectedParakeetModel
+    @AppDefault(\.hasSetupParakeet) var hasSetupParakeet
+    @AppDefault(\.hasSetupLocalLLM) var hasSetupLocalLLM
+    @AppDefault(\.maxModelStorageGB) var maxModelStorageGB
 
     // Persistent settings - Correction
-    @AppStorage("semanticCorrectionMode") var semanticCorrectionModeRaw = SemanticCorrectionMode.off.rawValue
-    @AppStorage("semanticCorrectionModelRepo") var semanticCorrectionModelRepo = "mlx-community/Qwen3-1.7B-4bit"
+    @AppDefault(\.semanticCorrectionMode) var semanticCorrectionMode
+    @AppDefault(\.semanticCorrectionModelRepo) var semanticCorrectionModelRepo
 
     // Consolidated UI state container
     @State var state = ProviderSettingsState()

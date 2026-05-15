@@ -9,12 +9,12 @@ internal struct ContentView: View {
     @EnvironmentObject var windowCoordinator: WindowCoordinator
     @Environment(PermissionManager.self) var permissionManager
 
-    // MARK: - Persisted Settings (AppStorage)
+    // MARK: - Persisted Settings (AppDefaults)
 
-    @AppStorage("transcriptionProvider") var transcriptionProvider = TranscriptionProvider.parakeet
-    @AppStorage("selectedWhisperModel") var selectedWhisperModel = WhisperModel.base
-    @AppStorage("immediateRecording") var immediateRecording = true
-    @AppStorage("hasShownFirstModelUseHint") var hasShownFirstModelUseHint = false
+    @AppDefault(\.transcriptionProvider) var transcriptionProvider
+    @AppDefault(\.selectedWhisperModel) var selectedWhisperModel
+    @AppDefault(\.immediateRecording) var immediateRecording
+    @AppDefault(\.hasShownFirstModelUseHint) var hasShownFirstModelUseHint
 
     // MARK: - View-Local State
 

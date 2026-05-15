@@ -132,17 +132,13 @@ internal extension DashboardProvidersView {
             // Status/Action
             Group {
                 if isDownloading {
-                    HStack(spacing: 6) {
-                        ProgressView()
-                            .controlSize(.small)
-                        
-                        if let stage = stage {
-                            Text(stage.displayText)
-                                .font(DashboardTheme.Fonts.sans(10, weight: .medium))
-                                .foregroundStyle(DashboardTheme.inkMuted)
-                        }
-                    }
-                    .frame(minWidth: 80)
+                    DownloadProgressView(
+                        state: .downloading(
+                            progress: modelManager.downloadProgress[model] ?? 0,
+                            statusText: stage?.displayText
+                        )
+                    )
+                    .frame(maxWidth: 160)
                 } else if isDownloaded {
                     HStack(spacing: 6) {
                         Text("Installed")

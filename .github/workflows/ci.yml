@@ -133,3 +133,57 @@ jobs:
       - name: TODO/FIXME audit (warn only)
         run: |
           grep -rn "TODO\|FIXME" Sources/ --include='*.swift' || echo "No TODO/FIXME comments found"
+
+  bundle-smoke-test:
+    needs: build-and-test
+    runs-on: macos-14
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          if [ -d "/Applications/Xcode_15.4.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
+          elif [ -d "/Applications/Xcode_15.3.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_15.3.app/Contents/Developer
+          elif [ -d "/Applications/Xcode_15.2.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_15.2.app/Contents/Developer
+          else
+            xcode-select -p
+          fi
+
+      - name: Cache Swift packages
+        uses: actions/cache@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-spm-${{ hashFiles('Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-
+
+      - name: Build .app bundle via make build
+        run: make build
+
+      - name: Verify bundle structure
+        run: |
+          set -e
+          APP="AudioWhisper.app"
+          test -d "$APP" || { echo "::error::Missing $APP"; exit 1; }
+          test -x "$APP/Contents/MacOS/AudioWhisper" || { echo "::error::Missing executable"; exit 1; }
+          test -f "$APP/Contents/Info.plist" || { echo "::error::Missing Info.plist"; exit 1; }
+          plutil -lint "$APP/Contents/Info.plist"
+          # Confirm Python bootstrap binary made it into the bundle
+          test -f "$APP/Contents/Resources/bin/uv" -o -f "$APP/Contents/Resources/uv" \
+            || echo "::warning::uv binary not found in bundled Resources (may be missing for dev builds)"
+          # Confirm version was stamped (not left as a placeholder)
+          if grep -q "VERSION_PLACEHOLDER\|BUILD_PLACEHOLDER" "$APP/Contents/MacOS/AudioWhisper" 2>/dev/null; then
+            echo "::warning::Version placeholders found unsubstituted in binary"
+          fi
+          echo "App bundle smoke test passed."
+
+      - name: Show bundle size
+        run: |
+          du -sh AudioWhisper.app
+          ls -lh AudioWhisper.app/Contents/MacOS/AudioWhisper

@@ -16,9 +16,9 @@ extension DashboardCorrectionView {
 
                     Spacer()
 
-                    Picker("", selection: $semanticCorrectionModeRaw) {
+                    Picker("", selection: $semanticCorrectionMode) {
                         ForEach(SemanticCorrectionMode.allCases, id: \.self) { mode in
-                            Text(mode.displayName).tag(mode.rawValue)
+                            Text(mode.displayName).tag(mode)
                         }
                     }
                     .labelsHidden()

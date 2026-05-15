@@ -1,8 +1,8 @@
 import SwiftUI
 
 internal struct DashboardVisualsView: View {
-    @AppStorage("waveformStyle") private var waveformStyleRaw = WaveformStyle.classic.rawValue
-    @AppStorage("visualIntensity") private var visualIntensityRaw = VisualIntensity.balanced.rawValue
+    @AppDefault(\.waveformStyle) private var waveformStyle
+    @AppDefault(\.visualIntensity) private var visualIntensity
 
     var body: some View {
         ScrollView {
@@ -36,18 +36,18 @@ internal struct DashboardVisualsView: View {
 
             VStack(alignment: .leading, spacing: 0) {
                 settingsRow(title: "Waveform Style", subtitle: "Choose your recording visualization") {
-                    Picker("", selection: $waveformStyleRaw) {
+                    Picker("", selection: $waveformStyle) {
                         ForEach(WaveformStyle.allCases) { style in
-                            Text(style.rawValue).tag(style.rawValue)
+                            Text(style.rawValue).tag(style)
                         }
                     }
                     .labelsHidden()
                     .frame(width: 140)
                 }
-                .onChange(of: waveformStyleRaw) { _, newValue in
+                .onChange(of: waveformStyle) { _, newValue in
                     NotificationCenter.default.post(
                         name: .waveformStyleChanged,
-                        object: WaveformStyle(rawValue: newValue) ?? .classic
+                        object: newValue
                     )
                 }
 
@@ -77,9 +77,9 @@ internal struct DashboardVisualsView: View {
 
             VStack(alignment: .leading, spacing: 0) {
                 settingsRow(title: "Celebration Style", subtitle: "Success feedback animation style") {
-                    Picker("", selection: $visualIntensityRaw) {
+                    Picker("", selection: $visualIntensity) {
                         ForEach(VisualIntensity.allCases) { intensity in
-                            Text(intensity.rawValue).tag(intensity.rawValue)
+                            Text(intensity.rawValue).tag(intensity)
                         }
                     }
                     .labelsHidden()
@@ -106,13 +106,9 @@ internal struct DashboardVisualsView: View {
     }
 
     // MARK: - Computed Properties
-    private var currentStyle: WaveformStyle {
-        WaveformStyle(rawValue: waveformStyleRaw) ?? .classic
-    }
+    private var currentStyle: WaveformStyle { waveformStyle }
 
-    private var currentIntensity: VisualIntensity {
-        VisualIntensity(rawValue: visualIntensityRaw) ?? .balanced
-    }
+    private var currentIntensity: VisualIntensity { visualIntensity }
 
     private var styleIcon: String {
         switch currentStyle {

@@ -27,6 +27,11 @@ internal final class MLXModelManager {
     private let logger = Logger(subsystem: "com.audiowhisper.app", category: "MLXModelManager")
     private let cacheDirectory: URL
 
+    /// Serializes concurrent downloads of the same repo. Two callers asking for
+    /// the SAME repo share one in-flight task; two callers asking for DIFFERENT
+    /// repos proceed in parallel.
+    private let downloadSerializer = DiskMutationSerializer<String>()
+
     static var parakeetRepo: String {
         // Note: returns the raw stored string (not validated against `ParakeetModel`),
         // allowing future model repos that aren't yet in the enum. For validated
@@ -153,6 +158,20 @@ internal final class MLXModelManager {
     }
     
     func downloadModel(_ repo: String) async {
+        // Serialize per-repo: if another caller is already downloading the
+        // same repo, await that task instead of starting a duplicate one.
+        // The body never throws — the serializer's error channel is unused
+        // here, but we keep the call site simple by tolerating it.
+        do {
+            try await downloadSerializer.run(key: repo) { [weak self] in
+                await self?.performDownloadModel(repo)
+            }
+        } catch {
+            self.logger.error("Download serializer failed for \(repo): \(error.localizedDescription)")
+        }
+    }
+
+    private func performDownloadModel(_ repo: String) async {
         logger.info("Starting MLX model download for: \(repo)")
         // Ensure managed Python via uv
         let pythonPath: String
@@ -333,6 +352,7 @@ except Exception as e:
                     }
 
                     if exitStatus == 0 {
+                        self?.recordIntegrity(for: repo)
                         Task {
                             await self?.refreshModelList()
                         }
@@ -371,33 +391,74 @@ except Exception as e:
     
     /// Direct filesystem check for model cache - avoids race conditions with async refreshModelList
     private nonisolated func isModelCachedOnDisk(repo: String) -> Bool {
-        let escaped = repo.replacingOccurrences(of: "/", with: "--")
-        let cacheDir = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".cache/huggingface/hub/models--\(escaped)")
-        
+        guard let refsMain = integrityFileURL(for: repo) else { return false }
+        let cacheDir = refsMain.deletingLastPathComponent().deletingLastPathComponent()
+
         var isDir: ObjCBool = false
         guard FileManager.default.fileExists(atPath: cacheDir.path, isDirectory: &isDir), isDir.boolValue else {
             return false
         }
-        
+
         // Check for refs/main to confirm download completed
-        let refsMain = cacheDir.appendingPathComponent("refs/main")
         guard let rev = try? String(contentsOf: refsMain, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines),
               !rev.isEmpty else {
             return false
         }
-        
+
         // Check snapshot directory exists
         let snap = cacheDir.appendingPathComponent("snapshots/\(rev)")
         guard FileManager.default.fileExists(atPath: snap.path, isDirectory: &isDir), isDir.boolValue else {
             return false
         }
-        
-        return true
+
+        // Best-effort integrity verification. TOFU on first hit; failures
+        // are logged at the call site that triggers a re-download.
+        do {
+            try ModelIntegrity.verify(at: refsMain)
+            return true
+        } catch {
+            logger.error("Integrity check failed for cached model \(repo): \(error.localizedDescription)")
+            return false
+        }
+    }
+
+    /// Representative file used for integrity hashing. We hash `refs/main`:
+    /// it's small (a single revision hash), present after every successful
+    /// `snapshot_download`, and changes whenever the cached revision changes.
+    /// Hashing a full snapshot directory of multi-GB weights would block the
+    /// UI for seconds on each cache check.
+    private nonisolated func integrityFileURL(for repo: String) -> URL? {
+        let escaped = repo.replacingOccurrences(of: "/", with: "--")
+        let cacheDir = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".cache/huggingface/hub/models--\(escaped)")
+        return cacheDir.appendingPathComponent("refs/main")
+    }
+
+    /// Records a fresh integrity sidecar after a successful download.
+    /// Silently no-ops if the file doesn't exist — we don't want a missing
+    /// sidecar to block the user from using a freshly downloaded model.
+    private nonisolated func recordIntegrity(for repo: String) {
+        guard let refsMain = integrityFileURL(for: repo),
+              FileManager.default.fileExists(atPath: refsMain.path) else { return }
+        do {
+            try ModelIntegrity.record(at: refsMain)
+        } catch {
+            logger.error("Failed to record integrity for \(repo): \(error.localizedDescription)")
+        }
     }
 
     func downloadParakeetModel() async {
         let repo = Self.parakeetRepo
+        do {
+            try await downloadSerializer.run(key: repo) { [weak self] in
+                await self?.performDownloadParakeetModel(repo: repo)
+            }
+        } catch {
+            self.logger.error("Parakeet serializer failed for \(repo): \(error.localizedDescription)")
+        }
+    }
+
+    private func performDownloadParakeetModel(repo: String) async {
         logger.info("Starting Parakeet model download for: \(repo)")
 
         let pythonPath: String
@@ -503,6 +564,7 @@ except Exception as e:
                     }
 
                     if exitStatus == 0 {
+                        self?.recordIntegrity(for: repo)
                         Task {
                             await self?.refreshModelList()
                         }

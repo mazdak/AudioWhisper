@@ -20,6 +20,12 @@ internal class ModelManager {
     private var fileSystemWatcher: DispatchSourceFileSystemObject?
     private var refreshTimer: Timer?
     private var isDeleteInProgress: Set<WhisperModel> = []
+
+    /// Serializes concurrent downloads of the same model. Two callers asking
+    /// for the SAME model share one in-flight task; two callers asking for
+    /// DIFFERENT models proceed in parallel. WhisperModel is Hashable (per
+    /// its String rawValue), so it works directly as the key.
+    private let downloadSerializer = DiskMutationSerializer<WhisperModel>()
     
     init() {
         // Disable automatic file system watching to prevent unwanted re-downloads
@@ -44,7 +50,50 @@ internal class ModelManager {
     
     // Check if model files exist in the known WhisperKit storage location
     nonisolated func isModelFileDownloaded(_ model: WhisperModel) async -> Bool {
-        WhisperKitStorage.isModelDownloaded(model)
+        guard WhisperKitStorage.isModelDownloaded(model) else { return false }
+        // Best-effort integrity verification. Trust-on-first-use means a
+        // pre-existing cache (no sidecar yet) passes and records a fresh
+        // hash. A real mismatch returns false so the model is treated as
+        // missing and a redownload can be triggered.
+        guard let representative = ModelManager.representativeFileURL(for: model) else { return true }
+        do {
+            try ModelIntegrity.verify(at: representative)
+            return true
+        } catch {
+            Logger.modelManager.error("Integrity check failed for cached \(model.rawValue): \(error.localizedDescription)")
+            return false
+        }
+    }
+
+    /// Picks a small, deterministic file from a WhisperKit model directory
+    /// to use as the integrity hash target. We hash one file (not the whole
+    /// directory) because Core ML model bundles can be hundreds of MB and
+    /// hashing every byte on each cache check would be slow.
+    ///
+    /// Preference order:
+    ///   1. `config.json` (always present in a complete WhisperKit checkout)
+    ///   2. Any other `.json` file in the model root
+    ///   3. nil — caller treats this as "no integrity hook available"
+    nonisolated static func representativeFileURL(for model: WhisperModel) -> URL? {
+        guard let dir = WhisperKitStorage.modelDirectory(for: model) else { return nil }
+        let fm = FileManager.default
+        let configURL = dir.appendingPathComponent("config.json")
+        if fm.fileExists(atPath: configURL.path) { return configURL }
+        guard let entries = try? fm.contentsOfDirectory(atPath: dir.path) else { return nil }
+        if let firstJSON = entries.first(where: { $0.hasSuffix(".json") }) {
+            return dir.appendingPathComponent(firstJSON)
+        }
+        return nil
+    }
+
+    /// Records a fresh integrity sidecar after a successful download.
+    nonisolated static func recordIntegrity(for model: WhisperModel) {
+        guard let representative = representativeFileURL(for: model) else { return }
+        do {
+            try ModelIntegrity.record(at: representative)
+        } catch {
+            Logger.modelManager.error("Failed to record integrity for \(model.rawValue): \(error.localizedDescription)")
+        }
     }
     
     // Helper function to add timeout to async operations
@@ -69,6 +118,17 @@ internal class ModelManager {
     }
     
     nonisolated func downloadModel(_ model: WhisperModel) async throws {
+        // Serialize per-model: two callers asking for the same model share
+        // one download task. Callers asking for different models proceed in
+        // parallel. The MainActor-state flag below still throws
+        // ModelError.alreadyDownloading for the original racy semantics that
+        // tests expect.
+        try await ModelManager.shared.downloadSerializer.run(key: model) {
+            try await ModelManager.shared.performDownloadModel(model)
+        }
+    }
+
+    nonisolated private func performDownloadModel(_ model: WhisperModel) async throws {
         // Check if already downloading and mark as downloading
         let alreadyDownloading = await MainActor.run {
             if ModelManager.shared.downloadingModels.contains(model) {
@@ -78,11 +138,11 @@ internal class ModelManager {
             ModelManager.shared.downloadStages[model] = .preparing
             return false
         }
-        
+
         if alreadyDownloading {
             throw ModelError.alreadyDownloading
         }
-        
+
         // Check storage limits
         let requiredSpace = model.estimatedSize
         let currentModelsSize = await getTotalModelsSize()
@@ -122,7 +182,12 @@ internal class ModelManager {
             }
             
             _ = try await WhisperKit(config)
-            
+
+            // Record integrity sidecar after a successful download. This
+            // is best-effort — failures here shouldn't block the user from
+            // using a freshly downloaded model.
+            ModelManager.recordIntegrity(for: model)
+
             // Update stage to completing
             await MainActor.run {
                 ModelManager.shared.downloadStages[model] = .completing

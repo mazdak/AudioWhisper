@@ -20,9 +20,7 @@ extension DashboardProvidersView {
                 // Mode selection
                 correctionModeSection
 
-                let mode = SemanticCorrectionMode(rawValue: semanticCorrectionModeRaw) ?? .off
-
-                if mode == .localMLX {
+                if semanticCorrectionMode == .localMLX {
                     Divider().background(DashboardTheme.rule)
                     correctionMLXSection
                 }
@@ -57,9 +55,9 @@ extension DashboardProvidersView {
 
                 Spacer()
 
-                Picker("", selection: $semanticCorrectionModeRaw) {
+                Picker("", selection: $semanticCorrectionMode) {
                     ForEach(SemanticCorrectionMode.allCases, id: \.self) { mode in
-                        Text(mode.displayName).tag(mode.rawValue)
+                        Text(mode.displayName).tag(mode)
                     }
                 }
                 .labelsHidden()

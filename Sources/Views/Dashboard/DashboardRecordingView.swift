@@ -4,11 +4,11 @@ import HotKey
 import AppKit
 
 internal struct DashboardRecordingView: View {
-    @AppStorage("selectedMicrophone") private var selectedMicrophone = ""
-    @AppStorage("globalHotkey") private var globalHotkey = "⌘⇧Space"
-    @AppStorage("pressAndHoldEnabled") private var pressAndHoldEnabled = PressAndHoldConfiguration.defaults.enabled
-    @AppStorage("pressAndHoldKeyIdentifier") private var pressAndHoldKeyIdentifier = PressAndHoldConfiguration.defaults.key.rawValue
-    @AppStorage("pressAndHoldMode") private var pressAndHoldModeRaw = PressAndHoldConfiguration.defaults.mode.rawValue
+    @AppDefault(\.selectedMicrophone) private var selectedMicrophone
+    @AppDefault(\.globalHotkey) private var globalHotkey
+    @AppDefault(\.pressAndHoldEnabled) private var pressAndHoldEnabled
+    @AppDefault(\.pressAndHoldKeyIdentifier) private var pressAndHoldKeyIdentifier
+    @AppDefault(\.pressAndHoldMode) private var pressAndHoldModeRaw
 
     @State private var availableMicrophones: [AVCaptureDevice] = []
     @State private var isRecordingHotkey = false
