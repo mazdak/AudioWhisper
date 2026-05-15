@@ -1,4 +1,11 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
+# Generate macOS .iconset assets at all required sizes from AudioWhisperIcon.png.
+# Outputs into AudioWhisper.iconset and copies into Assets.xcassets when present.
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+  sed -n 's/^# //p' "$0" | head -n 20
+  exit 0
+fi
 
 # Change to repo root (parent of scripts/)
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1

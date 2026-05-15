@@ -1,10 +1,12 @@
-#!/bin/bash
-
+#!/usr/bin/env bash
+set -euo pipefail
 # Update Homebrew Cask Formula with Latest Release
 # This script fetches the latest release info from GitHub and updates the cask formula
-# in the homebrew-tap repository
-
-set -e
+# in the homebrew-tap repository.
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+  sed -n 's/^# //p' "$0" | head -n 20
+  exit 0
+fi
 
 # Change to repo root (parent of scripts/)
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1

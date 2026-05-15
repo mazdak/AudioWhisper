@@ -1,0 +1,17 @@
+# Pre-commit hooks for AudioWhisper. Install with: `pre-commit install`
+# Requires: brew install pre-commit swiftlint
+repos:
+  - repo: local
+    hooks:
+      - id: swiftlint
+        name: SwiftLint
+        entry: swiftlint lint --quiet
+        language: system
+        files: \.swift$
+        require_serial: false
+
+      - id: no-debug-print
+        name: No production print()
+        entry: bash -c 'for f in "$@"; do grep -nE "^\s*print\(" "$f" >/dev/null && { echo "$f has print() — wrap in #if DEBUG"; exit 1; } || true; done' --
+        language: system
+        files: ^Sources/.*\.swift$

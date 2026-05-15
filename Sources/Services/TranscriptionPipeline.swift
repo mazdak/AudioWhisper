@@ -1,8 +1,8 @@
 import Foundation
 import os.log
 
-/// Orchestrates the transcription workflow including validation, provider selection,
-/// transcription, and post-processing correction.
+/// Orchestrates the full transcription flow: validate audio → transcribe →
+/// semantic correction → emit final text.
 ///
 /// This class handles the high-level flow while delegating actual transcription
 /// to `SpeechToTextService`.
@@ -23,6 +23,9 @@ internal class TranscriptionPipeline {
     // MARK: - Pipeline Execution
 
     /// Executes the full transcription pipeline with the given configuration.
+    /// Stages: (1) audio validation, (2) provider transcription, (3) optional semantic
+    /// correction. Audit item B1 plans to consolidate correction here so callers no
+    /// longer need to apply it inline in `SpeechToTextService`.
     /// - Parameters:
     ///   - audioURL: URL to the audio file to transcribe.
     ///   - config: Configuration for the transcription pipeline.

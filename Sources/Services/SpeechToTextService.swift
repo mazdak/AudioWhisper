@@ -21,6 +21,8 @@ internal enum SpeechToTextError: Error, LocalizedError {
     }
 }
 
+/// Routes a transcription request to the correct provider (OpenAI, Gemini,
+/// WhisperKit, Parakeet) based on user settings.
 @Observable
 internal class SpeechToTextService {
     // Use shared singleton to avoid multiple WhisperKit caches
@@ -32,7 +34,10 @@ internal class SpeechToTextService {
         // keychainService parameter kept for API compatibility but no longer used
     }
 
-    // Raw transcription without semantic correction
+    /// Raw transcription without semantic correction.
+    /// Validates the audio file then delegates to the selected provider.
+    /// Throws `SpeechToTextError` on validation or transcription failure.
+    /// Unlike `transcribe(_:)`, this returns the provider's raw output with no post-processing.
     func transcribeRaw(audioURL: URL, provider: TranscriptionProvider, model: WhisperModel? = nil) async throws -> String {
         // Validate audio file before processing
         let validationResult = await AudioValidator.validateAudioFile(at: audioURL)
@@ -59,6 +64,11 @@ internal class SpeechToTextService {
         return try await transcribe(audioURL: audioURL, provider: provider, model: nil)
     }
 
+    /// Transcribes an audio file and applies semantic correction inline.
+    /// Throws `SpeechToTextError` on validation or transcription failure.
+    /// The returned string is the corrected transcript; use `transcribeRaw(_:)` for the
+    /// uncorrected output. Note: correction is applied here today; audit item B1 plans
+    /// to consolidate correction in `TranscriptionPipeline` instead.
     func transcribe(audioURL: URL, provider: TranscriptionProvider, model: WhisperModel? = nil) async throws -> String {
         // Validate audio file before processing
         let validationResult = await AudioValidator.validateAudioFile(at: audioURL)
@@ -82,6 +92,9 @@ internal class SpeechToTextService {
         }
     }
 
+    /// Delegates to `LocalWhisperService` (WhisperKit / CoreML).
+    /// Correction is currently applied by the caller in `transcribe(_:)`; audit item B1
+    /// tracks moving that into `TranscriptionPipeline`.
     private func transcribeWithLocal(audioURL: URL, model: WhisperModel) async throws -> String {
         do {
             let text = try await localWhisperService.transcribe(audioFileURL: audioURL, model: model) { progress in
@@ -93,6 +106,10 @@ internal class SpeechToTextService {
         }
     }
 
+    /// Delegates to `ParakeetService` (Parakeet-MLX, Apple-Silicon only) and warms up
+    /// the MLX correction daemon in parallel when correction is enabled.
+    /// Correction is currently applied by the caller in `transcribe(_:)`; audit item B1
+    /// tracks moving that into `TranscriptionPipeline`.
     private func transcribeWithParakeet(audioURL: URL) async throws -> String {
         guard Arch.isAppleSilicon else {
             throw SpeechToTextError.transcriptionFailed("Parakeet requires an Apple Silicon Mac.")

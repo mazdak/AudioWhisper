@@ -4,6 +4,7 @@ struct VersionInfo {
     static let version = "VERSION_PLACEHOLDER"
     static let gitHash = "GIT_HASH_PLACEHOLDER"
     static let buildDate = "BUILD_DATE_PLACEHOLDER"
+    static let bundledUvVersion = "BUNDLED_UV_VERSION_PLACEHOLDER"
     
     static var displayVersion: String {
         if gitHash != "dev-build" && gitHash != "unknown" && !gitHash.isEmpty {

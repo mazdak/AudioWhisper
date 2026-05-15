@@ -2,6 +2,9 @@ import Foundation
 
 import os.log
 
+/// Post-processes raw transcripts to fix typos, punctuation, and filler words.
+/// Mode is read from preferences: off / local MLX / cloud (uses the active
+/// transcription provider).
 internal final class SemanticCorrectionService {
     private let mlxService = MLXCorrectionService()
     private let logger = Logger(subsystem: "com.audiowhisper.app", category: "SemanticCorrection")
@@ -21,6 +24,11 @@ internal final class SemanticCorrectionService {
         // keychainService parameter kept for API compatibility but no longer used
     }
 
+    /// Applies semantic correction to `text`. Reads `semanticCorrectionMode` from
+    /// `UserDefaults` and picks: off (returns input unchanged) or local MLX. The
+    /// per-app category is derived from `sourceAppBundleId` to choose the prompt.
+    /// On failure, returns the original `text` silently — audit item B2 tracks
+    /// surfacing these failures to the UI.
     func correct(text: String, providerUsed: TranscriptionProvider, sourceAppBundleId: String? = nil) async -> String {
         let modeRaw = UserDefaults.standard.string(forKey: "semanticCorrectionMode") ?? SemanticCorrectionMode.off.rawValue
         let mode = SemanticCorrectionMode(rawValue: modeRaw) ?? .off
@@ -39,6 +47,10 @@ internal final class SemanticCorrectionService {
     }
 
     // MARK: - Local (MLX)
+    /// Runs the local MLX correction model for `text` using the category-specific
+    /// prompt. Requires Apple Silicon; on non-arm64 returns `text` unchanged.
+    /// Any subprocess or model failure logs and returns the original text silently
+    /// (cross-reference audit item B2).
     private func correctLocallyWithMLX(text: String, category: CategoryDefinition) async -> String {
         guard Arch.isAppleSilicon else { return text }
         let modelRepo = UserDefaults.standard.string(forKey: "semanticCorrectionModelRepo") ?? "mlx-community/Llama-3.2-1B-Instruct-4bit"

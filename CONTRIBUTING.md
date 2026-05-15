@@ -343,3 +343,16 @@ These warnings from Apple's frameworks can be safely ignored:
 ## License
 
 By contributing to AudioWhisper, you agree that your contributions will be licensed under the same license as the project.
+
+## Embedded Python Dependencies
+
+AudioWhisper bundles a Python environment (managed via `uv`) for Parakeet and MLX semantic correction. The lockfile is committed at `Sources/Resources/uv.lock` and is the single source of truth for those deps.
+
+To upgrade:
+```bash
+cd Sources/Resources
+uv lock --upgrade        # or `uv lock --upgrade-package <name>` for one package
+git add uv.lock pyproject.toml
+```
+
+Test by running the app and verifying Parakeet/MLX still load successfully. Both `uv.lock` and `pyproject.toml` must always be committed together.

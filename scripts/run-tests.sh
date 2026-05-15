@@ -1,4 +1,11 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
+# Run the AudioWhisper test suite with macOS framework noise filtered out.
+# Runs sequentially to avoid flaky shared UserDefaults state across tests.
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+  sed -n 's/^# //p' "$0" | head -n 20
+  exit 0
+fi
 
 # Change to repo root (parent of scripts/)
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1

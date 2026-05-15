@@ -51,7 +51,7 @@ jobs:
           # Run tests and filter out macOS system framework noise
           # Use a temp file to preserve exit code while filtering output
           set +e
-          swift test --parallel 2>&1 | tee /tmp/test_output.txt
+          swift test --parallel --enable-code-coverage 2>&1 | tee /tmp/test_output.txt
           TEST_EXIT_CODE=${PIPESTATUS[0]}
           # Filter and display cleaned output
           grep -v -E "(CNAccountCollection|ContactsPersistence|com\.apple\.contacts|NSXPCConnection|DetachedSignatures|FrontBoardServices|NSStatusItemScene|BSBlockSentinel|NSStatusItem|assertOnQueue)" /tmp/test_output.txt || true
@@ -59,24 +59,50 @@ jobs:
         env:
           OS_ACTIVITY_MODE: disable
 
-  lint:
-    runs-on: ubuntu-latest
+      - name: Coverage summary
+        if: always()
+        run: |
+          set +e
+          PROFDATA=$(find .build -name '*.profdata' | head -n 1)
+          BIN_DIR=$(find .build -type d -name '*.xctest' | head -n 1)
+          if [ -n "$PROFDATA" ] && [ -n "$BIN_DIR" ]; then
+            BIN=$(find "$BIN_DIR/Contents/MacOS" -type f | head -n 1)
+            xcrun llvm-cov report "$BIN" -instr-profile "$PROFDATA" 2>/dev/null | tail -n 1 || true
+          else
+            echo "No coverage data found"
+          fi
 
+  lint:
+    runs-on: macos-14
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Check for debug print statements
-        run: |
-          echo "Checking for print statements in Swift source files..."
-          # Find print statements but exclude comments and Python files
-          if grep -rn "print(" Sources/ --include="*.swift" | grep -v "//.*print" | grep -v "\.py:"; then
-            echo "::warning::Found print statements that may need review"
-          else
-            echo "No problematic print statements found"
-          fi
+      - name: Install SwiftLint
+        run: brew list swiftlint >/dev/null 2>&1 || brew install swiftlint
 
-      - name: Check for TODO/FIXME comments
+      - name: SwiftLint (strict)
+        run: swiftlint --strict --reporter github-actions-logging
+
+      - name: No print() outside #if DEBUG
         run: |
-          echo "Checking for TODO/FIXME comments..."
-          grep -rn "TODO\|FIXME" Sources/ --include="*.swift" || echo "No TODO/FIXME comments found"
+          set -e
+          violations=$(grep -rn --include='*.swift' -E '^\s*print\(' Sources/ | grep -v '//.*print' || true)
+          # Filter out lines that appear inside a #if DEBUG block by checking surrounding lines
+          if [ -n "$violations" ]; then
+            echo "$violations" | while IFS=: read -r file line _rest; do
+              # Search 50 lines back for #if DEBUG, then check if a #endif came between
+              ctx=$(sed -n "1,${line}p" "$file" | tail -n 50)
+              last_debug=$(echo "$ctx" | grep -n '#if DEBUG' | tail -n 1 | cut -d: -f1 || true)
+              last_endif=$(echo "$ctx" | grep -n '#endif' | tail -n 1 | cut -d: -f1 || true)
+              if [ -z "$last_debug" ] || { [ -n "$last_endif" ] && [ "$last_endif" -gt "$last_debug" ]; }; then
+                echo "::error file=$file,line=$line::print() outside #if DEBUG"
+                exit 1
+              fi
+            done
+          fi
+          echo "No production print() found"
+
+      - name: TODO/FIXME audit (warn only)
+        run: |
+          grep -rn "TODO\|FIXME" Sources/ --include='*.swift' || echo "No TODO/FIXME comments found"
