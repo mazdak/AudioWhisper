@@ -368,3 +368,25 @@ git add uv.lock pyproject.toml
 ```
 
 Test by running the app and verifying Parakeet/MLX still load successfully. Both `uv.lock` and `pyproject.toml` must always be committed together.
+
+## Refreshing the Bundled `uv` Binary
+
+The app ships a copy of [Astral's `uv`](https://github.com/astral-sh/uv) at
+`Sources/Resources/bin/uv` so first-launch Python bootstrap doesn't depend on
+the user's environment. `scripts/build.sh` captures the binary's SHA-256 at
+build time; `UvBootstrap` verifies that hash once per launch.
+
+To upgrade `uv`:
+
+1. Download the new `uv` release for `aarch64-apple-darwin` from
+   https://github.com/astral-sh/uv/releases.
+2. Verify the download against Astral's published `SHA256SUMS`.
+3. Replace `Sources/Resources/bin/uv` with the new binary; ensure it is
+   executable (`chmod +x`).
+4. Run `make build`. The build script automatically captures the new SHA-256
+   and stamps it into `VersionInfo.swift` for runtime verification.
+5. Commit the new binary along with whatever `Sources/Resources/uv.lock`
+   changes flow from running Python deps against the newer `uv`.
+
+If a user's installed `uv` is newer than the bundled one, AudioWhisper uses
+the bundled copy regardless — verification gates the bundled path only.

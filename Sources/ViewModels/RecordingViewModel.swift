@@ -57,6 +57,12 @@ final class RecordingViewModel {
     var showSuccess = false
     var isHandlingSpaceKey = false
     var showFirstModelUseHint = false
+    /// Non-nil when a semantic-correction pass failed and the UI should show a
+    /// brief warning banner. The raw transcript is still copied/pasted; this
+    /// flag exists so the user knows correction didn't apply. See audit item
+    /// A4. Cleared automatically after a short delay to match the existing
+    /// success-toast pattern.
+    var correctionFailedMessage: String?
 
     // MARK: - Paste State
 
@@ -214,7 +220,7 @@ final class RecordingViewModel {
                     applySemanticCorrection: mode != .off,
                     sourceAppBundleId: sourceBundleId
                 )
-                let finalText = try await transcriptionPipeline.transcribe(
+                let result = try await transcriptionPipeline.transcribe(
                     audioURL: audioURL,
                     config: pipelineConfig
                 )
@@ -222,7 +228,8 @@ final class RecordingViewModel {
                 try Task.checkCancellation()
 
                 await finishTranscription(
-                    text: finalText,
+                    text: result.text,
+                    correctionOutcome: result.correctionOutcome,
                     source: source,
                     transcriptionProvider: transcriptionProvider,
                     selectedWhisperModel: selectedWhisperModel,
@@ -330,6 +337,7 @@ final class RecordingViewModel {
     /// the prior behaviour where the success UI appears in the same tick.
     func finishTranscription(
         text: String,
+        correctionOutcome: CorrectionOutcome? = nil,
         source: TranscriptionSource,
         transcriptionProvider: TranscriptionProvider,
         selectedWhisperModel: WhisperModel,
@@ -367,11 +375,29 @@ final class RecordingViewModel {
         )
         recordSourceUsage(words: wordCount, characters: characterCount)
         transcriptionStartTime = nil
+
+        // Surface silent correction failures to the UI (audit item A4). The
+        // raw transcript is still copied/pasted via showConfirmationAndPaste;
+        // this just shows a brief warning so the user knows correction was
+        // attempted but didn't apply.
+        if case .failed = correctionOutcome {
+            presentCorrectionFailure()
+        }
+
         showConfirmationAndPaste(text: text)
 
         if shouldHintThisRun {
             setHintShown()
             showFirstModelUseHint = false
+        }
+    }
+
+    /// Sets `correctionFailedMessage` and schedules an auto-clear. Matches the
+    /// existing success-toast pattern (delay then clear).
+    private func presentCorrectionFailure() {
+        correctionFailedMessage = "Correction failed; raw transcript copied"
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
+            self?.correctionFailedMessage = nil
         }
     }
 

@@ -7,7 +7,27 @@ struct WaveformContainer: View {
     let audioLevel: Float
     let waveformSamples: [Float]
     let frequencyBands: [Float]
+    /// When false, animations inside the `.processing` indicator are
+    /// suppressed so snapshot tests render a deterministic frame.
+    /// Production callers should leave this at the default (`true`).
+    let processingAnimated: Bool
     let onTap: () -> Void
+
+    init(
+        status: AppStatus,
+        audioLevel: Float,
+        waveformSamples: [Float],
+        frequencyBands: [Float],
+        processingAnimated: Bool = true,
+        onTap: @escaping () -> Void
+    ) {
+        self.status = status
+        self.audioLevel = audioLevel
+        self.waveformSamples = waveformSamples
+        self.frequencyBands = frequencyBands
+        self.processingAnimated = processingAnimated
+        self.onTap = onTap
+    }
 
     @AppStorage("waveformStyle") private var styleRaw = WaveformStyle.classic.rawValue
     @AppStorage("visualIntensity") private var intensityRaw = VisualIntensity.balanced.rawValue
@@ -51,12 +71,16 @@ struct WaveformContainer: View {
                         .opacity(intensity.particleMultiplier)
                 }
 
-                // State transition effects
-                StatusTransitionOverlay(
-                    fromStatus: previousStatus,
-                    toStatus: status,
-                    intensity: intensity
-                )
+                // State transition effects. While processing, the wave
+                // animation is non-deterministic (driven by wall-clock
+                // time); allow tests to suppress it via processingAnimated.
+                if processingAnimated || !isProcessing {
+                    StatusTransitionOverlay(
+                        fromStatus: previousStatus,
+                        toStatus: status,
+                        intensity: intensity
+                    )
+                }
 
                 // Success celebration
                 if isSuccess {
@@ -75,7 +99,7 @@ struct WaveformContainer: View {
                             EnhancedStatusDot(
                                 color: dotColor,
                                 intensity: intensity,
-                                isPulsing: isRecording || isProcessing
+                                isPulsing: shouldPulseStatusDot
                             )
                         }
 
@@ -187,6 +211,14 @@ struct WaveformContainer: View {
         default:
             return false
         }
+    }
+
+    /// Whether the status dot should pulse. Tests can disable processing
+    /// animations via `processingAnimated` to keep snapshots deterministic.
+    private var shouldPulseStatusDot: Bool {
+        if isRecording { return true }
+        if isProcessing { return processingAnimated }
+        return false
     }
 
     private var dotColor: Color {

@@ -272,12 +272,26 @@ final class UISnapshotTests: SnapshotTestCase {
         )
     }
 
-    func testWaveformContainerProcessingSnapshot() throws {
-        // The .processing state runs an indeterminate spinner whose phase varies
-        // across renders; the snapshot flaps even with identical inputs. Skipped
-        // until the test can capture a deterministic frame (e.g. by injecting
-        // a fixed animation phase). Tracked alongside the particle-field skip.
-        throw XCTSkip("WaveformContainer .processing is non-deterministic")
+    func testWaveformContainerProcessingSnapshot() {
+        defaults.set(WaveformStyle.classic.rawValue, forKey: "waveformStyle")
+        defaults.set(VisualIntensity.balanced.rawValue, forKey: "visualIntensity")
+
+        let view = WaveformContainer(
+            status: .processing("Transcribing..."),
+            audioLevel: 0,
+            waveformSamples: [],
+            frequencyBands: [],
+            processingAnimated: false,
+            onTap: {}
+        )
+        .frame(width: 280, height: 160)
+
+        assertSnapshot(
+            view,
+            named: "WaveformContainer-processing",
+            size: CGSize(width: 320, height: 200),
+            colorScheme: .dark
+        )
     }
 
     func testWaveformContainerErrorSnapshot() {
@@ -550,13 +564,34 @@ final class UISnapshotTests: SnapshotTestCase {
         )
     }
 
-    // NOTE: The `particles` style is intentionally NOT snapshot-tested here.
-    // ParticleFieldView seeds its particle positions/velocities with
-    // `CGFloat.random(...)` at view construction, so each render produces a
-    // different image. Snapshotting that view would yield false-positive
-    // mismatches. If this view is ever refactored to use a deterministic
-    // seed in test environments, a `Waveform-particles-dark` test can be
-    // added by following the pattern of the sibling style tests above.
+    // The `particles` style is snapshot-tested by exercising ParticleFieldView
+    // directly with an explicit `seed`, which makes the particle positions /
+    // velocities / colors reproducible across runs. The parent
+    // WaveformContainer's `.particles` branch still uses the system RNG
+    // (no seed) so production behavior is unchanged.
+    func testWaveformContainerParticleDarkSnapshot() {
+        defaults.set(WaveformStyle.particles.rawValue, forKey: "waveformStyle")
+        defaults.set(VisualIntensity.balanced.rawValue, forKey: "visualIntensity")
+
+        // Render ParticleFieldView directly with a fixed seed so the
+        // initial particle layout is deterministic. We exercise the same
+        // visualization the `.particles` branch of WaveformContainer uses.
+        let view = ParticleFieldView(
+            audioLevel: 0.5,
+            frequencyBands: Self.sampleFrequencyBands,
+            isActive: true,
+            seed: 42
+        )
+        .frame(width: 280, height: 160)
+        .background(Color.black)
+
+        assertSnapshot(
+            view,
+            named: "Waveform-particles-dark",
+            size: CGSize(width: 320, height: 200),
+            colorScheme: .dark
+        )
+    }
 
     // Light-mode contrast: spectrum genuinely looks different against a
     // light background because the bg color is themed.
@@ -637,7 +672,12 @@ private extension UISnapshotTests {
             "pressAndHoldKeyIdentifier",
             "pressAndHoldMode",
             "selectedMicrophone",
-            "transcriptionHistoryEnabled"
+            "transcriptionHistoryEnabled",
+            // Waveform-related keys, cleared so each test starts from a
+            // known baseline regardless of earlier tests' AppStorage writes.
+            "waveformStyle",
+            "visualIntensity",
+            "semanticCorrectionMode"
         ]
         for key in keys {
             defaults.removeObject(forKey: key)

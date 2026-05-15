@@ -3,6 +3,12 @@ set -euo pipefail
 # Update Homebrew Cask Formula with Latest Release
 # This script fetches the latest release info from GitHub and updates the cask formula
 # in the homebrew-tap repository.
+#
+# Prereqs:
+#   - gh CLI authenticated with read access to mazdak/AudioWhisper releases
+#   - jq for JSON parsing (brew install jq)
+#   - ../homebrew-tap cloned alongside this repo (overridable via TAP_REPO env)
+#   - shasum and curl (both built-in on macOS)
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
   sed -n 's/^# //p' "$0" | head -n 20
   exit 0
@@ -10,6 +16,11 @@ fi
 
 # Change to repo root (parent of scripts/)
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
+
+# Verify required tools are present up-front
+for cmd in gh jq curl shasum; do
+    command -v "$cmd" >/dev/null 2>&1 || { echo "Required tool missing: $cmd"; exit 1; }
+done
 
 # Unset GITHUB_TOKEN if set, to avoid conflicts with gh CLI keyring auth
 unset GITHUB_TOKEN

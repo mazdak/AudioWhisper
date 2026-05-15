@@ -80,6 +80,26 @@ internal struct ContentView: View {
                 }
             }
         )
+        .overlay(alignment: .top) {
+            // Audit item A4: surface silent correction failures inline so the
+            // user knows raw text was used. Sits just above the success/status
+            // indicator; auto-clears via the timer in
+            // RecordingViewModel.presentCorrectionFailure().
+            if let message = viewModel.correctionFailedMessage {
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(
+                        Capsule().fill(Color.orange.opacity(0.85))
+                    )
+                    .padding(.top, 6)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    .accessibilityLabel(Text(message))
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: viewModel.correctionFailedMessage)
         .sheet(isPresented: Binding(
             get: { permissionManager.showEducationalModal },
             set: { permissionManager.showEducationalModal = $0 }

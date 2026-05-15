@@ -6,11 +6,68 @@ struct ParticleFieldView: View {
     let audioLevel: Float
     let frequencyBands: [Float]
     let isActive: Bool
+    /// Seed used for the initial particle positions/velocities. Default is
+    /// random so production behavior is unchanged; tests can pass a fixed
+    /// seed to make snapshots deterministic. A non-nil seed also disables
+    /// per-frame jitter randomness so the rendered frame is reproducible.
+    let seed: UInt64?
+
+    init(
+        audioLevel: Float,
+        frequencyBands: [Float],
+        isActive: Bool,
+        seed: UInt64? = nil
+    ) {
+        self.audioLevel = audioLevel
+        self.frequencyBands = frequencyBands
+        self.isActive = isActive
+        self.seed = seed
+
+        // When a seed is provided, pre-populate the particles state so the
+        // first rendered frame (e.g. via ImageRenderer in snapshot tests) is
+        // deterministic without relying on `onAppear` having executed.
+        if let seed = seed {
+            let initialSize = CGSize(width: 200, height: 120)
+            let initialParticles = Self.makeSeededParticles(
+                count: Self.fixedParticleCount,
+                in: initialSize,
+                colorCount: Self.fixedColorCount,
+                seed: seed
+            )
+            _particles = State(initialValue: initialParticles)
+            _currentSize = State(initialValue: initialSize)
+        }
+    }
 
     @State private var particles: [Particle] = []
     @State private var idlePhase: CGFloat = 0
     @State private var isViewActive = false
     @State private var currentSize: CGSize = CGSize(width: 200, height: 120)
+
+    // Static counterparts to the instance constants for use in the init,
+    // where instance properties aren't yet available.
+    private static let fixedParticleCount = 60
+    private static let fixedColorCount = 4
+
+    private static func makeSeededParticles(
+        count: Int,
+        in size: CGSize,
+        colorCount: Int,
+        seed: UInt64
+    ) -> [Particle] {
+        var rng = SeededRandomNumberGenerator(seed: seed)
+        return (0..<count).map { _ in
+            Particle(
+                x: CGFloat.random(in: 0...size.width, using: &rng),
+                y: CGFloat.random(in: 0...size.height, using: &rng),
+                velocityX: CGFloat.random(in: -0.5...0.5, using: &rng),
+                velocityY: CGFloat.random(in: -0.5...0.5, using: &rng),
+                size: CGFloat.random(in: 3...8, using: &rng),
+                colorIndex: Int.random(in: 0..<colorCount, using: &rng),
+                opacity: CGFloat.random(in: 0.4...0.9, using: &rng)
+            )
+        }
+    }
 
     private let particleCount = 60
     private let colors: [Color] = [
@@ -84,16 +141,25 @@ struct ParticleFieldView: View {
 
     private func initializeParticles(in size: CGSize) {
         currentSize = size
-        particles = (0..<particleCount).map { _ in
-            Particle(
-                x: CGFloat.random(in: 0...size.width),
-                y: CGFloat.random(in: 0...size.height),
-                velocityX: CGFloat.random(in: -0.5...0.5),
-                velocityY: CGFloat.random(in: -0.5...0.5),
-                size: CGFloat.random(in: 3...8),
-                colorIndex: Int.random(in: 0..<colors.count),
-                opacity: CGFloat.random(in: 0.4...0.9)
+        if let seed = seed {
+            particles = Self.makeSeededParticles(
+                count: particleCount,
+                in: size,
+                colorCount: colors.count,
+                seed: seed
             )
+        } else {
+            particles = (0..<particleCount).map { _ in
+                Particle(
+                    x: CGFloat.random(in: 0...size.width),
+                    y: CGFloat.random(in: 0...size.height),
+                    velocityX: CGFloat.random(in: -0.5...0.5),
+                    velocityY: CGFloat.random(in: -0.5...0.5),
+                    size: CGFloat.random(in: 3...8),
+                    colorIndex: Int.random(in: 0..<colors.count),
+                    opacity: CGFloat.random(in: 0.4...0.9)
+                )
+            }
         }
     }
 
@@ -124,10 +190,14 @@ struct ParticleFieldView: View {
                     particle.velocityY += (dy / distance) * pushStrength
                 }
 
-                // High frequencies add jitter
-                let jitterStrength = CGFloat(highForce) * 3.0
-                particle.velocityX += CGFloat.random(in: -jitterStrength...jitterStrength)
-                particle.velocityY += CGFloat.random(in: -jitterStrength...jitterStrength)
+                // High frequencies add jitter. When a deterministic seed is
+                // supplied (test mode), skip the random jitter so subsequent
+                // frames remain reproducible.
+                if seed == nil {
+                    let jitterStrength = CGFloat(highForce) * 3.0
+                    particle.velocityX += CGFloat.random(in: -jitterStrength...jitterStrength)
+                    particle.velocityY += CGFloat.random(in: -jitterStrength...jitterStrength)
+                }
 
                 // Intensity affects opacity
                 particle.opacity = min(1.0, 0.5 + CGFloat(audioLevel) * 0.5)
@@ -176,4 +246,25 @@ struct ParticleFieldView: View {
     )
     .frame(width: 200, height: 120)
     .background(Color(red: 0.04, green: 0.04, blue: 0.04))
+}
+
+// MARK: - Seeded RNG
+
+/// Deterministic xorshift64 PRNG used to make particle-field snapshots
+/// reproducible. Only used when `ParticleFieldView` is constructed with a
+/// non-nil `seed`; production callers continue to use the system RNG.
+fileprivate struct SeededRandomNumberGenerator: RandomNumberGenerator {
+    private var state: UInt64
+
+    init(seed: UInt64) {
+        // xorshift requires non-zero state.
+        self.state = seed == 0 ? 0xDEADBEEF : seed
+    }
+
+    mutating func next() -> UInt64 {
+        state ^= state << 13
+        state ^= state >> 7
+        state ^= state << 17
+        return state
+    }
 }

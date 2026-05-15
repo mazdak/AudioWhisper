@@ -176,7 +176,7 @@ internal final class MLXModelManager {
             downloadProgress[repo] = "Checking Python environment..."
         }
         
-        logger.info("Starting download for model: \(repo) with Python: \(pythonPath)")
+        logger.info("Starting download for model: \(repo) with Python: \(pythonPath.redactingHomeDirectory)")
         
         let process = Process()
         process.executableURL = URL(fileURLWithPath: pythonPath)

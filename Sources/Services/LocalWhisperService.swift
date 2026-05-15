@@ -2,16 +2,19 @@ import Foundation
 @preconcurrency import WhisperKit
 import AVFoundation
 
-// Actor to manage WhisperKit instances safely across concurrency boundaries
+// Actor to manage WhisperKit instances safely across concurrency boundaries.
+// Audit item B3: keys are the typed `WhisperModel` enum, not the raw model
+// name string. The enum's `rawValue` is reserved for interfacing with
+// WhisperKit's external API (e.g. `WhisperKitConfig(model:)`).
 private actor WhisperKitCache {
-    private var instances: [String: WhisperKit] = [:]
-    private var accessTimes: [String: Date] = [:]
-    
-    func getOrCreate(modelName: String, model: WhisperModel, maxCached: Int, progressCallback: (@Sendable (String) -> Void)?) async throws -> WhisperKit {
+    private var instances: [WhisperModel: WhisperKit] = [:]
+    private var accessTimes: [WhisperModel: Date] = [:]
+
+    func getOrCreate(model: WhisperModel, maxCached: Int, progressCallback: (@Sendable (String) -> Void)?) async throws -> WhisperKit {
         // Check if we have a cached instance
-        if let existingInstance = instances[modelName] {
+        if let existingInstance = instances[model] {
             // Update access time for LRU tracking
-            accessTimes[modelName] = Date()
+            accessTimes[model] = Date()
             return existingInstance
         }
 
@@ -35,8 +38,10 @@ private actor WhisperKitCache {
                 let config = WhisperKitConfig(modelFolder: localModelPath)
                 newInstance = try await WhisperKit(config)
             } else {
-                // Fallback to model name (should work if environment variables are respected)
-                let config = WhisperKitConfig(model: modelName)
+                // Fallback to model name (should work if environment variables are respected).
+                // `.whisperKitModelName` is the canonical name WhisperKit expects;
+                // see `WhisperModel.whisperKitModelName`.
+                let config = WhisperKitConfig(model: model.whisperKitModelName)
                 newInstance = try await WhisperKit(config)
             }
         } catch {
@@ -49,34 +54,34 @@ private actor WhisperKitCache {
                 throw error
             }
         }
-        
+
         // Remove least recently used models if cache is full
         evictLeastRecentlyUsedIfNeeded(maxCached: maxCached)
-        
+
         // Cache the new instance
-        instances[modelName] = newInstance
-        accessTimes[modelName] = Date()
-        
+        instances[model] = newInstance
+        accessTimes[model] = Date()
+
         return newInstance
     }
-    
+
     func clear() {
         instances.removeAll()
         accessTimes.removeAll()
     }
-    
+
     func clearExceptMostRecent() {
         let sortedByAccess = accessTimes.sorted { $0.value > $1.value }
-        
+
         // Keep only the most recent model
-        for (index, model) in sortedByAccess.enumerated() {
+        for (index, entry) in sortedByAccess.enumerated() {
             if index > 0 {
-                instances.removeValue(forKey: model.key)
-                accessTimes.removeValue(forKey: model.key)
+                instances.removeValue(forKey: entry.key)
+                accessTimes.removeValue(forKey: entry.key)
             }
         }
     }
-    
+
     private func evictLeastRecentlyUsedIfNeeded(maxCached: Int) {
         guard instances.count >= maxCached else { return }
 
@@ -84,9 +89,9 @@ private actor WhisperKitCache {
         let sortedByAccess = accessTimes.sorted { $0.value < $1.value }
 
         // Remove the oldest accessed model
-        if let oldestModel = sortedByAccess.first {
-            instances.removeValue(forKey: oldestModel.key)
-            accessTimes.removeValue(forKey: oldestModel.key)
+        if let oldest = sortedByAccess.first {
+            instances.removeValue(forKey: oldest.key)
+            accessTimes.removeValue(forKey: oldest.key)
         }
     }
 
@@ -155,10 +160,10 @@ internal final class LocalWhisperService: Sendable {
     }
     
     func transcribe(audioFileURL: URL, model: WhisperModel, progressCallback: (@Sendable (String) -> Void)? = nil) async throws -> String {
-        let modelName = model.whisperKitModelName
-
-        // Get or create WhisperKit instance from actor-isolated cache
-        let whisperKit = try await cache.getOrCreate(modelName: modelName, model: model, maxCached: maxCachedModels, progressCallback: progressCallback)
+        // Get or create WhisperKit instance from actor-isolated cache.
+        // Audit item B3: cache is keyed by the typed `WhisperModel`; the raw
+        // model name is only used internally when constructing `WhisperKitConfig`.
+        let whisperKit = try await cache.getOrCreate(model: model, maxCached: maxCachedModels, progressCallback: progressCallback)
 
         // Provide helpful progress messaging with duration estimate
         let durationHint = getDurationHint(for: model)
@@ -195,8 +200,7 @@ internal final class LocalWhisperService: Sendable {
     
     // Method to preload a specific model
     func preloadModel(_ model: WhisperModel, progressCallback: (@Sendable (String) -> Void)? = nil) async throws {
-        let modelName = model.whisperKitModelName
-        _ = try await cache.getOrCreate(modelName: modelName, model: model, maxCached: maxCachedModels, progressCallback: progressCallback)
+        _ = try await cache.getOrCreate(model: model, maxCached: maxCachedModels, progressCallback: progressCallback)
     }
     
     // Provide helpful duration hints based on model speed

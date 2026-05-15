@@ -72,6 +72,33 @@ jobs:
             echo "No coverage data found"
           fi
 
+      - name: Coverage threshold gate
+        if: always()
+        run: |
+          set +e
+          PROFDATA=$(find .build -name '*.profdata' | head -n 1)
+          BIN_DIR=$(find .build -type d -name '*.xctest' | head -n 1)
+          if [ -z "$PROFDATA" ] || [ -z "$BIN_DIR" ]; then
+            echo "No coverage data — skipping threshold check"
+            exit 0
+          fi
+          BIN=$(find "$BIN_DIR/Contents/MacOS" -type f | head -n 1)
+          # Pull the line-coverage percentage from the TOTAL line
+          PCT=$(xcrun llvm-cov report "$BIN" -instr-profile "$PROFDATA" 2>/dev/null | tail -n 1 | awk '{print $(NF-1)}' | tr -d '%')
+          if [ -z "$PCT" ]; then
+            echo "Could not parse coverage percent; skipping"
+            exit 0
+          fi
+          echo "Line coverage: $PCT%"
+          THRESHOLD=60
+          # bash's [ ] doesn't do float comparison; cast to int for the check
+          PCT_INT=${PCT%.*}
+          if [ "$PCT_INT" -lt "$THRESHOLD" ]; then
+            echo "::error::Line coverage $PCT% below threshold $THRESHOLD%"
+            exit 1
+          fi
+          echo "Coverage $PCT% >= threshold $THRESHOLD%"
+
   lint:
     runs-on: macos-14
     steps:

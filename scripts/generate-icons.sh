@@ -2,6 +2,10 @@
 set -euo pipefail
 # Generate macOS .iconset assets at all required sizes from AudioWhisperIcon.png.
 # Outputs into AudioWhisper.iconset and copies into Assets.xcassets when present.
+# Prereqs:
+#   - sips (built-in on macOS) — image resizing
+#   - AudioWhisperIcon.png at the project root
+#   - (build.sh runs iconutil afterward to produce the .icns)
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
   sed -n 's/^# //p' "$0" | head -n 20
   exit 0
@@ -10,14 +14,18 @@ fi
 # Change to repo root (parent of scripts/)
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
 
+# Verify required tools and inputs are present
+for cmd in sips; do
+    command -v "$cmd" >/dev/null 2>&1 || { echo "Required tool missing: $cmd"; exit 1; }
+done
+if [ ! -f "AudioWhisperIcon.png" ]; then
+    echo "Missing AudioWhisperIcon.png at project root"
+    exit 1
+fi
+
 # Generate app icons from source image
 SOURCE_IMAGE="AudioWhisperIcon.png"
 ICONSET_DIR="AudioWhisper.iconset"
-
-if [ ! -f "$SOURCE_IMAGE" ]; then
-  echo "Error: $SOURCE_IMAGE not found!"
-  exit 1
-fi
 
 # Create iconset directory
 mkdir -p "$ICONSET_DIR"

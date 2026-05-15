@@ -52,11 +52,12 @@ internal extension ContentView {
                 viewModel.lastAudioURL = audioURL
                 try Task.checkCancellation()
 
-                let finalText = try await runTranscriptionPipeline(audioURL: audioURL)
+                let pipelineResult = try await runTranscriptionPipeline(audioURL: audioURL)
                 try Task.checkCancellation()
 
                 await viewModel.finishTranscription(
-                    text: finalText,
+                    text: pipelineResult.text,
+                    correctionOutcome: pipelineResult.correctionOutcome,
                     source: source,
                     transcriptionProvider: transcriptionProvider,
                     selectedWhisperModel: selectedWhisperModel,
@@ -107,11 +108,12 @@ internal extension ContentView {
                 }
                 source = .importedFile(audioURL, estimatedDuration: estimatedDuration)
 
-                let finalText = try await runTranscriptionPipeline(audioURL: audioURL)
+                let pipelineResult = try await runTranscriptionPipeline(audioURL: audioURL)
                 try Task.checkCancellation()
 
                 await viewModel.finishTranscription(
-                    text: finalText,
+                    text: pipelineResult.text,
+                    correctionOutcome: pipelineResult.correctionOutcome,
                     source: source,
                     transcriptionProvider: transcriptionProvider,
                     selectedWhisperModel: selectedWhisperModel,
@@ -139,7 +141,7 @@ internal extension ContentView {
     /// orchestrator of `SemanticCorrectionService`, so live and file flows
     /// no longer call `SemanticCorrectionService.correct(...)` themselves.
     @MainActor
-    private func runTranscriptionPipeline(audioURL: URL) async throws -> String {
+    private func runTranscriptionPipeline(audioURL: URL) async throws -> TranscriptionResult {
         let mode = AppDefaults.semanticCorrectionMode
         let sourceBundleId: String? = currentSourceAppInfo().bundleIdentifier
 

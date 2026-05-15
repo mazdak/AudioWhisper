@@ -162,7 +162,7 @@ internal final class SemanticCorrectionService {
         // Defense in depth: even with sanitized name, verify the resolved path
         // is still under the prompts directory before reading.
         guard promptURL.path.hasPrefix(promptsDir.path + "/") || promptURL.path == promptsDir.path else {
-            logger.warning("Prompt path escaped prompts dir: \(promptURL.path, privacy: .public)")
+            logger.warning("Prompt path escaped prompts dir: \(promptURL.path.redactingHomeDirectory, privacy: .public)")
             return defaultPrompt
         }
 

@@ -30,7 +30,7 @@ internal struct PythonDetector {
         
         for candidate in candidates {
             if await checkPythonHasMLX(at: candidate) {
-                logger.info("Found Python with mlx-lm at: \(candidate)")
+                logger.info("Found Python with mlx-lm at: \(candidate.redactingHomeDirectory)")
                 return candidate
             }
         }
