@@ -53,15 +53,22 @@ internal extension DashboardProvidersView {
                     .stroke(DashboardTheme.rule, lineWidth: 1)
             )
             
-            // Error message
+            // Error message — uses the shared DownloadProgressView so retry
+            // is exposed consistently across providers. The retry target is
+            // the most recently attempted download (derived from
+            // downloadStartTime), or clears the error if no candidate exists.
             if let error = downloadError {
-                HStack(spacing: DashboardTheme.Spacing.sm) {
-                    Image(systemName: "exclamationmark.triangle")
-                        .font(.system(size: 12))
-                    Text(error)
-                        .font(DashboardTheme.Fonts.sans(12, weight: .regular))
-                }
-                .foregroundStyle(Color(red: 0.75, green: 0.30, blue: 0.28))
+                DownloadProgressView(
+                    state: .failed(message: error),
+                    onRetry: {
+                        if let lastModel = downloadStartTime
+                            .max(by: { $0.value < $1.value })?.key {
+                            downloadModel(lastModel)
+                        } else {
+                            downloadError = nil
+                        }
+                    }
+                )
                 .padding(DashboardTheme.Spacing.md)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(

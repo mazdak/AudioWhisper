@@ -31,15 +31,17 @@ internal struct DashboardHomeView: View {
             VStack(alignment: .leading, spacing: 0) {
                 // Page header
                 pageHeader
-                
+
                 // Main content grid
                 VStack(alignment: .leading, spacing: DashboardTheme.Spacing.xl) {
                     // Stats section
                     statsSection
                         .opacity(isLoaded ? 1 : 0)
                         .offset(y: isLoaded ? 0 : 12)
-                        .animation(.easeOut(duration: 0.35).delay(0.05), value: isLoaded)
-                    
+                        .animation(.easeOut(duration: 0.35).delay(DashboardTheme.Animation.stagger(1)), value: isLoaded)
+                        .accessibilityElement(children: .contain)
+                        .accessibilityLabel("Usage statistics")
+
                     // Two-column layout
                     HStack(alignment: .top, spacing: DashboardTheme.Spacing.xl) {
                         // Left column - Activity
@@ -47,21 +49,23 @@ internal struct DashboardHomeView: View {
                             .frame(maxWidth: .infinity)
                             .opacity(isLoaded ? 1 : 0)
                             .offset(y: isLoaded ? 0 : 12)
-                            .animation(.easeOut(duration: 0.35).delay(0.1), value: isLoaded)
-                        
+                            .animation(.easeOut(duration: 0.35).delay(DashboardTheme.Animation.stagger(2)), value: isLoaded)
+
                         // Right column - Sources
                         sourcesSection
                             .frame(maxWidth: .infinity)
                             .opacity(isLoaded ? 1 : 0)
                             .offset(y: isLoaded ? 0 : 12)
-                            .animation(.easeOut(duration: 0.35).delay(0.15), value: isLoaded)
+                            .animation(.easeOut(duration: 0.35).delay(DashboardTheme.Animation.stagger(3)), value: isLoaded)
                     }
-                    
+
                     // Recent transcripts
                     recentSection
                         .opacity(isLoaded ? 1 : 0)
                         .offset(y: isLoaded ? 0 : 12)
-                        .animation(.easeOut(duration: 0.35).delay(0.2), value: isLoaded)
+                        .animation(.easeOut(duration: 0.35).delay(DashboardTheme.Animation.stagger(4)), value: isLoaded)
+                        .accessibilityElement(children: .contain)
+                        .accessibilityLabel("Recent activity")
                 }
                 .padding(.horizontal, DashboardTheme.Spacing.xl)
                 .padding(.bottom, DashboardTheme.Spacing.xxl)
@@ -88,7 +92,7 @@ private extension DashboardHomeView {
             Text("Overview")
                 .font(DashboardTheme.Fonts.serif(28, weight: .semibold))
                 .foregroundStyle(DashboardTheme.ink)
-            
+
             Text(headerSubtitle)
                 .font(DashboardTheme.Fonts.sans(13, weight: .regular))
                 .foregroundStyle(DashboardTheme.inkMuted)
@@ -97,6 +101,8 @@ private extension DashboardHomeView {
         .padding(.horizontal, DashboardTheme.Spacing.xl)
         .padding(.top, DashboardTheme.Spacing.xl)
         .padding(.bottom, DashboardTheme.Spacing.lg)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Dashboard")
     }
     
     var headerSubtitle: String {

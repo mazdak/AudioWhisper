@@ -13,7 +13,7 @@ internal extension ContentView {
         notificationCoordinator.removeAll()
         processingTask?.cancel()
         processingTask = nil
-        lastAudioURL = nil
+        viewModel.lastAudioURL = nil
     }
 
     private func setupNotificationObservers() {
@@ -23,7 +23,7 @@ internal extension ContentView {
         // Transcription progress updates
         notificationCoordinator.observeOnMainActor(.transcriptionProgress) { notification in
             if let message = notification.object as? String {
-                progressMessage = enhanceProgressMessage(message)
+                viewModel.progressMessage = enhanceProgressMessage(message)
             }
         }
 
@@ -32,12 +32,12 @@ internal extension ContentView {
         // Swift Concurrency suspends the async task while the main actor continues processing events.
         // This implements a 1-second debounce to prevent rapid repeated triggers.
         notificationCoordinator.observeOnMainActor(.spaceKeyPressed) { _ in
-            guard !isHandlingSpaceKey else { return }
-            isHandlingSpaceKey = true
+            guard !viewModel.isHandlingSpaceKey else { return }
+            viewModel.isHandlingSpaceKey = true
 
             if audioRecorder.isRecording {
                 stopAndProcess()
-            } else if !isProcessing && permissionManager.microphonePermissionState == .granted && !showSuccess {
+            } else if !isProcessing && permissionManager.microphonePermissionState == .granted && !viewModel.showSuccess {
                 startRecording()
             } else if permissionManager.microphonePermissionState != .granted {
                 permissionManager.requestPermissionWithEducation()
@@ -45,7 +45,7 @@ internal extension ContentView {
 
             // Debounce: prevent rapid repeated space key triggers
             try? await Task.sleep(for: .seconds(1))
-            isHandlingSpaceKey = false
+            viewModel.isHandlingSpaceKey = false
         }
 
         // Escape key - cancel or close
@@ -62,13 +62,13 @@ internal extension ContentView {
                     recordWindow.orderOut(nil)
                     NotificationCenter.default.post(name: .restoreFocusToPreviousApp, object: nil)
                 }
-                showSuccess = false
+                viewModel.showSuccess = false
             }
         }
 
         // Return key - trigger paste when showing success
         notificationCoordinator.observeOnMainActor(.returnKeyPressed) { _ in
-            if showSuccess {
+            if viewModel.showSuccess {
                 let enableSmartPaste = UserDefaults.standard.bool(forKey: "enableSmartPaste")
                 if enableSmartPaste {
                     performUserTriggeredPaste()
@@ -79,17 +79,17 @@ internal extension ContentView {
         // Target app stored - update paste target
         notificationCoordinator.observeOnMainActor(.targetAppStored) { notification in
             if let app = notification.object as? NSRunningApplication {
-                targetAppForPaste = app
+                viewModel.targetAppForPaste = app
                 if let info = SourceAppInfo.from(app: app) {
-                    lastSourceAppInfo = info
+                    viewModel.lastSourceAppInfo = info
                 }
             }
         }
 
         // Recording failed notification
         notificationCoordinator.observeOnMainActor(.recordingStartFailed) { _ in
-            errorMessage = LocalizedStrings.Errors.failedToStartRecording
-            showError = true
+            viewModel.errorMessage = LocalizedStrings.Errors.failedToStartRecording
+            viewModel.showError = true
         }
 
         // Window focus - ensure proper first responder

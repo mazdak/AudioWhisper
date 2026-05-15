@@ -18,13 +18,8 @@ struct ParticleEmitterView: View {
     let isActive: Bool
     let bounds: CGSize
 
-    // Colors for particles
-    private let particleColors: [Color] = [
-        Color(red: 0.0, green: 0.9, blue: 0.95),   // Cyan
-        Color(red: 0.95, green: 0.2, blue: 0.8),   // Magenta
-        Color(red: 1.0, green: 0.85, blue: 0.0),   // Yellow
-        Color(red: 0.4, green: 0.9, blue: 0.5),    // Green
-    ]
+    // Colors for particles (sourced from ParticlePalette)
+    private let particleColors: [Color] = ParticlePalette.defaults
 
     @State private var particles: [Particle] = []
     @State private var lastSpawnTime: Date = Date()
@@ -151,6 +146,7 @@ struct ParticleOverlay: View {
             )
         }
         .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
 

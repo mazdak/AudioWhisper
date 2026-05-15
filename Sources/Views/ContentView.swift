@@ -6,6 +6,7 @@ internal struct ContentView: View {
 
     @ObservedObject var audioRecorder: AudioEngineRecorder
     @State var viewModel: RecordingViewModel
+    @EnvironmentObject var windowCoordinator: WindowCoordinator
     var permissionManager: PermissionManager { PermissionManager.shared }
 
     // MARK: - Persisted Settings (AppStorage)
@@ -21,61 +22,15 @@ internal struct ContentView: View {
     @State var processingTask: Task<Void, Never>?
     @State var notificationCoordinator = NotificationCoordinator()
 
-    // MARK: - Computed Properties (forwarding to ViewModel)
-
-    var speechService: SpeechToTextService { viewModel.speechService }
-    var pasteManager: PasteManager { viewModel.pasteManager }
-    var statusViewModel: StatusViewModel { viewModel.statusViewModel }
-    var semanticCorrectionService: SemanticCorrectionService { viewModel.semanticCorrectionService }
-    var soundManager: SoundManager { viewModel.soundManager }
-
+    // MARK: - Read-Only Forwarder
+    //
+    // `isProcessing` is intentionally read-only from the view: the underlying
+    // `RecordingViewModel.isProcessing` has a `private(set)` setter, so writes
+    // from the view layer must be discarded. The remaining state lives on the
+    // view-model and is accessed directly via `viewModel.xxx` at the call sites.
     var isProcessing: Bool {
         get { viewModel.isProcessing }
-        nonmutating set { /* read-only from view */ }
-    }
-    var progressMessage: String {
-        get { viewModel.progressMessage }
-        nonmutating set { viewModel.progressMessage = newValue }
-    }
-    var transcriptionStartTime: Date? {
-        get { viewModel.transcriptionStartTime }
-        nonmutating set { viewModel.transcriptionStartTime = newValue }
-    }
-    var showError: Bool {
-        get { viewModel.showError }
-        nonmutating set { viewModel.showError = newValue }
-    }
-    var errorMessage: String {
-        get { viewModel.errorMessage }
-        nonmutating set { viewModel.errorMessage = newValue }
-    }
-    var showSuccess: Bool {
-        get { viewModel.showSuccess }
-        nonmutating set { viewModel.showSuccess = newValue }
-    }
-    var isHandlingSpaceKey: Bool {
-        get { viewModel.isHandlingSpaceKey }
-        nonmutating set { viewModel.isHandlingSpaceKey = newValue }
-    }
-    var targetAppForPaste: NSRunningApplication? {
-        get { viewModel.targetAppForPaste }
-        nonmutating set { viewModel.targetAppForPaste = newValue }
-    }
-    var lastAudioURL: URL? {
-        get { viewModel.lastAudioURL }
-        nonmutating set { viewModel.lastAudioURL = newValue }
-    }
-    var awaitingSemanticPaste: Bool {
-        get { viewModel.awaitingSemanticPaste }
-        nonmutating set { viewModel.awaitingSemanticPaste = newValue }
-    }
-    var lastSourceAppInfo: SourceAppInfo? {
-        get { viewModel.lastSourceAppInfo }
-        nonmutating set { viewModel.lastSourceAppInfo = newValue }
-    }
-    var showFirstModelUseHint: Bool {
-        get { viewModel.showFirstModelUseHint }
-        nonmutating set { viewModel.showFirstModelUseHint = newValue }
+        nonmutating set { /* read-only from view; VM owns the write */ }
     }
 
     // MARK: - Initialization
@@ -96,27 +51,27 @@ internal struct ContentView: View {
         self._audioRecorder = ObservedObject(wrappedValue: audioRecorder)
         self._viewModel = State(initialValue: viewModel)
     }
-    
+
     private func showErrorAlert() {
-        ErrorPresenter.shared.showError(errorMessage)
-        showError = false
+        ErrorPresenter.shared.showError(viewModel.errorMessage)
+        viewModel.showError = false
     }
-    
+
     var body: some View {
         WaveformContainer(
-            status: statusViewModel.currentStatus,
+            status: viewModel.statusViewModel.currentStatus,
             audioLevel: audioRecorder.audioLevel,
             waveformSamples: audioRecorder.waveformSamples,
             frequencyBands: audioRecorder.frequencyBands,
             onTap: {
                 if audioRecorder.isRecording {
                     stopAndProcess()
-                } else if showSuccess {
+                } else if viewModel.showSuccess {
                     let enableSmartPaste = UserDefaults.standard.bool(forKey: "enableSmartPaste")
                     if enableSmartPaste {
                         performUserTriggeredPaste()
                     } else {
-                        showSuccess = false
+                        viewModel.showSuccess = false
                     }
                 } else if permissionManager.microphonePermissionState != .granted {
                     permissionManager.requestPermissionWithEducation()
@@ -172,19 +127,19 @@ internal struct ContentView: View {
         .onChange(of: audioRecorder.isRecording) { _, _ in
             updateStatus()
         }
-        .onChange(of: isProcessing) { _, _ in
+        .onChange(of: viewModel.isProcessing) { _, _ in
             updateStatus()
         }
-        .onChange(of: progressMessage) { _, _ in
+        .onChange(of: viewModel.progressMessage) { _, _ in
             updateStatus()
         }
         .onChange(of: permissionManager.microphonePermissionState) { _, _ in
             updateStatus()
         }
-        .onChange(of: showSuccess) { _, _ in
+        .onChange(of: viewModel.showSuccess) { _, _ in
             updateStatus()
         }
-        .onChange(of: showError) { _, newValue in
+        .onChange(of: viewModel.showError) { _, newValue in
             updateStatus()
             if newValue {
                 showErrorAlert()

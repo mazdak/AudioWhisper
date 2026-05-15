@@ -16,12 +16,12 @@ struct WaveformContainer: View {
     @State private var previousStatus: AppStatus?
     @State private var showError = false
 
-    // Colors
-    private let bgColor = Color(red: 0.04, green: 0.04, blue: 0.04)
-    private let barColor = Color(red: 0.85, green: 0.83, blue: 0.80)
-    private let mutedColor = Color(red: 0.35, green: 0.34, blue: 0.33)
-    private let successColor = Color(red: 0.45, green: 0.75, blue: 0.55)
-    private let accentColor = Color(red: 0.85, green: 0.45, blue: 0.40)
+    // Colors (sourced from WaveformPalette so the theme owns the literals)
+    private let bgColor = WaveformPalette.background
+    private let barColor = WaveformPalette.bar
+    private let mutedColor = WaveformPalette.muted
+    private let successColor = WaveformPalette.success
+    private let accentColor = WaveformPalette.accent
 
     private var style: WaveformStyle {
         WaveformStyle(rawValue: styleRaw) ?? .classic
@@ -107,6 +107,9 @@ struct WaveformContainer: View {
                 }
             }
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Recording waveform")
+        .accessibilityValue(isRecording ? "Active" : "Idle")
     }
 
     // MARK: - Waveform View

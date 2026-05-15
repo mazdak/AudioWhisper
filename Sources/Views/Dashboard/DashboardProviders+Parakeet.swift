@@ -37,20 +37,35 @@ internal extension DashboardProvidersView {
                 // Model selection
                 modelSelectionSection
                 
-                // Verification message
+                // Verification message — uses the shared DownloadProgressView
+                // when the message indicates failure so users get a Retry
+                // button consistently across providers. Informational messages
+                // continue to use the lightweight info row.
                 if let msg = parakeetVerifyMessage, !msg.isEmpty {
                     Divider().background(DashboardTheme.rule)
-                    
-                    HStack(spacing: DashboardTheme.Spacing.sm) {
-                        Image(systemName: "info.circle")
-                            .font(.system(size: 12))
-                            .foregroundStyle(DashboardTheme.inkMuted)
-                        
-                        Text(msg)
-                            .font(DashboardTheme.Fonts.sans(12, weight: .regular))
-                            .foregroundStyle(DashboardTheme.inkMuted)
+
+                    if isVerifyingParakeet {
+                        DownloadProgressView(state: .verifying)
+                            .padding(DashboardTheme.Spacing.md)
+                    } else if msg.localizedCaseInsensitiveContains("fail")
+                        || msg.localizedCaseInsensitiveContains("error") {
+                        DownloadProgressView(
+                            state: .failed(message: msg),
+                            onRetry: { verifyParakeetModel() }
+                        )
+                        .padding(DashboardTheme.Spacing.md)
+                    } else {
+                        HStack(spacing: DashboardTheme.Spacing.sm) {
+                            Image(systemName: "info.circle")
+                                .font(.system(size: 12))
+                                .foregroundStyle(DashboardTheme.inkMuted)
+
+                            Text(msg)
+                                .font(DashboardTheme.Fonts.sans(12, weight: .regular))
+                                .foregroundStyle(DashboardTheme.inkMuted)
+                        }
+                        .padding(DashboardTheme.Spacing.md)
                     }
-                    .padding(DashboardTheme.Spacing.md)
                 }
             }
             .background(

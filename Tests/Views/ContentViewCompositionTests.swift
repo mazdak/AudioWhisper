@@ -44,7 +44,7 @@ final class ContentViewCompositionTests: XCTestCase {
         )
         let view = ContentView(viewModel: viewModel, audioRecorder: recorder)
 
-        XCTAssertNotNil(view.speechService)
+        XCTAssertNotNil(view.viewModel.speechService)
     }
 
     func testContentViewForwardsPasteManager() {
@@ -59,7 +59,7 @@ final class ContentViewCompositionTests: XCTestCase {
         )
         let view = ContentView(viewModel: viewModel, audioRecorder: recorder)
 
-        XCTAssertNotNil(view.pasteManager)
+        XCTAssertNotNil(view.viewModel.pasteManager)
     }
 
     func testContentViewForwardsStatusViewModel() {
@@ -74,7 +74,7 @@ final class ContentViewCompositionTests: XCTestCase {
         )
         let view = ContentView(viewModel: viewModel, audioRecorder: recorder)
 
-        XCTAssertNotNil(view.statusViewModel)
+        XCTAssertNotNil(view.viewModel.statusViewModel)
     }
 
     // MARK: - Body Composition Tests
@@ -165,7 +165,7 @@ final class ContentViewCompositionTests: XCTestCase {
         let view = ContentView(viewModel: viewModel, audioRecorder: recorder)
 
         // Should have some default value
-        XCTAssertNotNil(view.progressMessage)
+        XCTAssertNotNil(view.viewModel.progressMessage)
     }
 
     func testShowErrorComputedProperty() {
@@ -180,7 +180,7 @@ final class ContentViewCompositionTests: XCTestCase {
         let view = ContentView(viewModel: viewModel, audioRecorder: recorder)
 
         // Initially false
-        XCTAssertFalse(view.showError)
+        XCTAssertFalse(view.viewModel.showError)
     }
 
     func testShowSuccessComputedProperty() {
@@ -195,7 +195,7 @@ final class ContentViewCompositionTests: XCTestCase {
         let view = ContentView(viewModel: viewModel, audioRecorder: recorder)
 
         // Initially false
-        XCTAssertFalse(view.showSuccess)
+        XCTAssertFalse(view.viewModel.showSuccess)
     }
 
     // MARK: - Sheet Presentation Logic Tests

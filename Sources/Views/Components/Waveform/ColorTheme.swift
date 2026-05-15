@@ -134,3 +134,34 @@ extension UserDefaults {
         }
     }
 }
+
+// MARK: - Waveform Palette
+/// Foreground/background colors used by the WaveformContainer chrome.
+/// Kept separate from per-style `ColorTheme` gradients (which apply *inside* each visualizer).
+enum WaveformPalette {
+    /// Classic monochrome chrome (background, primary bar, muted state, success, accent/error).
+    static let classic: [Color] = [
+        Color(red: 0.04, green: 0.04, blue: 0.04),
+        Color(red: 0.85, green: 0.83, blue: 0.80),
+        Color(red: 0.35, green: 0.34, blue: 0.33),
+        Color(red: 0.45, green: 0.75, blue: 0.55),
+        Color(red: 0.85, green: 0.45, blue: 0.40)
+    ]
+
+    static var background: Color { classic[0] }
+    static var bar: Color { classic[1] }
+    static var muted: Color { classic[2] }
+    static var success: Color { classic[3] }
+    static var accent: Color { classic[4] }
+}
+
+// MARK: - Particle Palette
+/// Default colors used by the neon-style particle overlay.
+enum ParticlePalette {
+    static let defaults: [Color] = [
+        Color(red: 0.0, green: 0.9, blue: 0.95),   // Cyan
+        Color(red: 0.95, green: 0.2, blue: 0.8),   // Magenta
+        Color(red: 1.0, green: 0.85, blue: 0.0),   // Yellow
+        Color(red: 0.4, green: 0.9, blue: 0.5)     // Green
+    ]
+}

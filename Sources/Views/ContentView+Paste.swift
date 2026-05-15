@@ -27,7 +27,7 @@ internal extension ContentView {
         Logger.paste.debug("performUserTriggeredPaste called")
         guard let targetApp = findValidTargetApp() else {
             Logger.paste.warning("No valid target app found for paste")
-            showSuccess = false
+            viewModel.showSuccess = false
             hideRecordingWindow()
             return
         }
@@ -50,7 +50,7 @@ internal extension ContentView {
 
         if targetApp == nil {
             Logger.paste.debug("findValidTargetApp: checking targetAppForPaste")
-            targetApp = targetAppForPaste
+            targetApp = viewModel.targetAppForPaste
             if let app = targetApp {
                 Logger.paste.debug("findValidTargetApp: targetAppForPaste = \(app.localizedName ?? "unknown", privacy: .public)")
             }
@@ -115,12 +115,12 @@ internal extension ContentView {
             do {
                 try await activateApplication(target)
                 Logger.paste.debug("activateTargetAppAndPaste: app activated, calling pasteWithCompletionHandler")
-                await pasteManager.pasteWithCompletionHandler()
+                await viewModel.pasteManager.pasteWithCompletionHandler()
                 Logger.paste.debug("activateTargetAppAndPaste: paste completed")
-                self.showSuccess = false
+                self.viewModel.showSuccess = false
             } catch {
                 Logger.paste.error("activateTargetAppAndPaste: failed with error: \(error.localizedDescription, privacy: .public)")
-                self.showSuccess = false
+                self.viewModel.showSuccess = false
             }
         }
     }

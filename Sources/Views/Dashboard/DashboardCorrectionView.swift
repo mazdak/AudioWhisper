@@ -312,21 +312,39 @@ internal struct DashboardCorrectionView: View {
     }
 
     private var verifyRow: some View {
-        HStack(spacing: 10) {
-            if isVerifyingMLX { ProgressView().controlSize(.small) }
-            Button(isVerifyingMLX ? "Verifying…" : "Verify MLX Model") {
-                verifyMLXModel()
-            }
-            .buttonStyle(.bordered)
-            .tint(DashboardTheme.accent)
-            .disabled(isVerifyingMLX)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                if isVerifyingMLX { ProgressView().controlSize(.small) }
+                Button(isVerifyingMLX ? "Verifying…" : "Verify MLX Model") {
+                    verifyMLXModel()
+                }
+                .buttonStyle(.bordered)
+                .tint(DashboardTheme.accent)
+                .disabled(isVerifyingMLX)
 
-            if let msg = mlxVerifyMessage, !msg.isEmpty {
-                Text(msg)
-                    .font(.caption)
-                    .foregroundStyle(DashboardTheme.inkMuted)
+                if let msg = mlxVerifyMessage,
+                   !msg.isEmpty,
+                   !msg.localizedCaseInsensitiveContains("fail"),
+                   !msg.localizedCaseInsensitiveContains("error") {
+                    Text(msg)
+                        .font(.caption)
+                        .foregroundStyle(DashboardTheme.inkMuted)
+                }
+                Spacer()
             }
-            Spacer()
+
+            // Surface verification failures via the shared DownloadProgressView
+            // so users see a consistent failure UI with a Retry affordance.
+            if let msg = mlxVerifyMessage,
+               !msg.isEmpty,
+               !isVerifyingMLX,
+               msg.localizedCaseInsensitiveContains("fail")
+                || msg.localizedCaseInsensitiveContains("error") {
+                DownloadProgressView(
+                    state: .failed(message: msg),
+                    onRetry: { verifyMLXModel() }
+                )
+            }
         }
         .padding(.top, 4)
     }

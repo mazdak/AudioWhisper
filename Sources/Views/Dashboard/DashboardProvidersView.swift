@@ -130,6 +130,8 @@ internal struct DashboardProvidersView: View {
             }
         }
         .background(DashboardTheme.pageBg)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Transcription providers")
         .sheet(isPresented: $state.showSetupSheet) {
             SetupEnvironmentSheet(
                 isPresented: $state.showSetupSheet,

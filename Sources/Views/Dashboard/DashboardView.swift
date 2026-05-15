@@ -89,6 +89,17 @@ internal enum DashboardTheme {
         static let md: CGFloat = 8
         static let lg: CGFloat = 12
     }
+
+    // Animation timings used across the dashboard
+    enum Animation {
+        /// Stagger delay between consecutive sections when entering. Index 0 = no delay.
+        static func stagger(_ index: Int) -> Double {
+            Double(index) * 0.05
+        }
+        /// Standard durations used across the dashboard.
+        static let quick: Double = 0.15
+        static let standard: Double = 0.3
+    }
 }
 
 // MARK: - Navigation Item
