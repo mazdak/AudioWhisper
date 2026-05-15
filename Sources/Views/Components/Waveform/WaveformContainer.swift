@@ -307,7 +307,7 @@ private struct PulseModifier: ViewModifier {
     .padding(40)
     .background(Color.black)
     .onAppear {
-        UserDefaults.standard.set(WaveformStyle.neon.rawValue, forKey: "waveformStyle")
+        AppDefaults.waveformStyle = .neon
     }
 }
 
@@ -323,7 +323,7 @@ private struct PulseModifier: ViewModifier {
     .padding(40)
     .background(Color.black)
     .onAppear {
-        UserDefaults.standard.set(WaveformStyle.spectrum.rawValue, forKey: "waveformStyle")
+        AppDefaults.waveformStyle = .spectrum
     }
 }
 

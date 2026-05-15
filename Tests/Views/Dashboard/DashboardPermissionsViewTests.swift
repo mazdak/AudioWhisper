@@ -1,5 +1,6 @@
 import XCTest
 import SwiftUI
+import AppKit
 @testable import AudioWhisper
 
 // MARK: - DashboardPermissionsView Tests
@@ -24,22 +25,25 @@ final class DashboardPermissionsViewTests: XCTestCase {
 
     func testViewBodyDoesNotCrash() {
         let view = DashboardPermissionsView()
-        let _ = view.body
-        XCTAssertTrue(true, "Body should not crash")
+            .environment(PermissionManager.shared)
+        let hosting = NSHostingView(rootView: view)
+        XCTAssertNotNil(hosting)
     }
 
     func testViewWithSmartPasteEnabled() {
         UserDefaults.standard.set(true, forKey: "enableSmartPaste")
         let view = DashboardPermissionsView()
-        let _ = view.body
-        XCTAssertTrue(true, "View should render with SmartPaste enabled")
+            .environment(PermissionManager.shared)
+        let hosting = NSHostingView(rootView: view)
+        XCTAssertNotNil(hosting)
     }
 
     func testViewWithSmartPasteDisabled() {
         UserDefaults.standard.set(false, forKey: "enableSmartPaste")
         let view = DashboardPermissionsView()
-        let _ = view.body
-        XCTAssertTrue(true, "View should render with SmartPaste disabled")
+            .environment(PermissionManager.shared)
+        let hosting = NSHostingView(rootView: view)
+        XCTAssertNotNil(hosting)
     }
 }
 

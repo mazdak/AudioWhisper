@@ -36,7 +36,9 @@ internal final class DashboardWindowManager: NSObject, DashboardWindowManaging {
         }
         
         let dashboardView = DashboardView()
-        
+            .environment(MLXModelManager.shared)
+            .environment(PermissionManager.shared)
+
         let hostingController = NSHostingController(rootView: dashboardView)
         let initialSize = LayoutMetrics.DashboardWindow.initialSize
         let minimumSize = LayoutMetrics.DashboardWindow.minimumSize

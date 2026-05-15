@@ -18,7 +18,7 @@ internal struct DashboardProvidersView: View {
     @State var state = ProviderSettingsState()
 
     // Model managers
-    @State var mlxModelManager = MLXModelManager.shared
+    @Environment(MLXModelManager.self) var mlxModelManager
     @State var modelManager = ModelManager.shared
 
     // Computed properties for backward compatibility with extensions

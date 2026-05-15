@@ -29,9 +29,7 @@ internal class SoundManager: ObservableObject {
     /// Plays a gentle completion sound when transcription finishes
     func playCompletionSound() {
         // Check user preference before playing sound
-        let playSound = UserDefaults.standard.object(forKey: "playCompletionSound") as? Bool ?? true
-
-        guard playSound else { return }
+        guard AppDefaults.playCompletionSound else { return }
 
         // Use a gentle system sound that's pleasant and not jarring
         // This is the same sound used for successful operations in many Mac apps
@@ -41,9 +39,7 @@ internal class SoundManager: ObservableObject {
     /// Plays a quick sound when recording starts in express mode
     func playRecordingStartSound() {
         // Check user preference before playing sound (reuse completion sound setting)
-        let playSound = UserDefaults.standard.object(forKey: "playCompletionSound") as? Bool ?? true
-
-        guard playSound else { return }
+        guard AppDefaults.playCompletionSound else { return }
 
         // Use a quick, subtle sound for recording start indication
         soundProvider.sound(named: "Ping")?.play()

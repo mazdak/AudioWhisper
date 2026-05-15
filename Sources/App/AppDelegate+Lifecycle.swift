@@ -4,12 +4,7 @@ import os.log
 internal extension AppDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Register UserDefaults defaults - these are used when keys haven't been explicitly set
-        UserDefaults.standard.register(defaults: [
-            "enableSmartPaste": true,
-            "immediateRecording": true,
-            "startAtLogin": true,
-            "playCompletionSound": true
-        ])
+        AppDefaults.registerDefaults()
 
         // Skip UI initialization in test environment
         if AppEnvironment.isRunningTests {
@@ -18,7 +13,7 @@ internal extension AppDelegate {
         }
 
         // Clear any corrupted window state restoration data (one-time migration)
-        if !UserDefaults.standard.bool(forKey: "hasCleanedWindowState") {
+        if !AppDefaults.hasCleanedWindowState {
             if let bundleId = Bundle.main.bundleIdentifier {
                 let savedStatePath = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first?
                     .appendingPathComponent("Saved Application State")
@@ -28,7 +23,7 @@ internal extension AppDelegate {
                     Logger.app.info("Cleaned up corrupted window state restoration data")
                 }
             }
-            UserDefaults.standard.set(true, forKey: "hasCleanedWindowState")
+            AppDefaults.hasCleanedWindowState = true
         }
 
         do {
@@ -73,12 +68,13 @@ internal extension AppDelegate {
             PermissionManager.shared.proceedWithPermissionRequest()
         }
 
-        // Validate local model is ready before allowing use
-        let providerRaw = UserDefaults.standard.string(forKey: "transcriptionProvider") ?? "local"
-        if providerRaw == "local" {
-            let modelRaw = UserDefaults.standard.string(forKey: "selectedWhisperModel") ?? "base"
-            if let model = WhisperModel(rawValue: modelRaw),
-               !WhisperKitStorage.isModelDownloaded(model) {
+        // Validate local model is ready before allowing use.
+        // Preserves the legacy default-to-local behavior (no key set = treat as local)
+        // which is also what `AppSetupHelper.checkFirstRun()` later writes.
+        let providerRaw = AppDefaults.defaults.string(forKey: AppDefaults.Key.transcriptionProvider.rawValue) ?? TranscriptionProvider.local.rawValue
+        if providerRaw == TranscriptionProvider.local.rawValue {
+            let model = AppDefaults.selectedWhisperModel
+            if !WhisperKitStorage.isModelDownloaded(model) {
                 // Model not downloaded - show dashboard for download
                 DashboardWindowManager.shared.showDashboardWindow()
                 return

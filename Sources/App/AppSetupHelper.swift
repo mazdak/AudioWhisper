@@ -15,8 +15,8 @@ internal class AppSetupHelper {
     }
     
     static func setupLoginItem() {
-        let startAtLogin = UserDefaults.standard.object(forKey: "startAtLogin") as? Bool ?? true // Default to true
-        
+        let startAtLogin = AppDefaults.startAtLogin
+
         if startAtLogin {
             // Only try to register if we're in a real app context, not in tests
             if Bundle.main.bundleIdentifier != nil && !AppEnvironment.isRunningTests {
@@ -60,7 +60,7 @@ internal class AppSetupHelper {
 
     static func getAdaptiveMenuBarIconSize() -> CGFloat {
         // Check for user override first
-        if let overrideSize = UserDefaults.standard.object(forKey: "menuBarIconSize") as? Double,
+        if let overrideSize = AppDefaults.menuBarIconSize,
            overrideSize > 0 {
             return CGFloat(overrideSize)
         }
@@ -133,27 +133,27 @@ internal class AppSetupHelper {
     
     
     static func checkFirstRun() -> Bool {
-        let hasExistingProvider = UserDefaults.standard.string(forKey: "transcriptionProvider") != nil
-        let hasCompletedWelcome = UserDefaults.standard.bool(forKey: "hasCompletedWelcome")
-        let lastWelcomeVersion = UserDefaults.standard.string(forKey: "lastWelcomeVersion") ?? "0"
-        
+        let hasExistingProvider = AppDefaults.hasValue(for: .transcriptionProvider)
+        let hasCompletedWelcome = AppDefaults.hasCompletedWelcome
+        let lastWelcomeVersion = AppDefaults.lastWelcomeVersion
+
         // Current version that includes SmartPaste feature
         let currentWelcomeVersion = "1.1" // Update this when SmartPaste feature is released
-        
+
         // Show welcome for new users OR existing users who haven't seen the SmartPaste welcome
         let shouldShowWelcome = (!hasExistingProvider && !hasCompletedWelcome) || (lastWelcomeVersion != currentWelcomeVersion)
-        
+
         if shouldShowWelcome {
             if !hasExistingProvider {
                 // First run - default to LocalWhisper
-                UserDefaults.standard.set(TranscriptionProvider.local.rawValue, forKey: "transcriptionProvider")
+                AppDefaults.transcriptionProvider = .local
             }
             return true
         } else if !hasExistingProvider {
             // Provider was somehow reset - default to LocalWhisper
-            UserDefaults.standard.set(TranscriptionProvider.local.rawValue, forKey: "transcriptionProvider")
+            AppDefaults.transcriptionProvider = .local
         }
-        
+
         return false
     }
     

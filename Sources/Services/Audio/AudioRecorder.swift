@@ -71,7 +71,7 @@ internal class AudioRecorder: NSObject, ObservableObject, AudioRecording {
         }
         
         // Boost microphone volume if enabled
-        if UserDefaults.standard.autoBoostMicrophoneVolume {
+        if AppDefaults.autoBoostMicrophoneVolume {
             Task {
                 await volumeManager.boostMicrophoneVolume()
             }
@@ -111,7 +111,7 @@ internal class AudioRecorder: NSObject, ObservableObject, AudioRecording {
                 Logger.audioRecorder.error("Failed to start recording: \(error.localizedDescription)")
             }
             // Restore volume if recording failed and we boosted it
-            if UserDefaults.standard.autoBoostMicrophoneVolume {
+            if AppDefaults.autoBoostMicrophoneVolume {
                 Task {
                     await volumeManager.restoreMicrophoneVolume()
                 }
@@ -132,7 +132,7 @@ internal class AudioRecorder: NSObject, ObservableObject, AudioRecording {
         audioRecorder = nil
         
         // Restore microphone volume if it was boosted
-        if UserDefaults.standard.autoBoostMicrophoneVolume {
+        if AppDefaults.autoBoostMicrophoneVolume {
             Task {
                 await volumeManager.restoreMicrophoneVolume()
             }
@@ -174,7 +174,7 @@ internal class AudioRecorder: NSObject, ObservableObject, AudioRecording {
         lastRecordingDuration = nil
         
         // Restore microphone volume if it was boosted
-        if UserDefaults.standard.autoBoostMicrophoneVolume {
+        if AppDefaults.autoBoostMicrophoneVolume {
             Task {
                 await volumeManager.restoreMicrophoneVolume()
             }

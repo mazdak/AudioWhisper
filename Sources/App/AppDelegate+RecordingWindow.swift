@@ -71,6 +71,8 @@ internal extension AppDelegate {
         let contentView = ContentView(audioRecorder: recorder)
             .modelContainer(container)
             .environmentObject(WindowCoordinator.shared)
+            .environment(MLXModelManager.shared)
+            .environment(PermissionManager.shared)
 
         window.contentView = NSHostingView(rootView: contentView)
         window.center()

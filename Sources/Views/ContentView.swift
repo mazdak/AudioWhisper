@@ -7,7 +7,7 @@ internal struct ContentView: View {
     @ObservedObject var audioRecorder: AudioEngineRecorder
     @State var viewModel: RecordingViewModel
     @EnvironmentObject var windowCoordinator: WindowCoordinator
-    var permissionManager: PermissionManager { PermissionManager.shared }
+    @Environment(PermissionManager.self) var permissionManager
 
     // MARK: - Persisted Settings (AppStorage)
 
@@ -67,7 +67,7 @@ internal struct ContentView: View {
                 if audioRecorder.isRecording {
                     stopAndProcess()
                 } else if viewModel.showSuccess {
-                    let enableSmartPaste = UserDefaults.standard.bool(forKey: "enableSmartPaste")
+                    let enableSmartPaste = AppDefaults.enableSmartPaste
                     if enableSmartPaste {
                         performUserTriggeredPaste()
                     } else {

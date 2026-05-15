@@ -9,7 +9,7 @@ internal struct DashboardCorrectionView: View {
     @AppStorage("hasSetupParakeet") var hasSetupParakeet = false
 
     // Model management
-    @State var modelManager = MLXModelManager.shared
+    @Environment(MLXModelManager.self) var modelManager
 
     // Environment + verification state
     @State var envReady = false

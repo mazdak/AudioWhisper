@@ -117,15 +117,21 @@ internal class SpeechToTextService {
         guard Arch.isAppleSilicon else {
             throw SpeechToTextError.transcriptionFailed("Parakeet requires an Apple Silicon Mac.")
         }
-        let modeRaw = UserDefaults.standard.string(forKey: "semanticCorrectionMode") ?? SemanticCorrectionMode.off.rawValue
-        let semanticCorrectionMode = SemanticCorrectionMode(rawValue: modeRaw) ?? .off
+        let semanticCorrectionMode = AppDefaults.semanticCorrectionMode
         let shouldWarmup = semanticCorrectionMode != .off
         // Ensure managed Python environment with uv
         let pyURL = try await UvBootstrap.ensureVenv(userPython: nil)
         let pythonPath = pyURL.path
         do {
             if shouldWarmup {
-                let modelRepo = UserDefaults.standard.string(forKey: "semanticCorrectionModelRepo") ?? "mlx-community/Llama-3.2-1B-Instruct-4bit"
+                // Note: this falls back to "mlx-community/Llama-3.2-1B-Instruct-4bit"
+                // (the legacy default), while `AppDefaults.semanticCorrectionModelRepo`
+                // defaults to "mlx-community/Qwen3-1.7B-4bit". Preserve the legacy
+                // warmup-default by reading raw and only using AppDefaults when the
+                // key is set explicitly.
+                let modelRepo = AppDefaults.hasValue(for: .semanticCorrectionModelRepo)
+                    ? AppDefaults.semanticCorrectionModelRepo
+                    : "mlx-community/Llama-3.2-1B-Instruct-4bit"
                 async let warmupTask: Void = MLDaemonManager.shared.warmup(type: "mlx", repo: modelRepo)
                 async let transcription = parakeetService.transcribe(audioFileURL: audioURL, pythonPath: pythonPath)
                 let (text, _) = try await (transcription, warmupTask)

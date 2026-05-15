@@ -71,8 +71,7 @@ internal final class SemanticCorrectionService {
     ///   the fallback is the unchanged original text so callers can still
     ///   show something useful.
     func correctWithOutcome(text: String, providerUsed: TranscriptionProvider, sourceAppBundleId: String? = nil) async -> CorrectionOutcome {
-        let modeRaw = UserDefaults.standard.string(forKey: "semanticCorrectionMode") ?? SemanticCorrectionMode.off.rawValue
-        let mode = SemanticCorrectionMode(rawValue: modeRaw) ?? .off
+        let mode = AppDefaults.semanticCorrectionMode
 
         let category = categoryFor(bundleId: sourceAppBundleId)
         logger.info("Correction category: \(category.id) for bundleId: \(sourceAppBundleId ?? "nil")")
@@ -116,7 +115,11 @@ internal final class SemanticCorrectionService {
     /// not a failure — there's nothing to recover from).
     private func correctLocallyWithMLXThrowing(text: String, category: CategoryDefinition) async throws -> String {
         guard Arch.isAppleSilicon else { return text }
-        let modelRepo = UserDefaults.standard.string(forKey: "semanticCorrectionModelRepo") ?? "mlx-community/Llama-3.2-1B-Instruct-4bit"
+        // Preserve the legacy default ("Llama-3.2-1B-Instruct-4bit") when no key is set;
+        // `AppDefaults.semanticCorrectionModelRepo`'s built-in default is "Qwen3-1.7B-4bit".
+        let modelRepo = AppDefaults.hasValue(for: .semanticCorrectionModelRepo)
+            ? AppDefaults.semanticCorrectionModelRepo
+            : "mlx-community/Llama-3.2-1B-Instruct-4bit"
         let pyURL = try await UvBootstrap.ensureVenv(userPython: nil)
         let prompt = loadPrompt(for: category)
         let output = try await mlxService.correct(text: text, modelRepo: modelRepo, pythonPath: pyURL.path, systemPrompt: prompt)

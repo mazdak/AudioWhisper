@@ -239,9 +239,9 @@ internal struct WelcomeView: View {
         guard !isDownloadingModel && !isDismissing else { return }
         
         // Set the settings
-        UserDefaults.standard.set(TranscriptionProvider.local.rawValue, forKey: "transcriptionProvider")
-        UserDefaults.standard.set(true, forKey: "hasCompletedWelcome")
-        UserDefaults.standard.set("1.1", forKey: "lastWelcomeVersion") // Match version in AppSetupHelper
+        AppDefaults.transcriptionProvider = .local
+        AppDefaults.hasCompletedWelcome = true
+        AppDefaults.lastWelcomeVersion = "1.1" // Match version in AppSetupHelper
         
         // Notify that welcome is complete and show dashboard
         NotificationCenter.default.post(name: .welcomeCompleted, object: nil)

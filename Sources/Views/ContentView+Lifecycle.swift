@@ -69,7 +69,7 @@ internal extension ContentView {
         // Return key - trigger paste when showing success
         notificationCoordinator.observeOnMainActor(.returnKeyPressed) { _ in
             if viewModel.showSuccess {
-                let enableSmartPaste = UserDefaults.standard.bool(forKey: "enableSmartPaste")
+                let enableSmartPaste = AppDefaults.enableSmartPaste
                 if enableSmartPaste {
                     performUserTriggeredPaste()
                 }
@@ -124,9 +124,10 @@ internal extension ContentView {
     }
 
     private func loadStoredTranscriptionProvider() {
-        if let storedProvider = UserDefaults.standard.string(forKey: "transcriptionProvider"),
-           let provider = TranscriptionProvider(rawValue: storedProvider) {
-            transcriptionProvider = provider
+        // Only update from defaults if the key has actually been set; otherwise leave
+        // the view's existing `transcriptionProvider` value alone (preserves prior behavior).
+        if AppDefaults.hasValue(for: .transcriptionProvider) {
+            transcriptionProvider = AppDefaults.transcriptionProvider
         }
     }
 }

@@ -1,7 +1,7 @@
 import SwiftUI
 
 internal struct MLXModelManagementView: View {
-    @State private var modelManager = MLXModelManager.shared
+    @Environment(MLXModelManager.self) private var modelManager
     @Binding var selectedModelRepo: String
     @State private var isRefreshing = false
     
@@ -68,7 +68,7 @@ internal struct MLXModelManagementView: View {
                         isDownloaded: modelManager.downloadedModels.contains(m.repo),
                         isDownloading: modelManager.isDownloading[m.repo] ?? false,
                         statusText: modelManager.downloadProgress[m.repo],
-                        sizeText: (modelManager.modelSizes[m.repo]).map(MLXModelManager.shared.formatBytes) ?? m.estimatedSize,
+                        sizeText: (modelManager.modelSizes[m.repo]).map(modelManager.formatBytes) ?? m.estimatedSize,
                         isSelected: selectedModelRepo == m.repo,
                         badgeText: isRecommended(m.repo) ? "RECOMMENDED" : nil,
                         onSelect: {

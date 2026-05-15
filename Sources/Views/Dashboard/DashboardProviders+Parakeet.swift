@@ -184,7 +184,7 @@ internal extension DashboardProvidersView {
         }
         .padding(DashboardTheme.Spacing.md)
         .onChange(of: selectedParakeetModel) { _, _ in
-            Task { await MLXModelManager.shared.ensureParakeetModel() }
+            Task { await mlxModelManager.ensureParakeetModel() }
         }
     }
 
@@ -325,7 +325,7 @@ internal extension DashboardProvidersView {
                     if process.terminationStatus == 0 {
                         parakeetVerifyMessage = (lastStdoutMessage.isEmpty ? "Model verified" : lastStdoutMessage)
                         hasSetupParakeet = true
-                        Task { await MLXModelManager.shared.refreshModelList() }
+                        Task { await mlxModelManager.refreshModelList() }
                     } else {
                         let msg = lastStdoutMessage.isEmpty ? lastStderrMessage : lastStdoutMessage
                         parakeetVerifyMessage = msg.isEmpty ? "Verification failed" : "Verification failed: \(msg)"

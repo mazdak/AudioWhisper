@@ -43,7 +43,7 @@ internal class PermissionManager {
     private let accessibilityManager = AccessibilityPermissionManager()
     
     var allPermissionsGranted: Bool {
-        let enableSmartPaste = UserDefaults.standard.bool(forKey: "enableSmartPaste")
+        let enableSmartPaste = AppDefaults.enableSmartPaste
         if enableSmartPaste {
             return microphonePermissionState == .granted && accessibilityPermissionState == .granted
         } else {
@@ -92,8 +92,8 @@ internal class PermissionManager {
     }
     
     func requestPermissionWithEducation() {
-        let enableSmartPaste = UserDefaults.standard.bool(forKey: "enableSmartPaste")
-        
+        let enableSmartPaste = AppDefaults.enableSmartPaste
+
         let needsMicrophone = microphonePermissionState.needsRequest
         let needsAccessibility = enableSmartPaste && accessibilityPermissionState.needsRequest
         
@@ -114,7 +114,7 @@ internal class PermissionManager {
                 try? await Task.sleep(for: .milliseconds(100))
                 // Simulate denied for consistent test behavior
                 self.microphonePermissionState = .denied
-                let enableSmartPaste = UserDefaults.standard.bool(forKey: "enableSmartPaste")
+                let enableSmartPaste = AppDefaults.enableSmartPaste
                 if enableSmartPaste {
                     self.accessibilityPermissionState = .denied
                 }
@@ -124,7 +124,7 @@ internal class PermissionManager {
             requestMicrophonePermission()
 
             // Show accessibility modal if SmartPaste is enabled and permission not granted
-            let enableSmartPaste = UserDefaults.standard.bool(forKey: "enableSmartPaste")
+            let enableSmartPaste = AppDefaults.enableSmartPaste
             if enableSmartPaste && accessibilityPermissionState != .granted {
                 // Delay slightly to let microphone dialog appear first
                 Task { @MainActor in
@@ -149,7 +149,7 @@ internal class PermissionManager {
             }
         } else {
             // User chose "Don't Allow" - permanently disable SmartPaste
-            UserDefaults.standard.set(false, forKey: "enableSmartPaste")
+            AppDefaults.enableSmartPaste = false
             // No longer need accessibility permission since SmartPaste is disabled
         }
     }

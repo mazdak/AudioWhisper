@@ -28,8 +28,11 @@ internal final class MLXModelManager {
     private let cacheDirectory: URL
 
     static var parakeetRepo: String {
-        let rawValue = UserDefaults.standard.string(forKey: "selectedParakeetModel") ?? ParakeetModel.v3Multilingual.rawValue
-        return rawValue
+        // Note: returns the raw stored string (not validated against `ParakeetModel`),
+        // allowing future model repos that aren't yet in the enum. For validated
+        // access, use `AppDefaults.selectedParakeetModel`.
+        AppDefaults.defaults.string(forKey: AppDefaults.Key.selectedParakeetModel.rawValue)
+            ?? ParakeetModel.v3Multilingual.rawValue
     }
     
     // Curated list of quality MLX models for semantic correction

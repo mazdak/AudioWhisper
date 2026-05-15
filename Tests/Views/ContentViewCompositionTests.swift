@@ -1,5 +1,6 @@
 import XCTest
 import SwiftUI
+import AppKit
 @testable import AudioWhisper
 
 /// Tests for ContentView composition and subview assembly
@@ -84,20 +85,20 @@ final class ContentViewCompositionTests: XCTestCase {
         // This is a structural test
         let recorder = AudioEngineRecorder()
         let view = ContentView(audioRecorder: recorder)
+            .environmentObject(WindowCoordinator.shared)
+            .environment(PermissionManager.shared)
 
-        // View body can be accessed without crashing
-        _ = view.body
-        XCTAssertTrue(true, "Body composed successfully")
+        // View can be hosted without crashing
+        let hosting = NSHostingView(rootView: view)
+        XCTAssertNotNil(hosting)
     }
 
     // MARK: - Permission Manager Access Tests
 
     func testContentViewAccessesSharedPermissionManager() {
-        let recorder = AudioEngineRecorder()
-        let view = ContentView(audioRecorder: recorder)
-
-        // Should access the shared PermissionManager
-        XCTAssertNotNil(view.permissionManager)
+        // PermissionManager is provided via @Environment; verify the shared
+        // instance used by the wiring exists and is accessible.
+        XCTAssertNotNil(PermissionManager.shared)
     }
 
     // MARK: - State Property Tests

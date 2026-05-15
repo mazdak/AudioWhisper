@@ -108,13 +108,11 @@ internal final class LocalWhisperService: Sendable {
 
     /// Reads the persisted `selectedWhisperModel` and returns a `WhisperModel`,
     /// falling back to `defaultModel` if the stored value is empty or no longer
-    /// matches a known enum case. Use this any time a raw read of
-    /// `UserDefaults.standard.string(forKey: "selectedWhisperModel")` is needed
-    /// so that stale / hand-edited preferences cannot crash or silently
-    /// short-circuit the WhisperKit lookup.
+    /// matches a known enum case. Delegates to `AppDefaults.selectedWhisperModel`,
+    /// which already validates against the enum and falls back to `.base`
+    /// (== `defaultModel`).
     static var safeSelectedWhisperModel: WhisperModel {
-        let stored = UserDefaults.standard.string(forKey: "selectedWhisperModel") ?? ""
-        return WhisperModel(rawValue: stored) ?? defaultModel
+        AppDefaults.selectedWhisperModel
     }
 
     // Use actor isolation for thread-safe access to mutable state

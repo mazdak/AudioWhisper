@@ -86,7 +86,7 @@ internal class ModelManager {
         // Check storage limits
         let requiredSpace = model.estimatedSize
         let currentModelsSize = await getTotalModelsSize()
-        let maxStorageGB = UserDefaults.standard.object(forKey: "maxModelStorageGB") as? Double ?? 5.0
+        let maxStorageGB = AppDefaults.maxModelStorageGB
         let maxStorageBytes = Int64(maxStorageGB * 1024 * 1024 * 1024)
         
         if currentModelsSize + requiredSpace > maxStorageBytes {

@@ -92,7 +92,7 @@ internal extension AppDelegate {
     }
 
     func handleHotkey(source: HotkeyTriggerSource) {
-        let immediateRecording = UserDefaults.standard.bool(forKey: "immediateRecording")
+        let immediateRecording = AppDefaults.immediateRecording
 
         if immediateRecording {
             guard let recorder = audioRecorder else {

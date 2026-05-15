@@ -4,6 +4,7 @@ import AppKit
 import os.log
 
 internal struct DashboardPreferencesView: View {
+    @Environment(PermissionManager.self) private var permissionManager
     @AppStorage("startAtLogin") private var startAtLogin = true
     @AppStorage("immediateRecording") private var immediateRecording = true
     @AppStorage("autoBoostMicrophoneVolume") private var autoBoostMicrophoneVolume = false
@@ -92,8 +93,8 @@ internal struct DashboardPreferencesView: View {
                 .onChange(of: enableSmartPaste) { _, newValue in
                     if newValue {
                         // Check if accessibility is granted, if not show modal
-                        if PermissionManager.shared.accessibilityPermissionState != .granted {
-                            PermissionManager.shared.showAccessibilityModal = true
+                        if permissionManager.accessibilityPermissionState != .granted {
+                            permissionManager.showAccessibilityModal = true
                         }
                     }
                 }

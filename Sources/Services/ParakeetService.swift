@@ -71,8 +71,9 @@ internal class ParakeetService {
     /// hand-edited preferences from pointing the MLX daemon at a repo string
     /// that the app no longer recognises.
     var safeSelectedParakeetModel: ParakeetModel {
-        let stored = UserDefaults.standard.string(forKey: "selectedParakeetModel") ?? ""
-        return ParakeetModel(rawValue: stored) ?? Self.defaultModel
+        // `AppDefaults.selectedParakeetModel` already validates against the enum and
+        // falls back to `.v3Multilingual` (== `defaultModel`).
+        AppDefaults.selectedParakeetModel
     }
 
     private var selectedRepo: String {

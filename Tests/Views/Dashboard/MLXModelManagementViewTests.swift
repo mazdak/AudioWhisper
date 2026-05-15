@@ -1,5 +1,6 @@
 import XCTest
 import SwiftUI
+import AppKit
 @testable import AudioWhisper
 
 // MARK: - MLXModelManagementView Tests
@@ -23,8 +24,9 @@ final class MLXModelManagementViewTests: XCTestCase {
             set: { selectedModel = $0 }
         )
         let view = MLXModelManagementView(selectedModelRepo: binding)
-        let _ = view.body
-        XCTAssertTrue(true, "Body should not crash")
+            .environment(MLXModelManager.shared)
+        let hosting = NSHostingView(rootView: view)
+        XCTAssertNotNil(hosting)
     }
 
     func testSelectedModelBindingUpdates() {

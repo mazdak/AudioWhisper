@@ -140,8 +140,7 @@ internal extension ContentView {
     /// no longer call `SemanticCorrectionService.correct(...)` themselves.
     @MainActor
     private func runTranscriptionPipeline(audioURL: URL) async throws -> String {
-        let modeRaw = UserDefaults.standard.string(forKey: "semanticCorrectionMode") ?? SemanticCorrectionMode.off.rawValue
-        let mode = SemanticCorrectionMode(rawValue: modeRaw) ?? .off
+        let mode = AppDefaults.semanticCorrectionMode
         let sourceBundleId: String? = currentSourceAppInfo().bundleIdentifier
 
         let pipeline = TranscriptionPipeline(
@@ -189,7 +188,7 @@ internal extension ContentView {
         isProcessing = false
         viewModel.soundManager.playCompletionSound()
 
-        let enableSmartPaste = UserDefaults.standard.bool(forKey: "enableSmartPaste")
+        let enableSmartPaste = AppDefaults.enableSmartPaste
         Logger.paste.debug("showConfirmationAndPaste: enableSmartPaste = \(enableSmartPaste)")
         if enableSmartPaste {
             Logger.paste.debug("showConfirmationAndPaste: awaitingSemanticPaste = \(viewModel.awaitingSemanticPaste)")
@@ -270,9 +269,8 @@ internal extension ContentView {
 
                 await MainActor.run { PasteManager.copyToClipboard(text) }
 
-                let enableSmartPaste = UserDefaults.standard.bool(forKey: "enableSmartPaste")
-                let modeRaw = UserDefaults.standard.string(forKey: "semanticCorrectionMode") ?? SemanticCorrectionMode.off.rawValue
-                let mode = SemanticCorrectionMode(rawValue: modeRaw) ?? .off
+                let enableSmartPaste = AppDefaults.enableSmartPaste
+                let mode = AppDefaults.semanticCorrectionMode
                 let shouldAwaitSemanticForPaste = enableSmartPaste && (mode == .localMLX)
 
                 if shouldAwaitSemanticForPaste {
@@ -397,9 +395,7 @@ internal extension ContentView {
 
     private func isLocalModelInvocationPlanned() -> Bool {
         if transcriptionProvider == .local || transcriptionProvider == .parakeet { return true }
-        let modeRaw = UserDefaults.standard.string(forKey: "semanticCorrectionMode") ?? SemanticCorrectionMode.off.rawValue
-        let mode = SemanticCorrectionMode(rawValue: modeRaw) ?? .off
-        if mode == .localMLX { return true }
+        if AppDefaults.semanticCorrectionMode == .localMLX { return true }
         return false
     }
 }

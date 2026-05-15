@@ -84,7 +84,7 @@ final class AudioEngineRecorder: NSObject, ObservableObject, AudioRecording {
         }
 
         // Boost microphone volume if enabled
-        if UserDefaults.standard.autoBoostMicrophoneVolume {
+        if AppDefaults.autoBoostMicrophoneVolume {
             Task {
                 await volumeManager.boostMicrophoneVolume()
             }
@@ -147,7 +147,7 @@ final class AudioEngineRecorder: NSObject, ObservableObject, AudioRecording {
             recordingURL = nil
 
             // Restore volume if recording failed
-            if UserDefaults.standard.autoBoostMicrophoneVolume {
+            if AppDefaults.autoBoostMicrophoneVolume {
                 Task {
                     await volumeManager.restoreMicrophoneVolume()
                 }
@@ -176,7 +176,7 @@ final class AudioEngineRecorder: NSObject, ObservableObject, AudioRecording {
         stopEngine()
 
         // Restore microphone volume if it was boosted
-        if UserDefaults.standard.autoBoostMicrophoneVolume {
+        if AppDefaults.autoBoostMicrophoneVolume {
             Task {
                 await volumeManager.restoreMicrophoneVolume()
             }
@@ -195,7 +195,7 @@ final class AudioEngineRecorder: NSObject, ObservableObject, AudioRecording {
         stopEngine()
 
         // Restore microphone volume
-        if UserDefaults.standard.autoBoostMicrophoneVolume {
+        if AppDefaults.autoBoostMicrophoneVolume {
             Task {
                 await volumeManager.restoreMicrophoneVolume()
             }

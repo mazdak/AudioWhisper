@@ -200,9 +200,7 @@ final class RecordingViewModel {
                 lastAudioURL = audioURL
                 try Task.checkCancellation()
 
-                let modeRaw = UserDefaults.standard.string(forKey: "semanticCorrectionMode")
-                    ?? SemanticCorrectionMode.off.rawValue
-                let mode = SemanticCorrectionMode(rawValue: modeRaw) ?? .off
+                let mode = AppDefaults.semanticCorrectionMode
                 let sourceBundleId: String? = currentSourceAppInfo().bundleIdentifier
 
                 if mode != .off {
@@ -306,10 +304,7 @@ final class RecordingViewModel {
         if transcriptionProvider == .local || transcriptionProvider == .parakeet {
             return true
         }
-        let modeRaw = UserDefaults.standard.string(forKey: "semanticCorrectionMode")
-            ?? SemanticCorrectionMode.off.rawValue
-        let mode = SemanticCorrectionMode(rawValue: modeRaw) ?? .off
-        return mode == .localMLX
+        return AppDefaults.semanticCorrectionMode == .localMLX
     }
 
     private func recordSourceUsage(words: Int, characters: Int) {
@@ -436,7 +431,7 @@ final class RecordingViewModel {
         isProcessing = false
         soundManager.playCompletionSound()
 
-        let enableSmartPaste = UserDefaults.standard.bool(forKey: "enableSmartPaste")
+        let enableSmartPaste = AppDefaults.enableSmartPaste
         Logger.paste.debug("showConfirmationAndPaste: enableSmartPaste = \(enableSmartPaste)")
 
         if enableSmartPaste {

@@ -4,7 +4,7 @@ import ApplicationServices
 import AppKit
 
 internal struct DashboardPermissionsView: View {
-    private var permissionManager: PermissionManager { PermissionManager.shared }
+    @Environment(PermissionManager.self) private var permissionManager
     @AppStorage("enableSmartPaste") private var enableSmartPaste = true
 
     /// Computed from PermissionManager for accurate status display

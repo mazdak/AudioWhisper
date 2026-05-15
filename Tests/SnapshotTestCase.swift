@@ -37,6 +37,9 @@ class SnapshotTestCase: XCTestCase {
         let content = view
             .frame(width: size.width, height: size.height)
             .environment(\.colorScheme, colorScheme)
+            .environmentObject(WindowCoordinator.shared)
+            .environment(MLXModelManager.shared)
+            .environment(PermissionManager.shared)
         
         let renderer = ImageRenderer(content: content)
         renderer.scale = scale

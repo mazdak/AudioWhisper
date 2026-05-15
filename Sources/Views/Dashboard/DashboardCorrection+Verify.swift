@@ -184,7 +184,7 @@ extension DashboardCorrectionView {
                     isVerifyingMLX = false
                     if process.terminationStatus == 0 {
                         mlxVerifyMessage = lastMsg.isEmpty ? "Model verified" : lastMsg
-                        Task { await MLXModelManager.shared.refreshModelList() }
+                        Task { await modelManager.refreshModelList() }
                     } else {
                         if (mlxVerifyMessage ?? "").isEmpty { mlxVerifyMessage = "Verification failed" }
                     }
