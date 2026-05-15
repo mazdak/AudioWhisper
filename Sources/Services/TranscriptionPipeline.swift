@@ -23,9 +23,13 @@ internal class TranscriptionPipeline {
     // MARK: - Pipeline Execution
 
     /// Executes the full transcription pipeline with the given configuration.
-    /// Stages: (1) audio validation, (2) provider transcription, (3) optional semantic
-    /// correction. Audit item B1 plans to consolidate correction here so callers no
-    /// longer need to apply it inline in `SpeechToTextService`.
+    /// Stages: (1) audio validation, (2) provider transcription, (3) optional
+    /// semantic correction.
+    ///
+    /// As of audit item B1, this pipeline is the SOLE caller of
+    /// `SemanticCorrectionService`. `SpeechToTextService` only returns raw
+    /// transcripts. Any caller that needs corrected text must invoke this
+    /// method (or one of its convenience wrappers).
     /// - Parameters:
     ///   - audioURL: URL to the audio file to transcribe.
     ///   - config: Configuration for the transcription pipeline.
@@ -59,7 +63,11 @@ internal class TranscriptionPipeline {
         )
         logger.debug("Semantic correction completed")
 
-        return correctedText
+        // Guard against an empty/whitespace-only correction overwriting valid
+        // raw text. Matches the prior inline safety behaviour from
+        // `ContentView+Recording` and `RecordingViewModel`.
+        let trimmed = correctedText.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? rawText : correctedText
     }
 
     /// Convenience method that transcribes without semantic correction.

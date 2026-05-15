@@ -5,6 +5,9 @@ import AppKit
 @MainActor
 internal struct TranscriptionHistoryView: View {
     @Environment(\.modelContext) private var modelContext
+    // TODO(G2 follow-up): switch to paged loading via
+    // `DataManager.fetchRecords(limit:offset:search:)` with infinite scroll so
+    // we don't materialize the entire history into memory for the list view.
     @Query(sort: \TranscriptionRecord.date, order: .reverse) private var allRecords: [TranscriptionRecord]
     
     @State private var searchText = ""

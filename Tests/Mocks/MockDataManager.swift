@@ -118,6 +118,22 @@ final class MockDataManager: DataManagerProtocol {
         return results
     }
 
+    func fetchRecords(limit: Int, offset: Int, search: String?) async throws -> [TranscriptionRecord] {
+        fetchRecordsCallCount += 1
+        fetchRecordsLastQuery = search ?? ""
+
+        if shouldThrowOnFetch {
+            throw errorToThrow
+        }
+
+        var slice = recordsToReturn.sorted { $0.date > $1.date }
+        if let term = search, !term.isEmpty {
+            slice = slice.filter { $0.text.localizedStandardContains(term) }
+        }
+        guard offset < slice.count else { return [] }
+        return Array(slice.dropFirst(offset).prefix(limit))
+    }
+
     func deleteRecord(_ record: TranscriptionRecord) async throws {
         deleteRecordCallCount += 1
         deleteRecordLastRecord = record

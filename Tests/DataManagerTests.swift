@@ -335,6 +335,43 @@ final class DataManagerTests: XCTestCase {
         XCTAssertEqual(allRecords.count, 10, "Should return all matching records without pagination")
     }
     
+    func test_fetchRecords_paginatesAndFiltersBySearch() async throws {
+        dataManager.isHistoryEnabled = true
+
+        // Insert 10 records: 5 contain "hello", 5 contain "world"
+        for i in 0..<10 {
+            let text = (i % 2 == 0) ? "hello entry \(i)" : "world entry \(i)"
+            let record = TranscriptionRecord(text: text, provider: .local, duration: Double(i))
+            try await dataManager.saveTranscription(record)
+        }
+
+        // limit=5, offset=0 returns first 5 (newest first, unfiltered)
+        let firstPage = try await dataManager.fetchRecords(limit: 5, offset: 0, search: nil)
+        XCTAssertEqual(firstPage.count, 5)
+
+        // offset=5 returns next 5
+        let secondPage = try await dataManager.fetchRecords(limit: 5, offset: 5, search: nil)
+        XCTAssertEqual(secondPage.count, 5)
+
+        // Pages are disjoint
+        let firstIds = Set(firstPage.map { $0.id })
+        let secondIds = Set(secondPage.map { $0.id })
+        XCTAssertTrue(firstIds.isDisjoint(with: secondIds))
+
+        // search="hello" returns only matching records
+        let helloMatches = try await dataManager.fetchRecords(limit: 100, offset: 0, search: "hello")
+        XCTAssertEqual(helloMatches.count, 5)
+        XCTAssertTrue(helloMatches.allSatisfy { $0.text.localizedStandardContains("hello") })
+
+        // Empty search string is treated as no filter
+        let unfiltered = try await dataManager.fetchRecords(limit: 100, offset: 0, search: "")
+        XCTAssertEqual(unfiltered.count, 10)
+
+        // Offset past end returns empty
+        let empty = try await dataManager.fetchRecords(limit: 5, offset: 100, search: nil)
+        XCTAssertEqual(empty.count, 0)
+    }
+
     func testFullWorkflow() async throws {
         dataManager.isHistoryEnabled = true
         dataManager.retentionPeriod = .oneMonth

@@ -69,9 +69,22 @@ internal protocol DataManagerProtocol {
     
     func initialize() throws
     func saveTranscription(_ record: TranscriptionRecord) async throws
+    /// Fetches every record. Reserved for export / counter-rebuild flows; list
+    /// views should use `fetchRecords(limit:offset:search:)` to avoid loading
+    /// the whole history into memory.
     func fetchAllRecords() async throws -> [TranscriptionRecord]
     func fetchRecords(matching searchQuery: String) async throws -> [TranscriptionRecord]
     func fetchRecords(matching searchQuery: String, limit: Int?, offset: Int?) async throws -> [TranscriptionRecord]
+    /// Fetches a paginated, optionally search-filtered slice of records, sorted
+    /// by date descending. Use this from list views. `fetchAllRecords()` is
+    /// reserved for export / counter rebuild flows.
+    ///
+    /// - Parameters:
+    ///   - limit: Max records to return.
+    ///   - offset: Number of records to skip (for paging).
+    ///   - search: Case-insensitive substring filter over the transcript text;
+    ///             `nil` or empty disables filtering.
+    func fetchRecords(limit: Int, offset: Int, search: String?) async throws -> [TranscriptionRecord]
     func deleteRecord(_ record: TranscriptionRecord) async throws
     func deleteAllRecords() async throws
     func cleanupExpiredRecords() async throws
@@ -239,6 +252,35 @@ internal final class DataManager: DataManagerProtocol {
         }
     }
     
+    func fetchRecords(limit: Int, offset: Int, search: String?) async throws -> [TranscriptionRecord] {
+        guard let container = modelContainer else {
+            throw DataManagerError.modelContainerUnavailable
+        }
+
+        do {
+            let context = ModelContext(container)
+            var descriptor = FetchDescriptor<TranscriptionRecord>(
+                sortBy: [SortDescriptor(\.date, order: .reverse)]
+            )
+            descriptor.fetchLimit = limit
+            descriptor.fetchOffset = offset
+
+            if let term = search, !term.isEmpty {
+                let lowered = term
+                descriptor.predicate = #Predicate<TranscriptionRecord> { record in
+                    record.text.localizedStandardContains(lowered)
+                }
+            }
+
+            let records = try context.fetch(descriptor)
+            Logger.dataManager.debug("Paginated fetch: \(records.count) records (limit: \(limit), offset: \(offset), search: '\(search ?? "")')")
+            return records
+        } catch {
+            Logger.dataManager.error("Failed to paginate transcription records: \(error.localizedDescription)")
+            throw DataManagerError.fetchFailed(error)
+        }
+    }
+
     func deleteRecord(_ record: TranscriptionRecord) async throws {
         guard let container = modelContainer else {
             throw DataManagerError.modelContainerUnavailable
@@ -417,6 +459,15 @@ internal final class MockDataManager: DataManagerProtocol {
         return results
     }
     
+    func fetchRecords(limit: Int, offset: Int, search: String?) async throws -> [TranscriptionRecord] {
+        var slice = try await fetchAllRecords()
+        if let term = search, !term.isEmpty {
+            slice = slice.filter { $0.text.localizedStandardContains(term) }
+        }
+        guard offset < slice.count else { return [] }
+        return Array(slice.dropFirst(offset).prefix(limit))
+    }
+
     func deleteRecord(_ record: TranscriptionRecord) async throws {
         records.removeAll { $0.id == record.id }
 

@@ -119,6 +119,15 @@ private final class TestDataManager: DataManagerProtocol {
         records
     }
 
+    func fetchRecords(limit: Int, offset: Int, search: String?) async throws -> [TranscriptionRecord] {
+        var slice = records
+        if let term = search, !term.isEmpty {
+            slice = slice.filter { $0.text.localizedStandardContains(term) }
+        }
+        guard offset < slice.count else { return [] }
+        return Array(slice.dropFirst(offset).prefix(limit))
+    }
+
     func deleteRecord(_ record: TranscriptionRecord) async throws {
         records.removeAll { $0.id == record.id }
     }
